@@ -8,10 +8,28 @@ import TopProducts from '@/components/dashboard/top-products';
 import ActivityFeed from '@/components/dashboard/activity-feed';
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
+import { Suspense } from 'react';
+import { Card, CardContent } from '@/components/ui/card';
 
 export const metadata = {
   title: 'Dashboard | KRUSHI OS',
 };
+
+function ChartSkeleton() {
+  return (
+    <Card className="h-[350px] animate-pulse bg-muted/20 flex items-center justify-center">
+      <CardContent className="text-sm text-muted-foreground">Loading sales chart...</CardContent>
+    </Card>
+  );
+}
+
+function ListSkeleton() {
+  return (
+    <Card className="h-[350px] animate-pulse bg-muted/20 flex items-center justify-center">
+      <CardContent className="text-sm text-muted-foreground">Loading widget...</CardContent>
+    </Card>
+  );
+}
 
 export default async function DashboardPage() {
   const supabase = await createServerSupabaseClient();
@@ -42,43 +60,25 @@ export default async function DashboardPage() {
   }
 
   try {
-    const stats = await getDashboardStats(shopId);
+    const targetDate = new Date();
+    targetDate.setDate(targetDate.getDate() + 90);
 
-    let expiringBatches: any[] = [];
-    let lowStockProducts: any[] = [];
-    let activities: any[] = [];
+    const [stats, expRes, lowRes, actRes] = await Promise.all([
+      getDashboardStats(shopId),
+      (!isPlaceholder && user)
+        ? supabase.from('product_batches').select('*, product:products(*)').eq('shop_id', shopId).gt('quantity_available', 0).lte('expiry_date', targetDate.toISOString().split('T')[0]).order('expiry_date', { ascending: true }).limit(5)
+        : Promise.resolve({ data: [] }),
+      (!isPlaceholder && user)
+        ? supabase.from('products').select('*').eq('shop_id', shopId).eq('is_active', true).order('current_stock', { ascending: true }).limit(10)
+        : Promise.resolve({ data: [] }),
+      (!isPlaceholder && user)
+        ? supabase.from('audit_logs').select('*').eq('shop_id', shopId).order('created_at', { ascending: false }).limit(20)
+        : Promise.resolve({ data: [] })
+    ]);
 
-    if (!isPlaceholder && user) {
-      const targetDate = new Date();
-      targetDate.setDate(targetDate.getDate() + 90);
-
-      const { data: exp } = await supabase
-        .from('product_batches')
-        .select('*, product:products(*)')
-        .eq('shop_id', shopId)
-        .gt('quantity_available', 0)
-        .lte('expiry_date', targetDate.toISOString().split('T')[0])
-        .order('expiry_date', { ascending: true })
-        .limit(5);
-      expiringBatches = exp || [];
-
-      const { data: low } = await supabase
-        .from('products')
-        .select('*')
-        .eq('shop_id', shopId)
-        .eq('is_active', true)
-        .order('current_stock', { ascending: true })
-        .limit(10);
-      lowStockProducts = (low || []).filter((p: any) => p.current_stock <= (p.min_stock || 5)).slice(0, 5);
-
-      const { data: act } = await supabase
-        .from('audit_logs')
-        .select('*')
-        .eq('shop_id', shopId)
-        .order('created_at', { ascending: false })
-        .limit(20);
-      activities = act || [];
-    }
+    const expiringBatches = expRes.data || [];
+    const lowStockProducts = ((lowRes.data || []) as any[]).filter((p: any) => p.current_stock <= (p.min_stock || 5)).slice(0, 5);
+    const activities = actRes.data || [];
 
     return (
       <div className="flex flex-col gap-6 p-6">
@@ -88,27 +88,37 @@ export default async function DashboardPage() {
         
         <div className="grid grid-cols-1 lg:grid-cols-7 gap-6">
           <div className="lg:col-span-4">
-            <SalesChart data={stats.salesChart as any} />
+            <Suspense fallback={<ChartSkeleton />}>
+              <SalesChart data={stats.salesChart as any} />
+            </Suspense>
           </div>
           <div className="lg:col-span-3">
-            <TopProducts products={stats.topProducts as any} />
+            <Suspense fallback={<ListSkeleton />}>
+              <TopProducts products={stats.topProducts as any} />
+            </Suspense>
           </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-7 gap-6">
           <div className="lg:col-span-4">
-            <RecentSales sales={stats.recentSales as any} />
+            <Suspense fallback={<ListSkeleton />}>
+              <RecentSales sales={stats.recentSales as any} />
+            </Suspense>
           </div>
           <div className="lg:col-span-3">
-            <AlertsPanel 
-              lowStockProducts={lowStockProducts || []} 
-              expiringBatches={expiringBatches || []} 
-            />
+            <Suspense fallback={<ListSkeleton />}>
+              <AlertsPanel 
+                lowStockProducts={lowStockProducts || []} 
+                expiringBatches={expiringBatches || []} 
+              />
+            </Suspense>
           </div>
         </div>
 
         <div className="grid grid-cols-1">
-          <ActivityFeed activities={activities || []} />
+          <Suspense fallback={<ListSkeleton />}>
+            <ActivityFeed activities={activities || []} />
+          </Suspense>
         </div>
       </div>
     );

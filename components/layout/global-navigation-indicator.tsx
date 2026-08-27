@@ -67,7 +67,7 @@ export function GlobalNavigationIndicator() {
       if (timerRef.current) clearTimeout(timerRef.current);
       timerRef.current = setTimeout(() => {
         setIsNavigating(true);
-      }, 180);
+      }, 200);
     };
 
     document.addEventListener('click', handleAnchorClick, true);

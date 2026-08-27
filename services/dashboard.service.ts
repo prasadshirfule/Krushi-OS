@@ -5,33 +5,33 @@ export async function getDashboardStats(shopId: string) {
   try {
     const supabase = await createServerSupabaseClient();
     
-    const todaySales = await getTodaySales(shopId);
-    
-    const { data: custData } = await supabase
-      .from('customers')
-      .select('outstanding')
-      .eq('shop_id', shopId);
+    // Execute all independent dashboard queries in parallel to eliminate waterfalls
+    const [
+      todaySales,
+      custRes,
+      supRes,
+      recentSalesRes,
+      countsRes,
+      salesChart,
+      topProductsRes
+    ] = await Promise.all([
+      getTodaySales(shopId),
+      supabase.from('customers').select('outstanding').eq('shop_id', shopId),
+      supabase.from('suppliers').select('outstanding').eq('shop_id', shopId),
+      supabase.from('sales').select('*, customer:customers(id, name, mobile)').eq('shop_id', shopId).order('created_at', { ascending: false }).limit(10),
+      supabase.rpc('get_dashboard_counts', { p_shop_id: shopId }),
+      getSalesChart(shopId, 'daily'),
+      supabase.rpc('get_top_products', { p_shop_id: shopId, p_limit: 5 })
+    ]);
 
-    const totalOutstanding = custData?.reduce((acc, curr) => acc + Number(curr.outstanding || 0), 0) || 0;
-    
-    const { data: supData } = await supabase
-      .from('suppliers')
-      .select('outstanding')
-      .eq('shop_id', shopId);
+    const custData = custRes.data || [];
+    const supData = supRes.data || [];
+    const recentSales = recentSalesRes.data || [];
+    const counts = countsRes.data;
+    const topProducts = topProductsRes.data || [];
 
-    const totalPayable = supData?.reduce((acc, curr) => acc + Number(curr.outstanding || 0), 0) || 0;
-
-    const { data: recentSales } = await supabase
-      .from('sales')
-      .select('*, customer:customers(id, name, mobile)')
-      .eq('shop_id', shopId)
-      .order('created_at', { ascending: false })
-      .limit(10);
-    
-    const { data: counts } = await supabase.rpc('get_dashboard_counts', { p_shop_id: shopId });
-    
-    const salesChart = await getSalesChart(shopId, 'daily');
-    const { data: topProducts } = await supabase.rpc('get_top_products', { p_shop_id: shopId, p_limit: 5 });
+    const totalOutstanding = custData.reduce((acc, curr) => acc + Number(curr.outstanding || 0), 0);
+    const totalPayable = supData.reduce((acc, curr) => acc + Number(curr.outstanding || 0), 0);
 
     return {
       todaySales,
@@ -39,8 +39,8 @@ export async function getDashboardStats(shopId: string) {
       totalPayable,
       lowStockCount: counts?.low_stock_count || 0,
       expiringCount: counts?.expiring_count || 0,
-      recentSales: recentSales || [],
-      topProducts: topProducts || [],
+      recentSales,
+      topProducts,
       salesChart: salesChart || []
     };
   } catch (error) {

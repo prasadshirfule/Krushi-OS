@@ -73,14 +73,16 @@ export async function getInventoryReport(shopId: string, params: any = {}) {
 export async function getFinancialReport(shopId: string, params: { dateFrom?: string, dateTo?: string } = {}) {
   try {
     const supabase = await createServerSupabaseClient();
-    const salesReport = await getSalesReport(shopId, params);
-
-    let expenseQuery = supabase.from('expenses').select('*').eq('shop_id', shopId);
+    let expenseQuery = supabase.from('expenses').select('amount').eq('shop_id', shopId);
     if (params.dateFrom) expenseQuery = expenseQuery.gte('date', params.dateFrom);
     if (params.dateTo) expenseQuery = expenseQuery.lte('date', params.dateTo);
 
-    const { data: expenses } = await expenseQuery;
-    const totalExpenses = (expenses || []).reduce((acc, e) => acc + Number(e.amount || 0), 0);
+    const [salesReport, expenseRes] = await Promise.all([
+      getSalesReport(shopId, params),
+      expenseQuery
+    ]);
+
+    const totalExpenses = (expenseRes.data || []).reduce((acc, e) => acc + Number(e.amount || 0), 0);
     const grossProfit = salesReport.totalProfit;
     const netProfit = grossProfit - totalExpenses;
 
