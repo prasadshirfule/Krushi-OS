@@ -6,6 +6,19 @@ import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { FileText } from 'lucide-react';
+import { format, parseISO } from 'date-fns';
+
+const safeFormatDate = (dateVal: any, formatStr: string) => {
+  if (!dateVal) return '';
+  try {
+    const d = typeof dateVal === 'string' ? parseISO(dateVal) : new Date(dateVal);
+    // fallback to new Date() if parseISO returns Invalid Date
+    const validDate = isNaN(d.getTime()) ? new Date(dateVal) : d;
+    return format(validDate, formatStr);
+  } catch (e) {
+    return '';
+  }
+};
 
 export default async function SalesPage({ searchParams }: { searchParams: Promise<any> }) {
   const params = await searchParams;
@@ -15,7 +28,11 @@ export default async function SalesPage({ searchParams }: { searchParams: Promis
     ? (Array.isArray(salesRes.data) ? salesRes.data : salesRes.data?.sales || []) 
     : [];
   
-  const todaySales = sales.filter((s: any) => new Date(s.sale_date || s.created_at).toDateString() === new Date().toDateString());
+  const todayDateStr = format(new Date(), 'yyyy-MM-dd');
+  const todaySales = sales.filter((s: any) => {
+    const val = s.sale_date || s.created_at;
+    return val ? safeFormatDate(val, 'yyyy-MM-dd') === todayDateStr : false;
+  });
   const todayRevenue = todaySales.reduce((acc: number, s: any) => acc + (s.grand_total ?? s.totalAmount ?? 0), 0);
 
   return (
@@ -59,7 +76,7 @@ export default async function SalesPage({ searchParams }: { searchParams: Promis
                 sales.map((sale: any) => (
                   <tr key={sale.id} className="border-b hover:bg-muted/20">
                     <td className="p-4 font-mono">{sale.invoice_number || sale.invoiceNumber || sale.id.substring(0, 8).toUpperCase()}</td>
-                    <td className="p-4">{new Date(sale.sale_date || sale.created_at).toLocaleString()}</td>
+                    <td className="p-4">{safeFormatDate(sale.sale_date || sale.created_at, 'MMM d, yyyy h:mm a')}</td>
                     <td className="p-4">{sale.customer?.name || 'Walk-in Customer'}</td>
                     <td className="p-4 text-right font-medium">{formatCurrency(sale.grand_total ?? sale.totalAmount ?? 0)}</td>
                     <td className="p-4 text-center">

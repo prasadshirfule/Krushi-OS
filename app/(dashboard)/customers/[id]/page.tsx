@@ -3,7 +3,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CustomerLedger } from '@/components/customers/customer-ledger';
 import Link from 'next/link';
 
-export default async function CustomerDetailPage({ params }: { params: { id: string } }) {
+export default async function CustomerDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -53,7 +54,7 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
           <TabsTrigger value="payments">Payments</TabsTrigger>
         </TabsList>
         <TabsContent value="ledger" className="mt-4">
-          <CustomerLedger customerId={params.id} />
+          <CustomerLedger customerId={id} />
         </TabsContent>
         <TabsContent value="purchases" className="mt-4">
           <div className="p-4 border rounded-lg text-center text-muted-foreground">Purchase history table will appear here.</div>
