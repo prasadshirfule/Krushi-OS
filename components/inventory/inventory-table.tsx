@@ -5,7 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { formatCurrency } from "@/lib/utils";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Eye } from "lucide-react";
+import { Eye, Warehouse } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
 
 interface InventoryTableProps {
   initialItems?: any[];
@@ -89,15 +90,18 @@ export function InventoryTable({ initialItems = [] }: InventoryTableProps) {
 
   if (initialItems.length === 0) {
     return (
-      <div className="rounded-xl border border-dashed p-12 text-center text-muted-foreground bg-card">
-        <h3 className="text-lg font-semibold mb-1">No Inventory Items Found</h3>
-        <p className="text-sm max-w-sm mx-auto mb-4">
-          Add products and record purchases with opening stock to track inventory.
-        </p>
-        <Link href="/products/new">
-          <Button className="bg-primary">Add Product</Button>
-        </Link>
-      </div>
+      <EmptyState
+        icon={<Warehouse className="h-10 w-10 text-muted-foreground/50" />}
+        title="No inventory items yet"
+        description="Your inventory will populate automatically when you add products with opening stock or record purchases from suppliers."
+        actionLabel="+ Add Product"
+        actionHref="/products/new"
+        guidanceSteps={[
+          { label: 'Categories', href: '/categories' },
+          { label: 'Products', href: '/products/new' },
+          { label: 'Purchases (Stock In)', href: '/purchases/new' },
+        ]}
+      />
     );
   }
 

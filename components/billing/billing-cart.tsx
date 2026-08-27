@@ -6,7 +6,8 @@ import { calculateItemTotal } from '@/lib/calculations';
 import { formatCurrency } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Trash2 } from 'lucide-react';
+import { Trash2, ShoppingBasket } from 'lucide-react';
+import Link from 'next/link';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 interface BillingCartProps {
@@ -52,8 +53,20 @@ export default function BillingCart({ items, onChange, onClear }: BillingCartPro
           <TableBody>
             {items.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center h-32 text-muted-foreground">
-                  Cart is empty. Search for products to add.
+                <TableCell colSpan={8} className="h-48">
+                  <div className="flex flex-col items-center justify-center text-center gap-2">
+                    <ShoppingBasket className="h-10 w-10 text-muted-foreground/40" />
+                    <p className="text-sm font-medium text-muted-foreground">Your cart is empty</p>
+                    <p className="text-xs text-muted-foreground max-w-xs">
+                      Use the product search (F4) on the left to find and add items to this bill.
+                    </p>
+                    <p className="text-[11px] text-muted-foreground/70 mt-1">
+                      No products yet? Start by adding{' '}
+                      <Link href="/categories" className="text-primary underline">Categories</Link>{' → '}
+                      <Link href="/products/new" className="text-primary underline">Products</Link>{' → '}
+                      <Link href="/purchases/new" className="text-primary underline">Purchases</Link>{' → then use Billing.'}
+                    </p>
+                  </div>
                 </TableCell>
               </TableRow>
             ) : (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,44 +11,80 @@ import { toast } from "sonner";
 import { Store, Receipt, Printer, Percent, ShieldCheck, Save, LogOut } from "lucide-react";
 import { useRouter } from "next/navigation";
 
-export default function SettingsPage() {
-  const router = useRouter();
-  const [activeTab, setActiveTab] = useState("shop");
-  const [isSaving, setIsSaving] = useState(false);
-
-  const [shopSettings, setShopSettings] = useState({
+const DEFAULTS = {
+  shop: {
     name: "Krushi Seva Kendra",
     address: "Main Market Road, Near Mandi Yard, Sehore, MP - 466001",
     phone: "9876543210",
     email: "contact@krushiseva.com",
     owner: "Prasad Mahajan",
-  });
-
-  const [invoiceSettings, setInvoiceSettings] = useState({
+  },
+  invoice: {
     prefix: "KOS",
     nextNumber: "1003",
     terms: "1. Goods once sold will not be taken back without valid batch receipt.\n2. Interest @ 18% p.a. charged on credit khata balances past 30 days.",
     footer: "Thank you for supporting sustainable agriculture!",
-  });
-
-  const [printSettings, setPrintSettings] = useState({
+  },
+  print: {
     format: "A4",
     copies: "2",
     showLogo: "true",
-  });
-
-  const [taxSettings, setTaxSettings] = useState({
+  },
+  tax: {
     defaultGst: "18",
     gstin: "23AAACK1234F1Z9",
     stateCode: "23 - Madhya Pradesh",
-  });
+  },
+};
+
+function loadSetting<T>(key: string, fallback: T): T {
+  if (typeof window === 'undefined') return fallback;
+  try {
+    const stored = localStorage.getItem(`krushi_settings_${key}`);
+    return stored ? JSON.parse(stored) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function saveSetting(key: string, value: any) {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(`krushi_settings_${key}`, JSON.stringify(value));
+}
+
+export default function SettingsPage() {
+  const router = useRouter();
+  const [activeTab, setActiveTab] = useState("shop");
+  const [isSaving, setIsSaving] = useState(false);
+
+  const [shopSettings, setShopSettings] = useState(DEFAULTS.shop);
+  const [invoiceSettings, setInvoiceSettings] = useState(DEFAULTS.invoice);
+  const [printSettings, setPrintSettings] = useState(DEFAULTS.print);
+  const [taxSettings, setTaxSettings] = useState(DEFAULTS.tax);
+
+  // Load persisted settings on mount
+  useEffect(() => {
+    setShopSettings(loadSetting('shop', DEFAULTS.shop));
+    setInvoiceSettings(loadSetting('invoice', DEFAULTS.invoice));
+    setPrintSettings(loadSetting('print', DEFAULTS.print));
+    setTaxSettings(loadSetting('tax', DEFAULTS.tax));
+  }, []);
 
   const handleSave = (section: string) => {
     setIsSaving(true);
-    setTimeout(() => {
+    try {
+      switch (section) {
+        case 'Shop Profile': saveSetting('shop', shopSettings); break;
+        case 'Invoice': saveSetting('invoice', invoiceSettings); break;
+        case 'Print Layout': saveSetting('print', printSettings); break;
+        case 'GST & Tax': saveSetting('tax', taxSettings); break;
+      }
+      toast.success(`${section} settings saved successfully!`);
+    } catch {
+      toast.error(`Failed to save ${section} settings`);
+    } finally {
       setIsSaving(false);
-      toast.success(`${section} settings updated successfully!`);
-    }, 400);
+    }
   };
 
   const handleLogout = () => {

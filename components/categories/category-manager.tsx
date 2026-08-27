@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { createCategoryAction } from '@/actions/products';
 import { toast } from 'sonner';
 import { Plus, Grid3X3 } from 'lucide-react';
+import { EmptyState } from '@/components/ui/empty-state';
 
 export function CategoryManager({ categories }: { categories: any[] }) {
   const [open, setOpen] = useState(false);
@@ -87,20 +88,30 @@ export function CategoryManager({ categories }: { categories: any[] }) {
         </Dialog>
       </div>
 
-      <DataTable
-        columns={[
-          { accessorKey: "name", header: "Category Name" },
-          { accessorKey: "description", header: "Description" },
-          { 
-            accessorKey: "count", 
-            header: "Products Count",
-            cell: ({ row }: any) => <span className="font-semibold text-primary">{row.original.count ?? 0} items</span>
-          },
-        ]}
-        data={categories}
-        searchKey="name"
-        searchPlaceholder="Search categories..."
-      />
+      {categories.length === 0 ? (
+        <EmptyState
+          icon={<Grid3X3 className="h-10 w-10 text-muted-foreground/50" />}
+          title="No categories created yet"
+          description="Categories help organize your products (e.g. Fertilizers, Pesticides, Seeds, Tools). Start by creating your first category."
+          actionLabel="+ Add Category"
+          actionHref="#"
+        />
+      ) : (
+        <DataTable
+          columns={[
+            { accessorKey: "name", header: "Category Name" },
+            { accessorKey: "description", header: "Description" },
+            { 
+              accessorKey: "count", 
+              header: "Products Count",
+              cell: ({ row }: any) => <span className="font-semibold text-primary">{row.original.count ?? 0} items</span>
+            },
+          ]}
+          data={categories}
+          searchKey="name"
+          searchPlaceholder="Search categories..."
+        />
+      )}
     </div>
   );
 }

@@ -93,12 +93,26 @@ export const columns: ColumnDef<any>[] = [
   },
 ];
 
+import { EmptyState } from "@/components/ui/empty-state";
+import { Package } from "lucide-react";
+
 export function ProductTable({ initialData = [], categories = [] }: { initialData?: any[], categories?: any[] }) {
   if (initialData.length === 0) {
     return (
-      <div className="rounded-md border border-dashed p-8 text-center text-muted-foreground">
-        No products found in catalog. Click &quot;Add Product&quot; to create a new product.
-      </div>
+      <EmptyState
+        icon={<Package className="h-10 w-10 text-muted-foreground/50" />}
+        title="No products in your catalog yet"
+        description="Add your first agricultural product — seeds, fertilizers, pesticides, or equipment."
+        actionLabel="+ Add Product"
+        actionHref="/products/new"
+        guidanceSteps={[
+          { label: 'Categories', href: '/categories' },
+          { label: 'Products', href: '/products/new' },
+          { label: 'Suppliers', href: '/suppliers' },
+          { label: 'Purchases (Stock In)', href: '/purchases/new' },
+          { label: 'Billing / POS', href: '/billing' },
+        ]}
+      />
     );
   }
 

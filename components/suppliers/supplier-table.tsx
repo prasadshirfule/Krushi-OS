@@ -5,7 +5,8 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { formatCurrency } from '@/lib/utils';
-import { Eye, Plus } from 'lucide-react';
+import { Eye, Plus, Truck } from 'lucide-react';
+import { EmptyState } from '@/components/ui/empty-state';
 
 interface SupplierTableProps {
   initialData?: any[];
@@ -84,17 +85,19 @@ export function SupplierTable({ initialData = [] }: SupplierTableProps) {
 
   if (initialData.length === 0) {
     return (
-      <div className="rounded-xl border border-dashed p-12 text-center text-muted-foreground bg-card">
-        <h3 className="text-lg font-semibold mb-1">No Suppliers Registered</h3>
-        <p className="text-sm max-w-sm mx-auto mb-4">
-          Add seed, fertilizer, and pesticide distributors to record purchases and invoices.
-        </p>
-        <Link href="/suppliers/new">
-          <Button className="bg-primary">
-            <Plus className="h-4 w-4 mr-1" /> Add Supplier
-          </Button>
-        </Link>
-      </div>
+      <EmptyState
+        icon={<Truck className="h-10 w-10 text-muted-foreground/50" />}
+        title="No suppliers registered yet"
+        description="Add seed, fertilizer, and pesticide distributors to record purchases and track payables."
+        actionLabel="+ Add Supplier"
+        actionHref="/suppliers/new"
+        guidanceSteps={[
+          { label: 'Categories', href: '/categories' },
+          { label: 'Products', href: '/products/new' },
+          { label: 'Suppliers', href: '/suppliers/new' },
+          { label: 'Purchases (Stock In)', href: '/purchases/new' },
+        ]}
+      />
     );
   }
 

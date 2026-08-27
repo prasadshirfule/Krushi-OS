@@ -5,7 +5,8 @@ import { searchProductsAction } from '@/actions/products';
 import { getBatchesAction } from '@/actions/inventory';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Search, ShoppingCart, AlertTriangle } from 'lucide-react';
+import { Search, ShoppingCart, AlertTriangle, PackageOpen } from 'lucide-react';
+import Link from 'next/link';
 import { formatCurrency } from '@/lib/utils';
 import { useDebounce } from '@/hooks/use-debounce';
 
@@ -107,7 +108,24 @@ export default function ProductSearch({ onAddToCart }: { onAddToCart: (item: any
         {loading && <div className="p-4 text-center text-sm text-muted-foreground">Searching...</div>}
         
         {!loading && query && results.length === 0 && (
-          <div className="p-4 text-center text-sm text-muted-foreground">No products found.</div>
+          <div className="flex flex-col items-center justify-center p-6 gap-2">
+            <PackageOpen className="h-8 w-8 text-muted-foreground/40" />
+            <p className="text-sm text-muted-foreground">No products found for &ldquo;{query}&rdquo;</p>
+            <p className="text-[11px] text-muted-foreground/70 text-center">
+              Need to add products first?{' '}
+              <Link href="/products/new" className="text-primary underline">Add Product</Link>
+            </p>
+          </div>
+        )}
+
+        {!query && recentProducts.length === 0 && (
+          <div className="flex flex-col items-center justify-center p-8 gap-2">
+            <PackageOpen className="h-10 w-10 text-muted-foreground/30" />
+            <p className="text-sm font-medium text-muted-foreground">Search for a product to begin</p>
+            <p className="text-xs text-muted-foreground text-center max-w-[220px]">
+              Type a product name, SKU, or scan a barcode above.
+            </p>
+          </div>
         )}
 
         {!query && recentProducts.length > 0 && (

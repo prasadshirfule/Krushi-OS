@@ -3,6 +3,8 @@
 import { DataTable } from "@/components/ui/data-table";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Receipt } from "lucide-react";
 
 interface ExpenseTableProps {
   initialExpenses?: any[];
@@ -46,12 +48,11 @@ export function ExpenseTable({ initialExpenses = [] }: ExpenseTableProps) {
 
   if (initialExpenses.length === 0) {
     return (
-      <div className="rounded-xl border border-dashed p-12 text-center text-muted-foreground bg-card">
-        <h3 className="text-lg font-semibold mb-1">No Expenses Recorded</h3>
-        <p className="text-sm max-w-sm mx-auto">
-          Record electricity bills, shop rent, transport charges, and daily operational expenses.
-        </p>
-      </div>
+      <EmptyState
+        icon={<Receipt className="h-10 w-10 text-muted-foreground/50" />}
+        title="No expenses recorded yet"
+        description="Track shop rent, electricity, salaries, transport charges, and other daily operational costs here."
+      />
     );
   }
 

@@ -6,6 +6,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { formatCurrency } from '@/lib/utils';
 
+import { EmptyState } from '@/components/ui/empty-state';
+import { Users } from 'lucide-react';
+
 export function CustomerTable({ initialData = [] }: { initialData?: any[] }) {
   const columns = [
     { 
@@ -59,9 +62,13 @@ export function CustomerTable({ initialData = [] }: { initialData?: any[] }) {
 
   if (initialData.length === 0) {
     return (
-      <div className="rounded-md border border-dashed p-8 text-center text-muted-foreground">
-        No customer records found. Click &quot;Add Customer&quot; to register farmers/customers.
-      </div>
+      <EmptyState
+        icon={<Users className="h-10 w-10 text-muted-foreground/50" />}
+        title="No customers registered yet"
+        description="Register your farmer customers to track their purchases, credit (udhar), and payment history."
+        actionLabel="+ Add Customer"
+        actionHref="/customers/new"
+      />
     );
   }
 

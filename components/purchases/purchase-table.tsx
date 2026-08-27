@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import { EmptyState } from '@/components/ui/empty-state';
+import { ShoppingBag } from 'lucide-react';
 
 export function PurchaseTable({ initialData = [] }: { initialData?: any[] }) {
   const columns = [
@@ -62,9 +64,20 @@ export function PurchaseTable({ initialData = [] }: { initialData?: any[] }) {
 
   if (initialData.length === 0) {
     return (
-      <div className="rounded-md border border-dashed p-8 text-center text-muted-foreground">
-        No purchase records found. Click &quot;New Purchase&quot; to log stock received from suppliers.
-      </div>
+      <EmptyState
+        icon={<ShoppingBag className="h-10 w-10 text-muted-foreground/50" />}
+        title="No purchases recorded yet"
+        description="Record stock received from suppliers to build your inventory. Each purchase automatically updates product stock levels."
+        actionLabel="+ New Purchase"
+        actionHref="/purchases/new"
+        guidanceSteps={[
+          { label: 'Categories', href: '/categories' },
+          { label: 'Products', href: '/products/new' },
+          { label: 'Suppliers', href: '/suppliers/new' },
+          { label: 'Purchases (Stock In)', href: '/purchases/new' },
+          { label: 'Billing / POS', href: '/billing' },
+        ]}
+      />
     );
   }
 

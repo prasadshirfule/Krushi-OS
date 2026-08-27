@@ -34,7 +34,14 @@ export default function PaymentPanel({ cart, totals, onComplete }: PaymentPanelP
   }, [cart, customerId, paymentMethod, totals]);
 
   const handleCompleteSale = async () => {
-    if (cart.length === 0) return;
+    if (cart.length === 0) {
+      toast.warning('Cart is empty. Add products before completing a sale.');
+      return;
+    }
+    if (!totals.payableAmount || totals.payableAmount <= 0) {
+      toast.warning('Grand total must be greater than ₹0 to complete a sale.');
+      return;
+    }
     if (paymentMethod === 'Credit' && !customerId) {
       toast.error('Customer is required for credit sales');
       return;
