@@ -1,6 +1,8 @@
 import { getNotificationsAction } from "@/actions/notifications";
 import { NotificationList } from "@/components/notifications/notification-list";
 
+export const dynamic = 'force-dynamic';
+
 export const metadata = {
   title: 'Notifications | KRUSHI OS',
 };

@@ -52,9 +52,8 @@ export default function SettingsPage() {
   };
 
   const handleLogout = () => {
-    document.cookie = "krushi_demo_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
     toast.info("Logged out successfully");
-    router.push("/login");
+    router.push("/dashboard");
   };
 
   return (

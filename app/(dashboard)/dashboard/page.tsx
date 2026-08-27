@@ -39,11 +39,7 @@ export default async function DashboardPage() {
   const isDemo = cookieStore.get('krushi_demo_session')?.value === 'true';
   const isPlaceholder = !process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('placeholder');
 
-  const effectiveUser = user || ((isDemo || isPlaceholder) ? { id: 'demo-admin-id', email: 'admin@krushios.com' } : null);
-
-  if (!effectiveUser) {
-    redirect('/login');
-  }
+  const effectiveUser = user || { id: 'demo-admin-id', email: 'admin@krushios.com' };
 
   let shopId = 'demo-shop-1';
   if (user && !isPlaceholder) {

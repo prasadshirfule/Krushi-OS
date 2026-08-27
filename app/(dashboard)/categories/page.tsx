@@ -1,6 +1,8 @@
 import { getCategoriesAction } from "@/actions/products";
 import { CategoryManager } from "@/components/categories/category-manager";
 
+export const dynamic = 'force-dynamic';
+
 export const metadata = {
   title: 'Categories | KRUSHI OS',
 };

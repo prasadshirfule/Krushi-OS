@@ -1,9 +1,7 @@
-import { redirect } from 'next/navigation'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { Sidebar } from '@/components/layout/sidebar'
 import { Header } from '@/components/layout/header'
 import { GlobalNavigationIndicator } from '@/components/layout/global-navigation-indicator'
-import { cookies } from 'next/headers'
 import { Suspense } from 'react'
 
 export default async function DashboardLayout({
@@ -14,18 +12,10 @@ export default async function DashboardLayout({
   const supabase = await createServerSupabaseClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  const cookieStore = await cookies()
-  const isDemo = cookieStore.get('krushi_demo_session')?.value === 'true'
-  const isPlaceholder = !process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('placeholder')
-
-  const effectiveUser = user || ((isDemo || isPlaceholder) ? {
+  const effectiveUser = user || {
     id: 'demo-admin-id',
     email: 'admin@krushios.com',
-    user_metadata: { role: 'admin', full_name: 'Demo Admin' }
-  } : null)
-
-  if (!effectiveUser) {
-    redirect('/login')
+    user_metadata: { role: 'admin', full_name: 'Krushi Admin' }
   }
 
   return (

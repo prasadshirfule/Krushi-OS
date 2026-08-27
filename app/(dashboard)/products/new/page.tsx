@@ -1,6 +1,8 @@
 import { ProductForm } from "@/components/products/product-form";
 import { getCategoriesAction, getBrandsAction } from "@/actions/products";
 
+export const dynamic = 'force-dynamic';
+
 export default async function NewProductPage() {
   const [catRes, brandRes] = await Promise.all([
     getCategoriesAction(),

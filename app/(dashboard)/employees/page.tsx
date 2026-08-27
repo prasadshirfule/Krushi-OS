@@ -3,6 +3,8 @@ import { EmployeeFormDialog } from "@/components/employees/employee-form-dialog"
 import { DataTable } from "@/components/ui/data-table";
 import { Badge } from "@/components/ui/badge";
 
+export const dynamic = 'force-dynamic';
+
 export const metadata = {
   title: 'Employees | KRUSHI OS',
 };
