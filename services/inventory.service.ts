@@ -99,22 +99,45 @@ export async function getBatchesForProduct(shopId: string, productId: string) {
   }
 }
 
-export async function createBatch(shopId: string, data: BatchInput) {
+export async function createBatch(shopId: string, data: BatchInput, userId?: string) {
   const supabase = await createServerSupabaseClient();
+  
+  // Create batch shell with initial quantity_available = 0
   const { data: batch, error } = await supabase
     .from('product_batches')
     .insert({ 
       ...data, 
       shop_id: shopId, 
-      quantity_available: data.quantity_received 
+      quantity_available: 0 
     })
     .select()
     .single();
 
   if (error) {
-    console.error("Error creating batch:", error);
+    console.error("Error creating batch shell:", error);
     throw error;
   }
+
+  // Route opening quantity through Central Stock Movement Engine
+  if (data.quantity_received && data.quantity_received > 0) {
+    const { error: stockErr } = await supabase.rpc('process_stock_movement', {
+      p_shop_id: shopId,
+      p_product_id: data.product_id,
+      p_batch_id: batch.id,
+      p_transaction_type: 'OPENING_STOCK',
+      p_quantity_change: data.quantity_received,
+      p_reason: 'Manual Batch Initialization',
+      p_reference_type: 'BATCH_CREATE',
+      p_reference_id: batch.id,
+      p_user_id: userId || null
+    });
+
+    if (stockErr) {
+      console.error("Failed to process stock movement for batch creation:", stockErr);
+      throw stockErr;
+    }
+  }
+
   return batch;
 }
 
@@ -126,7 +149,7 @@ export async function adjustStock(shopId: string, data: StockAdjustmentInput, us
     p_batch_id: data.batch_id || null,
     p_type: data.adjustment_type,
     p_quantity: data.quantity_change,
-    p_reason: data.reason || null,
+    p_reason: data.reason || 'Inventory Adjustment',
     p_user_id: userId
   });
 
