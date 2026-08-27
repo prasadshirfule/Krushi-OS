@@ -7,6 +7,7 @@ import Link from 'next/link';
 
 export interface DashboardStats {
   todaySales: {
+    total?: number;
     total_sales?: number;
     amount?: number;
     profit?: number;
@@ -23,9 +24,10 @@ interface StatsCardsProps {
 }
 
 export default function StatsCards({ stats }: StatsCardsProps) {
-  const salesAmount = stats.todaySales?.amount || stats.todaySales?.total_sales || 0;
-  const salesProfit = stats.todaySales?.profit || 0;
-  const salesCount = stats.todaySales?.count || 0;
+  const salesAmount = Number(stats?.todaySales?.total ?? stats?.todaySales?.amount ?? stats?.todaySales?.total_sales ?? 0);
+  const salesProfit = Number(stats?.todaySales?.profit ?? 0);
+  const salesCount = Number(stats?.todaySales?.count ?? 0);
+  const totalOutstanding = Number(stats?.totalOutstanding ?? 0);
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
@@ -65,10 +67,10 @@ export default function StatsCards({ stats }: StatsCardsProps) {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Outstanding</CardTitle>
-          <CreditCard className={`h-4 w-4 ${stats.totalOutstanding > 50000 ? 'text-red-600' : 'text-orange-600'}`} />
+          <CreditCard className={`h-4 w-4 ${totalOutstanding > 50000 ? 'text-red-600' : 'text-orange-600'}`} />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{formatCurrency(stats.totalOutstanding)}</div>
+          <div className="text-2xl font-bold">{formatCurrency(totalOutstanding)}</div>
           <p className="text-xs text-muted-foreground">To be collected</p>
         </CardContent>
       </Card>
@@ -80,7 +82,7 @@ export default function StatsCards({ stats }: StatsCardsProps) {
             <AlertTriangle className="h-4 w-4 text-red-600" />
           </CardHeader>
           <CardContent className="hover:bg-muted/50 rounded-b-lg transition-colors h-full">
-            <div className="text-2xl font-bold">{stats.lowStockCount}</div>
+            <div className="text-2xl font-bold">{stats?.lowStockCount ?? 0}</div>
             <p className="text-xs text-muted-foreground">Items need reorder</p>
           </CardContent>
         </Link>
@@ -93,7 +95,7 @@ export default function StatsCards({ stats }: StatsCardsProps) {
             <Clock className="h-4 w-4 text-amber-600" />
           </CardHeader>
           <CardContent className="hover:bg-muted/50 rounded-b-lg transition-colors h-full">
-            <div className="text-2xl font-bold">{stats.expiringCount}</div>
+            <div className="text-2xl font-bold">{stats?.expiringCount ?? 0}</div>
             <p className="text-xs text-muted-foreground">Batches near expiry</p>
           </CardContent>
         </Link>

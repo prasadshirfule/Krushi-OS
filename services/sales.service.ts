@@ -127,15 +127,14 @@ export async function returnSale(shopId: string, saleId: string, items: { saleIt
 export async function getTodaySales(shopId: string) {
   try {
     const supabase = await createServerSupabaseClient();
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const todayStr = new Date().toISOString().split('T')[0];
     
     const { data, error } = await supabase
       .from('sales')
       .select('id, total_amount, profit_amount')
       .eq('shop_id', shopId)
       .eq('status', 'completed')
-      .gte('sale_date', today.toISOString());
+      .gte('sale_date', `${todayStr}T00:00:00.000Z`);
 
     if (error || !data) {
       return { count: 0, total: 0, profit: 0 };
@@ -156,8 +155,7 @@ export async function getSalesChart(shopId: string, period: 'daily' | 'weekly' |
   try {
     const supabase = await createServerSupabaseClient();
     
-    // Query last 7 days of sales
-    const daysAgo = 7;
+    const daysAgo = 30;
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - daysAgo);
 
@@ -173,15 +171,17 @@ export async function getSalesChart(shopId: string, period: 'daily' | 'weekly' |
       return [];
     }
 
-    // Group sales by day name or date
-    const dateMap = new Map<string, { date: string, sales: number, profit: number }>();
+    const dateMap = new Map<string, { date: string, sales: number, profit: number, total: number }>();
 
     for (const sale of data) {
-      const dateStr = new Date(sale.sale_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-      const current = dateMap.get(dateStr) || { date: dateStr, sales: 0, profit: 0 };
-      current.sales += Number(sale.total_amount || 0);
-      current.profit += Number(sale.profit_amount || 0);
-      dateMap.set(dateStr, current);
+      const isoDate = new Date(sale.sale_date).toISOString().split('T')[0];
+      const current = dateMap.get(isoDate) || { date: isoDate, sales: 0, profit: 0, total: 0 };
+      const amt = Number(sale.total_amount || 0);
+      const prf = Number(sale.profit_amount || 0);
+      current.sales += amt;
+      current.total += amt;
+      current.profit += prf;
+      dateMap.set(isoDate, current);
     }
 
     return Array.from(dateMap.values());

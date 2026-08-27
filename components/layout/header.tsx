@@ -18,7 +18,7 @@ export function Header({ user }: { user: any }) {
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
-    router.push('/login')
+    router.push('/dashboard')
   }
 
   return (
@@ -41,17 +41,26 @@ export function Header({ user }: { user: any }) {
 
         <CommandMenu open={openCommand} onOpenChange={setOpenCommand} />
 
-        <Button variant='ghost' size='icon' className='relative'>
-          <Bell className='h-5 w-5' />
-          <Badge className='absolute -right-1 -top-1 h-5 w-5 flex items-center justify-center p-0 text-[10px] rounded-full'>3</Badge>
-          <span className='sr-only'>Toggle notifications</span>
-        </Button>
+        <div className="relative inline-flex items-center">
+          <Button 
+            variant='ghost' 
+            size='icon' 
+            onClick={() => router.push('/notifications')}
+            title="Notifications"
+          >
+            <Bell className='h-5 w-5' />
+            <span className='sr-only'>Toggle notifications</span>
+          </Button>
+          <Badge className='absolute -top-1 -right-1 h-4 min-w-4 px-1 flex items-center justify-center text-[10px] font-bold bg-red-600 text-white border-2 border-background rounded-full pointer-events-none'>
+            3
+          </Badge>
+        </div>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant='ghost' size='icon' className='rounded-full'>
               <Avatar className='h-8 w-8'>
-                <AvatarFallback className='bg-primary/10 text-primary'>
+                <AvatarFallback className='bg-primary/10 text-primary font-semibold'>
                   <User className='h-4 w-4' />
                 </AvatarFallback>
               </Avatar>
@@ -60,8 +69,8 @@ export function Header({ user }: { user: any }) {
           <DropdownMenuContent align='end'>
             <DropdownMenuLabel>My Account</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>Profile</DropdownMenuItem>
-            <DropdownMenuItem>Settings</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => router.push('/settings')}>Profile</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => router.push('/settings')}>Settings</DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleLogout}>Logout</DropdownMenuItem>
           </DropdownMenuContent>
