@@ -1,18 +1,25 @@
-import { Product, ProductBatch, Category } from './database';
+import { Product, ProductBatch, Category, Brand } from './database';
+import { ProductInput } from '@/lib/validations';
 
-export * from './database';
-
-export type ProductWithBatches = Product & {
-  batches: ProductBatch[];
+export type CreateProductInput = ProductInput & {
+  opening_stock?: number | null;
+  batch_tracking?: boolean;
+  expiry_tracking?: boolean;
+  batch_number?: string | null;
+  mfd_date?: string | null;
+  expiry_date?: string | null;
 };
 
-export type ProductWithStock = Product & {
-  current_stock: number;
-  batch_count: number;
+export type UpdateProductInput = Partial<Omit<ProductInput, 'opening_stock' | 'current_stock'>>;
+
+export type ProductWithRelations = Product & {
+  category?: Category | null;
+  brand?: Brand | null;
+  batches?: ProductBatch[];
 };
 
-export type ProductFormData = Omit<Product, 'id' | 'created_at' | 'updated_at' | 'shop_id'>;
-
-export type CategoryWithCount = Category & {
-  product_count: number;
-};
+export interface ProductListResponse {
+  products: ProductWithRelations[];
+  total: number;
+  pages: number;
+}

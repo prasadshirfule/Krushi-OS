@@ -29,8 +29,10 @@ export async function getProductAction(id: string): Promise<ActionResult<any>> {
 export async function createProductAction(formData: ProductFormData): Promise<ActionResult<any>> {
   try {
     const userData = await getAuthAndPermissions('products.create');
-    const result = await productsService.createProduct(userData.shop_id, formData);
+    const result = await productsService.createProduct(userData.shop_id, formData, userData.id);
     revalidatePath('/products');
+    revalidatePath('/inventory');
+    revalidatePath('/billing');
     return { success: true, data: result };
   } catch (error: any) {
     return { success: false, error: error.message || 'An unexpected error occurred' };
