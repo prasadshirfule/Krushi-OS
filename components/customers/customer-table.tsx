@@ -3,46 +3,67 @@
 import { DataTable } from '@/components/ui/data-table';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { formatCurrency } from '@/lib/utils';
 
-export function CustomerTable() {
+export function CustomerTable({ initialData = [] }: { initialData?: any[] }) {
   const columns = [
     { 
       accessorKey: 'name', 
       header: 'Name', 
       cell: ({ row }: any) => (
-        <Link href={`/customers/${row.original.id}`} className="text-blue-600 hover:underline">
+        <Link href={`/customers/${row.original.id}`} className="font-semibold text-blue-600 hover:underline">
           {row.original.name}
         </Link>
       ) 
     },
-    { accessorKey: 'mobile', header: 'Mobile' },
-    { accessorKey: 'village', header: 'Village' },
-    { accessorKey: 'totalPurchases', header: 'Total Purchases (₹)' },
+    { accessorKey: 'mobile', header: 'Mobile', cell: ({ row }: any) => row.original.mobile || 'N/A' },
+    { accessorKey: 'village', header: 'Village', cell: ({ row }: any) => row.original.village || '-' },
+    { 
+      accessorKey: 'total_purchases', 
+      header: 'Total Purchases',
+      cell: ({ row }: any) => formatCurrency(Number(row.original.total_purchases || row.original.totalPurchases || 0))
+    },
     { 
       accessorKey: 'outstanding', 
-      header: 'Outstanding (₹)', 
-      cell: ({ row }: any) => (
-        <span className={row.original.outstanding > 0 ? 'text-red-500 font-bold' : ''}>
-          {row.original.outstanding}
-        </span>
-      ) 
+      header: 'Outstanding Balance', 
+      cell: ({ row }: any) => {
+        const amt = Number(row.original.outstanding || 0);
+        return (
+          <span className={amt > 0 ? 'text-red-600 font-bold' : 'text-green-600 font-medium'}>
+            {formatCurrency(amt)}
+          </span>
+        );
+      } 
     },
-    { accessorKey: 'status', header: 'Status' },
+    { 
+      accessorKey: 'is_active', 
+      header: 'Status',
+      cell: ({ row }: any) => (
+        <Badge variant={row.original.is_active !== false ? "default" : "secondary"}>
+          {row.original.is_active !== false ? 'Active' : 'Inactive'}
+        </Badge>
+      )
+    },
     { 
       id: 'actions', 
-      cell: () => (
-        <div className="space-x-2">
-          <Button variant="outline" size="sm">Edit</Button>
-          <Button size="sm">Collect Payment</Button>
+      cell: ({ row }: any) => (
+        <div className="flex items-center space-x-2">
+          <Link href={`/customers/${row.original.id}`}>
+            <Button variant="outline" size="sm">View Ledger</Button>
+          </Link>
         </div>
       ) 
     }
   ];
 
-  const dummyData = [
-    { id: '1', name: 'Ramesh Patel', mobile: '9876543210', village: 'Rampur', totalPurchases: 50000, outstanding: 12000, status: 'Active' },
-    { id: '2', name: 'Suresh Kumar', mobile: '8765432109', village: 'Sitapur', totalPurchases: 25000, outstanding: 0, status: 'Active' }
-  ];
+  if (initialData.length === 0) {
+    return (
+      <div className="rounded-md border border-dashed p-8 text-center text-muted-foreground">
+        No customer records found. Click &quot;Add Customer&quot; to register farmers/customers.
+      </div>
+    );
+  }
 
-  return <DataTable columns={columns} data={dummyData} />;
+  return <DataTable columns={columns} data={initialData} searchKey="name" searchPlaceholder="Search customers by name..." />;
 }

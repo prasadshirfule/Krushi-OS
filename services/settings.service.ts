@@ -1,27 +1,36 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { SettingsInput } from '@/lib/validations';
 
-function isPlaceholderMode() {
-  return !process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('placeholder');
-}
-
-const MOCK_SETTINGS: Record<string, any> = {
-  shop_name: 'Krushi Seva Kendra',
-  address: 'Main Market Road, Near Mandi Yard, Sehore, MP - 466001',
-  phone: '9876543210',
-  email: 'contact@krushiseva.com',
-  gstin: '23AAACK1234F1Z9',
+const DEFAULT_SETTINGS: Record<string, any> = {
+  shop_name: 'KRUSHI OS Store',
+  shop_address: '',
+  shop_phone: '',
+  shop_email: '',
+  shop_gst: '',
   invoice_prefix: 'KOS',
   default_gst_rate: 18,
-  terms: '1. Goods once sold will not be taken back without valid batch receipt.\n2. Interest @ 18% p.a. will be charged on credit khata balances outstanding beyond 30 days.'
+  invoice_terms: '1. Goods once sold will not be taken back without valid batch receipt.'
 };
 
 export async function getSettings(shopId: string) {
   try {
-    if (isPlaceholderMode()) throw new Error('Using mock');
     const supabase = await createServerSupabaseClient();
-    const { data, error } = await supabase.from('settings').select('*').eq('shop_id', shopId);
-    if (error) throw error;
+    const { data: shop } = await supabase.from('shops').select('*').eq('id', shopId).single();
+
+    if (shop) {
+      return {
+        ...DEFAULT_SETTINGS,
+        shop_name: shop.name || DEFAULT_SETTINGS.shop_name,
+        shop_address: shop.address || '',
+        shop_phone: shop.phone || '',
+        shop_email: shop.email || '',
+        shop_gst: shop.gst_number || '',
+        invoice_prefix: shop.invoice_prefix || 'KOS',
+        invoice_terms: shop.terms_and_conditions || DEFAULT_SETTINGS.invoice_terms
+      };
+    }
+
+    const { data } = await supabase.from('settings').select('*').eq('shop_id', shopId);
 
     const settingsObj: Record<string, any> = {};
     (data || []).forEach(item => {
@@ -32,37 +41,35 @@ export async function getSettings(shopId: string) {
       }
     });
 
-    return { ...MOCK_SETTINGS, ...settingsObj };
+    return { ...DEFAULT_SETTINGS, ...settingsObj };
   } catch (error) {
-    return MOCK_SETTINGS;
+    console.error("Failed to load settings:", error);
+    return DEFAULT_SETTINGS;
   }
 }
 
 export async function updateSettings(shopId: string, data: SettingsInput) {
-  try {
-    if (isPlaceholderMode()) throw new Error('Using mock');
-    const supabase = await createServerSupabaseClient();
-    const entries = Object.entries(data);
+  const supabase = await createServerSupabaseClient();
+  const { error } = await supabase.from('shops').update({
+    name: data.shop_name,
+    address: data.shop_address,
+    phone: data.shop_phone,
+    email: data.shop_email,
+    gst_number: data.shop_gst,
+    invoice_prefix: data.invoice_prefix,
+    terms_and_conditions: data.invoice_terms
+  }).eq('id', shopId);
 
-    for (const [key, value] of entries) {
-      const stringValue = typeof value === 'object' ? JSON.stringify(value) : String(value);
-      await supabase.from('settings').upsert({
-        shop_id: shopId,
-        key,
-        value: stringValue,
-      }, { onConflict: 'shop_id,key' });
-    }
-
-    return getSettings(shopId);
-  } catch (error) {
-    Object.assign(MOCK_SETTINGS, data);
-    return MOCK_SETTINGS;
+  if (error) {
+    console.error("Error updating settings:", error);
+    throw error;
   }
+
+  return getSettings(shopId);
 }
 
 export async function uploadLogo(shopId: string, formData: FormData) {
   try {
-    if (isPlaceholderMode()) throw new Error('Using mock');
     const supabase = await createServerSupabaseClient();
     const file = formData.get('file') as File;
     if (!file) throw new Error('No file provided');
@@ -70,7 +77,7 @@ export async function uploadLogo(shopId: string, formData: FormData) {
     const fileExt = file.name.split('.').pop();
     const fileName = `logo-${shopId}-${Date.now()}.${fileExt}`;
     
-    const { data, error } = await supabase.storage
+    const { error } = await supabase.storage
       .from('shop-logos')
       .upload(fileName, file, { upsert: true });
 
@@ -84,6 +91,7 @@ export async function uploadLogo(shopId: string, formData: FormData) {
 
     return { logoUrl: publicUrl };
   } catch (error) {
-    return { logoUrl: '/placeholder-logo.png' };
+    console.error("Failed to upload logo:", error);
+    return { logoUrl: '' };
   }
 }

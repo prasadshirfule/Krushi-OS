@@ -339,6 +339,8 @@ CREATE TABLE payments (
   payment_type VARCHAR NOT NULL CHECK (payment_type IN ('SALE', 'PURCHASE', 'CUSTOMER_PAYMENT', 'SUPPLIER_PAYMENT', 'REFUND')),
   reference_type VARCHAR,
   reference_id UUID,
+  customer_id UUID REFERENCES customers(id) ON DELETE SET NULL,
+  supplier_id UUID REFERENCES suppliers(id) ON DELETE SET NULL,
   payment_method VARCHAR NOT NULL CHECK (payment_method IN ('CASH', 'UPI', 'CARD', 'BANK_TRANSFER', 'CREDIT')),
   amount DECIMAL(14,2) NOT NULL,
   payment_date TIMESTAMPTZ DEFAULT NOW(),

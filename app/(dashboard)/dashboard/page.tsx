@@ -8,7 +8,6 @@ import TopProducts from '@/components/dashboard/top-products';
 import ActivityFeed from '@/components/dashboard/activity-feed';
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
-import { MOCK_AUDIT_LOGS, MOCK_PRODUCTS } from '@/lib/mock-data';
 
 export const metadata = {
   title: 'Dashboard | KRUSHI OS',
@@ -50,20 +49,27 @@ export default async function DashboardPage() {
     let activities: any[] = [];
 
     if (!isPlaceholder && user) {
+      const targetDate = new Date();
+      targetDate.setDate(targetDate.getDate() + 90);
+
       const { data: exp } = await supabase
-        .from('batches')
+        .from('product_batches')
         .select('*, product:products(*)')
         .eq('shop_id', shopId)
         .gt('quantity_available', 0)
-        .not('expiry_date', 'is', null)
+        .lte('expiry_date', targetDate.toISOString().split('T')[0])
         .order('expiry_date', { ascending: true })
         .limit(5);
       expiringBatches = exp || [];
 
       const { data: low } = await supabase
-        .rpc('get_low_stock_products', { p_shop_id: shopId })
-        .limit(5);
-      lowStockProducts = low || [];
+        .from('products')
+        .select('*')
+        .eq('shop_id', shopId)
+        .eq('is_active', true)
+        .order('current_stock', { ascending: true })
+        .limit(10);
+      lowStockProducts = (low || []).filter((p: any) => p.current_stock <= (p.min_stock || 5)).slice(0, 5);
 
       const { data: act } = await supabase
         .from('audit_logs')
@@ -72,12 +78,6 @@ export default async function DashboardPage() {
         .order('created_at', { ascending: false })
         .limit(20);
       activities = act || [];
-    } else {
-      expiringBatches = [
-        { id: 'b-101', batch_number: 'SYN-Q11', expiry_date: '2026-09-15', quantity_available: 18, product: { name: 'Syngenta Quantis Biostimulant 1L' } }
-      ];
-      lowStockProducts = MOCK_PRODUCTS.filter(p => p.current_stock <= p.min_stock);
-      activities = MOCK_AUDIT_LOGS;
     }
 
     return (

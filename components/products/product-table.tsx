@@ -28,39 +28,43 @@ export const columns: ColumnDef<any>[] = [
   {
     accessorKey: "sku",
     header: "SKU",
+    cell: ({ row }) => <span className="font-mono text-xs">{row.original.sku || 'N/A'}</span>
   },
   {
     accessorKey: "category.name",
     header: "Category",
-    cell: ({ row }) => row.original.category?.name || 'N/A',
+    cell: ({ row }) => row.original.category?.name || 'Uncategorized',
   },
   {
     accessorKey: "selling_price",
-    header: "Price",
-    cell: ({ row }) => formatCurrency(row.getValue("selling_price")),
+    header: "Selling Price",
+    cell: ({ row }) => formatCurrency(Number(row.getValue("selling_price") || 0)),
   },
   {
     accessorKey: "current_stock",
     header: "Stock",
     cell: ({ row }) => {
-      const stock = row.getValue("current_stock") as number;
-      const minStock = row.original.minimum_stock;
+      const stock = Number(row.original.current_stock || 0);
+      const minStock = Number(row.original.min_stock || 0);
       const isLow = stock <= minStock;
       return (
-        <span className={isLow ? "text-red-600 font-semibold" : "text-green-600"}>
-          {stock}
+        <span className={isLow ? "text-red-600 font-semibold" : "text-green-600 font-medium"}>
+          {stock} {row.original.unit || 'Piece'}
         </span>
       );
     },
   },
   {
-    accessorKey: "status",
+    accessorKey: "is_active",
     header: "Status",
-    cell: ({ row }) => (
-      <Badge variant={row.getValue("status") === "ACTIVE" ? "default" : "secondary"}>
-        {row.getValue("status")}
-      </Badge>
-    ),
+    cell: ({ row }) => {
+      const isActive = row.original.is_active !== false;
+      return (
+        <Badge variant={isActive ? "default" : "secondary"}>
+          {isActive ? "Active" : "Inactive"}
+        </Badge>
+      );
+    },
   },
   {
     id: "actions",
@@ -82,7 +86,6 @@ export const columns: ColumnDef<any>[] = [
             <DropdownMenuItem asChild>
               <Link href={`/products/${product.id}/edit`}>Edit Product</Link>
             </DropdownMenuItem>
-            <DropdownMenuItem className="text-red-600">Delete</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       );
@@ -90,13 +93,21 @@ export const columns: ColumnDef<any>[] = [
   },
 ];
 
-export function ProductTable({ initialData, categories }: { initialData: any[], categories: any[] }) {
+export function ProductTable({ initialData = [], categories = [] }: { initialData?: any[], categories?: any[] }) {
+  if (initialData.length === 0) {
+    return (
+      <div className="rounded-md border border-dashed p-8 text-center text-muted-foreground">
+        No products found in catalog. Click &quot;Add Product&quot; to create a new product.
+      </div>
+    );
+  }
+
   return (
     <DataTable
       columns={columns}
       data={initialData}
       searchKey="name"
-      searchPlaceholder="Search products..."
+      searchPlaceholder="Search products by name..."
     />
   );
 }

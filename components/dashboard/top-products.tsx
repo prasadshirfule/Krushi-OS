@@ -3,14 +3,14 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { formatCurrency } from '@/lib/utils';
-import { Product } from '@/types/database';
 
 interface TopProductData {
-  product?: Product;
-  product_name?: string; // from RPC sometimes it's flattened
-  totalSold?: number;
+  id?: string;
+  name?: string;
+  product_name?: string;
+  total_sold?: number;
   quantity?: number;
-  revenue: number;
+  revenue?: number;
 }
 
 interface TopProductsProps {
@@ -18,12 +18,11 @@ interface TopProductsProps {
 }
 
 export default function TopProducts({ products = [] }: TopProductsProps) {
-  // Normalize data for chart
-  const chartData = products.map((item, index) => ({
-    name: item.product?.name || item.product_name || `Product ${index + 1}`,
-    revenue: item.revenue || 0,
-    sold: item.totalSold || item.quantity || 0,
-  }));
+  const chartData = (products || []).map((item) => ({
+    name: item.name || item.product_name || 'Unnamed Product',
+    revenue: Number(item.revenue || 0),
+    sold: Number(item.total_sold || item.quantity || 0),
+  })).filter(p => p.revenue > 0 || p.sold > 0);
 
   const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
@@ -45,12 +44,12 @@ export default function TopProducts({ products = [] }: TopProductsProps) {
   return (
     <Card className="col-span-3 h-full flex flex-col">
       <CardHeader className="pb-2">
-        <CardTitle className="text-base font-semibold">Top Products This Month</CardTitle>
+        <CardTitle className="text-base font-semibold">Top Selling Products</CardTitle>
       </CardHeader>
       <CardContent className="flex-1 flex flex-col pt-4">
         {chartData.length === 0 ? (
-          <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
-            No product data available.
+          <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm py-12 text-center">
+            No product sales data for this period
           </div>
         ) : (
           <>
@@ -64,13 +63,13 @@ export default function TopProducts({ products = [] }: TopProductsProps) {
                     axisLine={false} 
                     tickLine={false} 
                     tick={{ fontSize: 12 }} 
-                    width={100}
+                    width={110}
                     stroke="var(--muted-foreground)"
                   />
                   <Tooltip content={<CustomTooltip />} cursor={{ fill: 'var(--muted)', opacity: 0.4 }} />
                   <Bar dataKey="revenue" radius={[0, 4, 4, 0]} barSize={20}>
-                    {chartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill="#16a34a" fillOpacity={1 - (index * 0.1)} />
+                    {chartData.map((_, index) => (
+                      <Cell key={`cell-${index}`} fill="#16a34a" fillOpacity={1 - (index * 0.15)} />
                     ))}
                   </Bar>
                 </BarChart>
@@ -86,7 +85,7 @@ export default function TopProducts({ products = [] }: TopProductsProps) {
                       <div className="flex h-6 w-6 items-center justify-center rounded-full bg-muted text-xs font-medium">
                         {index + 1}
                       </div>
-                      <div className="text-sm font-medium truncate max-w-[120px]" title={item.name}>
+                      <div className="text-sm font-medium truncate max-w-[140px]" title={item.name}>
                         {item.name}
                       </div>
                     </div>

@@ -1,61 +1,66 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { MOCK_NOTIFICATIONS } from '@/lib/mock-data';
 
-function isPlaceholderMode() {
-  return !process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('placeholder');
-}
-
-export async function getNotifications(shopId: string, options: { unreadOnly?: boolean, page?: number, limit?: number } = {}) {
+export async function getNotifications(shopId: string, options: { unreadOnly?: boolean, limit?: number } = {}) {
   try {
-    if (isPlaceholderMode()) throw new Error('Using mock');
     const supabase = await createServerSupabaseClient();
-    let query = supabase.from('notifications').select('*', { count: 'exact' }).eq('shop_id', shopId);
-
+    let query = supabase.from('notifications').select('*').eq('shop_id', shopId);
+    
     if (options.unreadOnly) {
       query = query.eq('is_read', false);
     }
+    
+    query = query.order('created_at', { ascending: false }).limit(options.limit || 20);
 
-    const { data, count, error } = await query.order('created_at', { ascending: false });
-    if (error) throw error;
-    return { notifications: data || [], total: count || 0 };
+    const { data, error } = await query;
+    if (error) {
+      console.error("Error fetching notifications:", error);
+      return [];
+    }
+    return data || [];
   } catch (error) {
-    let list = [...MOCK_NOTIFICATIONS];
-    if (options.unreadOnly) list = list.filter(n => !n.read);
-    return { notifications: list, total: list.length };
+    console.error("Failed to load notifications:", error);
+    return [];
   }
 }
 
-export async function markNotificationRead(shopId: string, id: string) {
+export async function markNotificationAsRead(shopId: string, id: string) {
   try {
-    if (isPlaceholderMode()) throw new Error('Using mock');
     const supabase = await createServerSupabaseClient();
-    const { error } = await supabase.from('notifications').update({ is_read: true }).eq('id', id).eq('shop_id', shopId);
+    const { error } = await supabase.from('notifications').update({ is_read: true }).eq('shop_id', shopId).eq('id', id);
     if (error) throw error;
   } catch (error) {
-    const item = MOCK_NOTIFICATIONS.find(n => n.id === id);
-    if (item) item.read = true;
+    console.error("Failed to mark notification read:", error);
   }
 }
 
-export async function markAllNotificationsRead(shopId: string) {
+export async function markAllNotificationsAsRead(shopId: string) {
   try {
-    if (isPlaceholderMode()) throw new Error('Using mock');
     const supabase = await createServerSupabaseClient();
-    const { error } = await supabase.from('notifications').update({ is_read: true }).eq('shop_id', shopId);
+    const { error } = await supabase.from('notifications').update({ is_read: true }).eq('shop_id', shopId).eq('is_read', false);
     if (error) throw error;
   } catch (error) {
-    MOCK_NOTIFICATIONS.forEach(n => n.read = true);
+    console.error("Failed to mark all notifications read:", error);
   }
 }
 
-export async function getUnreadCount(shopId: string) {
+export async function getUnreadNotificationCount(shopId: string) {
   try {
-    if (isPlaceholderMode()) throw new Error('Using mock');
     const supabase = await createServerSupabaseClient();
-    const { count, error } = await supabase.from('notifications').select('id', { count: 'exact', head: true }).eq('shop_id', shopId).eq('is_read', false);
-    if (error) throw error;
+    const { count, error } = await supabase
+      .from('notifications')
+      .select('id', { count: 'exact', head: true })
+      .eq('shop_id', shopId)
+      .eq('is_read', false);
+
+    if (error) return 0;
     return count || 0;
   } catch (error) {
-    return MOCK_NOTIFICATIONS.filter(n => !n.read).length;
+    console.error("Failed to fetch unread notification count:", error);
+    return 0;
   }
 }
+
+// Aliases matching action calls
+export const getUnreadCount = getUnreadNotificationCount;
+export const markAllNotificationsRead = markAllNotificationsAsRead;
+export const markNotificationRead = markNotificationAsRead;
