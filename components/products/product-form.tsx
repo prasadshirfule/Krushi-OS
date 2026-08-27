@@ -307,14 +307,14 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
                 </div>
               </div>
 
-              {watchBatchTracking && mode === 'create' && (
+              {(watchBatchTracking || form.watch('expiry_tracking')) && mode === 'create' && (
                 <div className="grid grid-cols-2 gap-4 md:col-span-2 bg-muted/40 p-4 rounded-lg border">
                   <div className="space-y-2">
-                    <Label htmlFor="batch_number">Batch Number</Label>
+                    <Label htmlFor="batch_number">Initial Batch Number (Optional)</Label>
                     <Input id="batch_number" placeholder="e.g. BATCH-2026-01" {...form.register('batch_number')} />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="expiry_date">Expiry Date</Label>
+                    <Label htmlFor="expiry_date">Expiry Date (Optional)</Label>
                     <Input id="expiry_date" type="date" {...form.register('expiry_date')} />
                   </div>
                 </div>

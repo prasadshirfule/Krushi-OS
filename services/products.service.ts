@@ -126,6 +126,8 @@ export async function updateProduct(shopId: string, productId: string, data: Upd
     unit: data.unit,
     min_stock: data.min_stock,
     max_stock: data.max_stock,
+    batch_tracking: data.batch_tracking,
+    expiry_tracking: data.expiry_tracking,
     product_type: data.product_type,
     active_ingredient: data.active_ingredient,
     formulation: data.formulation,

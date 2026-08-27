@@ -1,13 +1,17 @@
 export const PRODUCT_UNITS = [
-  { value: 'Piece', label: 'Piece' },
-  { value: 'Bottle', label: 'Bottle' },
-  { value: 'Bag', label: 'Bag' },
-  { value: 'Box', label: 'Box' },
-  { value: 'Packet', label: 'Packet' },
-  { value: 'Kg', label: 'Kg' },
-  { value: 'Gram', label: 'Gram' },
-  { value: 'Litre', label: 'Litre' },
-  { value: 'Millilitre', label: 'Millilitre' },
+  { value: 'Piece', label: 'Piece (pc)' },
+  { value: 'Bottle', label: 'Bottle (btl)' },
+  { value: 'Bag', label: 'Bag (bag)' },
+  { value: 'Box', label: 'Box (box)' },
+  { value: 'Packet', label: 'Packet (pkt)' },
+  { value: 'Kg', label: 'Kg (Kilogram)' },
+  { value: 'Gram', label: 'Gram (gm)' },
+  { value: 'Litre', label: 'Litre (L)' },
+  { value: 'Millilitre', label: 'Millilitre (ml)' },
+  { value: 'Quintal', label: 'Quintal (qtl)' },
+  { value: 'Ton', label: 'Ton (MT)' },
+  { value: 'Can', label: 'Can' },
+  { value: 'Drum', label: 'Drum' },
 ] as const;
 
 export const PRODUCT_CATEGORIES = [

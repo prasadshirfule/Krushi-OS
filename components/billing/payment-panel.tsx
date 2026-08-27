@@ -22,23 +22,40 @@ export default function PaymentPanel({ cart, totals, onComplete }: PaymentPanelP
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [notes, setNotes] = useState('');
 
+  const payableAmount = Number(totals?.payableAmount || 0);
+  const isSaleDisabled = cart.length === 0 || payableAmount <= 0 || isSubmitting || (paymentMethod === 'Credit' && !customerId);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'F8') {
         e.preventDefault();
-        handleCompleteSale();
+        if (cart.length === 0) {
+          toast.warning('Cart is empty. Add products to the cart to complete the sale.');
+          return;
+        }
+        if (payableAmount <= 0) {
+          toast.warning('Grand total must be greater than ₹0 to complete a sale.');
+          return;
+        }
+        if (paymentMethod === 'Credit' && !customerId) {
+          toast.error('Customer is required for credit sales');
+          return;
+        }
+        if (!isSubmitting) {
+          handleCompleteSale();
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [cart, customerId, paymentMethod, totals]);
+  }, [cart, customerId, paymentMethod, totals, payableAmount, isSubmitting]);
 
   const handleCompleteSale = async () => {
     if (cart.length === 0) {
       toast.warning('Cart is empty. Add products before completing a sale.');
       return;
     }
-    if (!totals.payableAmount || totals.payableAmount <= 0) {
+    if (payableAmount <= 0) {
       toast.warning('Grand total must be greater than ₹0 to complete a sale.');
       return;
     }
@@ -105,10 +122,10 @@ export default function PaymentPanel({ cart, totals, onComplete }: PaymentPanelP
         </div>
         <div className="flex justify-between items-end border-t pt-2 mt-2">
           <span className="font-semibold text-lg">Grand Total</span>
-          <span className="font-bold text-3xl text-green-700">{formatCurrency(totals.payableAmount || 0)}</span>
+          <span className="font-bold text-3xl text-green-700">{formatCurrency(payableAmount)}</span>
         </div>
         <div className="text-[10px] text-muted-foreground italic text-right mt-1">
-          {numberToWords(totals.payableAmount || 0)}
+          {numberToWords(payableAmount)}
         </div>
       </div>
 
@@ -136,9 +153,9 @@ export default function PaymentPanel({ cart, totals, onComplete }: PaymentPanelP
 
       <div className="mt-auto pt-4">
         <Button 
-          className="w-full h-14 text-lg font-bold bg-green-600 hover:bg-green-700" 
+          className="w-full h-14 text-lg font-bold bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:bg-muted disabled:text-muted-foreground disabled:cursor-not-allowed transition-all" 
           onClick={handleCompleteSale}
-          disabled={cart.length === 0 || isSubmitting || (paymentMethod === 'Credit' && !customerId)}
+          disabled={isSaleDisabled}
         >
           {isSubmitting ? (
             <><Loader2 className="mr-2 h-6 w-6 animate-spin" /> Processing...</>
@@ -146,6 +163,19 @@ export default function PaymentPanel({ cart, totals, onComplete }: PaymentPanelP
             <><CheckCircle2 className="mr-2 h-6 w-6" /> COMPLETE SALE (F8)</>
           )}
         </Button>
+        {cart.length === 0 ? (
+          <p className="text-xs text-muted-foreground text-center mt-2">
+            Add products to the cart to complete the sale
+          </p>
+        ) : payableAmount <= 0 ? (
+          <p className="text-xs text-muted-foreground text-center mt-2">
+            Grand total must be greater than ₹0
+          </p>
+        ) : paymentMethod === 'Credit' && !customerId ? (
+          <p className="text-xs text-destructive text-center mt-2">
+            Select a customer to complete credit sale
+          </p>
+        ) : null}
       </div>
     </div>
   );
