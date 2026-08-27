@@ -52,17 +52,75 @@ export async function getProductById(shopId: string, productId: string) {
   }
 }
 
-export async function createProduct(shopId: string, data: ProductInput) {
+export async function createProduct(shopId: string, data: any) {
   const supabase = await createServerSupabaseClient();
+  const {
+    opening_stock,
+    batch_tracking,
+    expiry_tracking,
+    batch_number,
+    mfd_date,
+    expiry_date,
+    ...productFields
+  } = data;
+
+  const initialStock = Number(opening_stock || 0);
+
+  // 1. Create Product
   const { data: product, error } = await supabase
     .from('products')
-    .insert({ ...data, shop_id: shopId })
+    .insert({
+      ...productFields,
+      shop_id: shopId,
+      current_stock: initialStock,
+      batch_tracking: Boolean(batch_tracking),
+      expiry_tracking: Boolean(expiry_tracking)
+    })
     .select()
     .single();
+
   if (error) {
     console.error("Error creating product:", error);
     throw error;
   }
+
+  // 2. Handle Opening Stock (Flow A & Flow B)
+  if (initialStock > 0 && product) {
+    const batchNum = batch_number || `BATCH-${Date.now().toString().slice(-6)}`;
+    const expDate = expiry_date || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+    // Insert Batch
+    const { data: batch } = await supabase
+      .from('product_batches')
+      .insert({
+        shop_id: shopId,
+        product_id: product.id,
+        batch_number: batchNum,
+        manufacturing_date: mfd_date || null,
+        expiry_date: expDate,
+        purchase_price: product.purchase_price || 0,
+        selling_price: product.selling_price || 0,
+        quantity_received: initialStock,
+        quantity_available: initialStock
+      })
+      .select()
+      .single();
+
+    // Insert Stock Transaction
+    await supabase
+      .from('stock_transactions')
+      .insert({
+        shop_id: shopId,
+        product_id: product.id,
+        batch_id: batch?.id || null,
+        transaction_type: 'PURCHASE_IN',
+        previous_quantity: 0,
+        quantity_change: initialStock,
+        new_quantity: initialStock,
+        reason: 'Opening Stock Initialization'
+      });
+  }
+
   return product;
 }
 

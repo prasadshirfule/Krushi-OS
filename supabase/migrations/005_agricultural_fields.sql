@@ -1,0 +1,11 @@
+-- Add agricultural fields and tracking flags to products table
+ALTER TABLE products
+ADD COLUMN IF NOT EXISTS product_type VARCHAR,
+ADD COLUMN IF NOT EXISTS active_ingredient VARCHAR,
+ADD COLUMN IF NOT EXISTS formulation VARCHAR,
+ADD COLUMN IF NOT EXISTS crop VARCHAR,
+ADD COLUMN IF NOT EXISTS target_pest VARCHAR,
+ADD COLUMN IF NOT EXISTS pack_size VARCHAR,
+ADD COLUMN IF NOT EXISTS licence_number VARCHAR,
+ADD COLUMN IF NOT EXISTS batch_tracking BOOLEAN DEFAULT false,
+ADD COLUMN IF NOT EXISTS expiry_tracking BOOLEAN DEFAULT false;

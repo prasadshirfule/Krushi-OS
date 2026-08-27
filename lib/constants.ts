@@ -22,6 +22,19 @@ export const PRODUCT_CATEGORIES = [
   'Other',
 ] as const;
 
+export const AGRICULTURAL_TYPES = [
+  'Fertilizer',
+  'Pesticide',
+  'Insecticide',
+  'Fungicide',
+  'Herbicide',
+  'Seed',
+  'Bio Product',
+  'Growth Promoter',
+  'Equipment',
+  'Other',
+] as const;
+
 export const GST_RATES = [0, 5, 12, 18, 28] as const;
 
 export const PAYMENT_METHODS = ['Cash', 'UPI', 'Card', 'Bank Transfer', 'Credit'] as const;
