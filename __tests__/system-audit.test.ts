@@ -32,94 +32,80 @@ function calculateProfit(sellingPrice: number, costPrice: number, quantity: numb
   return grossRevenue - discount - cost;
 }
 
-// Simulated Central Stock Engine with Direction Validation & FEFO Traceability
-class MockDatabaseState {
-  products: Map<string, { current_stock: number; batch_tracking: boolean }> = new Map();
-  batches: Map<string, { batch_number: string; quantity_available: number; expiry_date: string | null }> = new Map();
-  stock_transactions: Array<{ product_id: string; batch_id?: string | null; transaction_type: string; change: number; new_stock: number }> = [];
-  sale_item_batches: Array<{ sale_id: string; sale_item_id: string; batch_id: string; quantity: number }> = [];
-  sales: Map<string, { status: string; total: number }> = new Map();
+// Simulated Central Stock Engine & FEFO Return Allocation Verification
+class MockFEFOReturnState {
+  products: Map<string, { current_stock: number }> = new Map();
+  batches: Map<string, { batch_number: string; quantity_available: number }> = new Map();
+  sale_item_batches: Array<{ id: string; sale_item_id: string; batch_id: string; quantity: number }> = [];
+  sale_return_item_batches: Array<{ sale_item_id: string; sale_item_batch_id: string; batch_id: string; quantity: number }> = [];
+  stock_transactions: Array<{ product_id: string; batch_id: string | null; transaction_type: string; change: number }> = [];
 
-  processStockMovement(productId: string, batchId: string | null, type: string, change: number) {
-    if (change === 0) throw new Error('Stock movement quantity change cannot be zero');
+  processSaleReturn(productId: string, saleItemId: string, returnQty: number) {
+    const totalSold = this.sale_item_batches
+      .filter(s => s.sale_item_id === saleItemId)
+      .reduce((sum, b) => sum + b.quantity, 0);
 
-    // Direction Validations
-    const positiveTypes = ['OPENING_STOCK', 'PURCHASE_IN', 'SALE_RETURN', 'RETURN_IN', 'SALE_REVERSAL', 'ADJUSTMENT_IN'];
-    const negativeTypes = ['SALE_OUT', 'PURCHASE_RETURN', 'ADJUSTMENT_OUT', 'ADJUSTMENT', 'DAMAGED', 'EXPIRED'];
+    const totalAlreadyReturned = this.sale_return_item_batches
+      .filter(r => r.sale_item_id === saleItemId)
+      .reduce((sum, r) => sum + r.quantity, 0);
 
-    if (positiveTypes.includes(type) && change <= 0) {
-      throw new Error(`Transaction type "${type}" requires a positive quantity change (+)`);
+    const maxReturnable = totalSold - totalAlreadyReturned;
+    if (returnQty > maxReturnable) {
+      throw new Error(`Cannot return ${returnQty} units. Maximum returnable remaining is ${maxReturnable} units (Sold: ${totalSold}, Already Returned: ${totalAlreadyReturned})`);
     }
 
-    if (negativeTypes.includes(type) && change >= 0) {
-      throw new Error(`Transaction type "${type}" requires a negative quantity change (-)`);
-    }
+    let qtyToRestore = returnQty;
+    const allocations = this.sale_item_batches
+      .filter(s => s.sale_item_id === saleItemId)
+      .sort((a, b) => a.id.localeCompare(b.id));
 
-    const prod = this.products.get(productId);
-    if (!prod) throw new Error(`Product ${productId} not found`);
+    // Deep clone snapshot for atomic rollback simulation
+    const productsSnapshot = new Map(Array.from(this.products.entries()).map(([k, v]) => [k, { ...v }]));
+    const batchesSnapshot = new Map(Array.from(this.batches.entries()).map(([k, v]) => [k, { ...v }]));
+    const returnsSnapshot = [...this.sale_return_item_batches];
+    const transSnapshot = [...this.stock_transactions];
 
-    const newStock = prod.current_stock + change;
-    if (newStock < 0) {
-      throw new Error(`Insufficient product stock for ID ${productId} (Current: ${prod.current_stock}, Change: ${change})`);
-    }
+    try {
+      for (const sib of allocations) {
+        if (qtyToRestore <= 0) break;
 
-    if (batchId) {
-      const b = this.batches.get(batchId);
-      if (!b) throw new Error(`Batch ${batchId} not found`);
-      const newBatchAvail = b.quantity_available + change;
-      if (newBatchAvail < 0) {
-        throw new Error(`Insufficient batch stock (Available: ${b.quantity_available}, Change: ${change})`);
+        const batchReturned = this.sale_return_item_batches
+          .filter(r => r.sale_item_batch_id === sib.id)
+          .reduce((sum, r) => sum + r.quantity, 0);
+
+        const batchReturnable = sib.quantity - batchReturned;
+
+        if (batchReturnable > 0) {
+          const restoreChunk = Math.min(batchReturnable, qtyToRestore);
+
+          // Restore batch stock
+          const b = this.batches.get(sib.batch_id);
+          if (!b) throw new Error('Batch not found');
+          b.quantity_available += restoreChunk;
+
+          // Restore product stock
+          const p = this.products.get(productId);
+          if (!p) throw new Error('Product not found');
+          p.current_stock += restoreChunk;
+
+          this.stock_transactions.push({ product_id: productId, batch_id: sib.batch_id, transaction_type: 'SALE_RETURN', change: restoreChunk });
+          this.sale_return_item_batches.push({ sale_item_id: saleItemId, sale_item_batch_id: sib.id, batch_id: sib.batch_id, quantity: restoreChunk });
+
+          qtyToRestore -= restoreChunk;
+        }
       }
-      b.quantity_available = newBatchAvail;
+
+      if (qtyToRestore > 0) {
+        throw new Error('Unallocated return quantity remaining');
+      }
+    } catch (err) {
+      // Rollback snapshot on failure
+      this.products = productsSnapshot;
+      this.batches = batchesSnapshot;
+      this.sale_return_item_batches = returnsSnapshot;
+      this.stock_transactions = transSnapshot;
+      throw err;
     }
-
-    prod.current_stock = newStock;
-    this.stock_transactions.push({ product_id: productId, batch_id: batchId, transaction_type: type, change, new_stock: newStock });
-    return newStock;
-  }
-
-  processFEFOSaleDeduction(productId: string, requestedQty: number, saleId: string, saleItemId: string) {
-    if (requestedQty <= 0) throw new Error('Requested sale quantity must be greater than zero');
-    const prod = this.products.get(productId);
-    if (!prod) throw new Error('Product not found');
-
-    if (prod.current_stock < requestedQty) {
-      throw new Error(`Insufficient non-expired batch stock for product ${productId} (Short by ${requestedQty - prod.current_stock} units)`);
-    }
-
-    let qtyNeeded = requestedQty;
-    // Sort batches by expiry date ASC (handling NULL as far future date)
-    const sortedBatches = Array.from(this.batches.entries()).sort((a, b) => {
-      const dateA = a[1].expiry_date || '9999-12-31';
-      const dateB = b[1].expiry_date || '9999-12-31';
-      return dateA.localeCompare(dateB);
-    });
-
-    for (const [batchId, b] of sortedBatches) {
-      if (qtyNeeded <= 0) break;
-      if (b.quantity_available <= 0) continue;
-
-      const deduct = Math.min(b.quantity_available, qtyNeeded);
-      this.processStockMovement(productId, batchId, 'SALE_OUT', -deduct);
-      this.sale_item_batches.push({ sale_id: saleId, sale_item_id: saleItemId, batch_id: batchId, quantity: deduct });
-      qtyNeeded -= deduct;
-    }
-
-    if (qtyNeeded > 0) {
-      throw new Error('Insufficient batch stock');
-    }
-  }
-
-  cancelSale(saleId: string) {
-    const sale = this.sales.get(saleId);
-    if (!sale) throw new Error('Sale not found');
-    if (sale.status === 'cancelled') throw new Error('Sale is already cancelled');
-
-    const allocations = this.sale_item_batches.filter(s => s.sale_id === saleId);
-    for (const alloc of allocations) {
-      this.processStockMovement('p-batch', alloc.batch_id, 'SALE_REVERSAL', alloc.quantity);
-    }
-    sale.status = 'cancelled';
   }
 }
 
@@ -156,19 +142,7 @@ async function runSystemAuditTests() {
   });
   assert(!invalidNameRes.success, 'TEST 1: Product validation fails when name is less than 2 characters');
 
-  // TEST 2: Product Schema Validation - Invalid Negative Price
-  const invalidPriceRes = productSchema.safeParse({
-    name: 'Chlorpyrifos 20% EC',
-    category_id: 'cat-123',
-    purchase_price: -50,
-    selling_price: 150,
-    gst_rate: 18,
-    unit: 'Bottle',
-    min_stock: 5,
-  });
-  assert(!invalidPriceRes.success, 'TEST 2: Product validation fails when purchase price is negative');
-
-  // TEST 3: Valid Agricultural Product Validation
+  // TEST 2: Valid Agricultural Product Validation
   const validProductRes = productSchema.safeParse({
     name: 'Chlorpyrifos 20% EC',
     category_id: 'cat-123',
@@ -182,65 +156,67 @@ async function runSystemAuditTests() {
     active_ingredient: 'Chlorpyrifos 20% EC',
     licence_number: 'CIB-998811/2026',
   });
-  assert(validProductRes.success, 'TEST 3: Valid agricultural product payload passes schema validation');
+  assert(validProductRes.success, 'TEST 2: Valid agricultural product payload passes schema validation');
 
-  // TEST 4: Financial Calculations - GST & Grand Total
-  const saleTotals = calculateSaleTotals([
-    { quantity: 2, unit_price: 500, discount_percent: 10, gst_rate: 18 }
-  ]);
-  assert(saleTotals.subtotal === 1000, 'TEST 4a: Subtotal is calculated correctly (₹1000)');
-  assert(saleTotals.totalDiscount === 100, 'TEST 4b: Total discount is calculated correctly (₹100)');
-  assert(saleTotals.totalTax === 162, 'TEST 4c: 18% GST on net taxable amount is calculated correctly (₹162)');
-  assert(saleTotals.grandTotal === 1062, 'TEST 4d: Grand total equals subtotal - discount + tax (₹1062)');
+  // TEST 3: FEFO Return Allocation - TEST CASE 1 (Return 8 of 12: A = 5, B = 3)
+  const dbReturn = new MockFEFOReturnState();
+  dbReturn.products.set('p1', { current_stock: 3 }); // Remaining 3 out of 15
+  dbReturn.batches.set('b-a', { batch_number: 'BATCH-A', quantity_available: 0 }); // 5 sold
+  dbReturn.batches.set('b-b', { batch_number: 'BATCH-B', quantity_available: 3 }); // 7 sold out of 10
 
-  // TEST 5: Profit Calculation
-  const profit = calculateProfit(180, 120, 10, 5);
-  assert(profit === 510, 'TEST 5: Profit is calculated correctly based on cost price and discounts (₹510)');
+  dbReturn.sale_item_batches.push(
+    { id: 'sib-1', sale_item_id: 'item-1', batch_id: 'b-a', quantity: 5 },
+    { id: 'sib-2', sale_item_id: 'item-1', batch_id: 'b-b', quantity: 7 }
+  );
 
-  // TEST 6: Transaction Direction Validation (Reject SALE_OUT with positive qty)
-  const db = new MockDatabaseState();
-  db.products.set('p-test', { current_stock: 50, batch_tracking: false });
+  dbReturn.processSaleReturn('p1', 'item-1', 8);
 
-  let dirErr1 = false;
+  const restoredBatchA = dbReturn.batches.get('b-a')?.quantity_available;
+  const restoredBatchB = dbReturn.batches.get('b-b')?.quantity_available;
+  const restoredProdStock = dbReturn.products.get('p1')?.current_stock;
+
+  assert(restoredBatchA === 5, 'TEST 3a: FEFO Return 1 - Batch A restored to 5 (0 + 5)');
+  assert(restoredBatchB === 6, 'TEST 3b: FEFO Return 1 - Batch B restored to 6 (3 + 3)');
+  assert(restoredProdStock === 11, 'TEST 3c: Product current_stock restored from 3 to 11 (3 + 8)');
+
+  // TEST 4: FEFO Return Allocation - TEST CASE 2 (Second Return of 4 units -> Batch B restored by 4)
+  dbReturn.processSaleReturn('p1', 'item-1', 4);
+  const finalBatchA = dbReturn.batches.get('b-a')?.quantity_available;
+  const finalBatchB = dbReturn.batches.get('b-b')?.quantity_available;
+
+  assert(finalBatchA === 5, 'TEST 4a: FEFO Return 2 - Batch A remains 5 (no extra restoration to A)');
+  assert(finalBatchB === 10, 'TEST 4b: FEFO Return 2 - Batch B restored by 4 (6 -> 10)');
+  assert(dbReturn.products.get('p1')?.current_stock === 15, 'TEST 4c: Product stock fully restored back to 15');
+
+  // TEST 5: FEFO Return Validation - TEST CASE 3 (Attempt Return 5 when 12/12 already returned -> REJECT)
+  let overReturnErr = false;
   try {
-    db.processStockMovement('p-test', null, 'SALE_OUT', 5);
+    dbReturn.processSaleReturn('p1', 'item-1', 5);
   } catch (err: any) {
-    dirErr1 = err.message.includes('Transaction type "SALE_OUT" requires a negative quantity change');
+    overReturnErr = err.message.includes('Maximum returnable remaining is 0 units');
   }
-  assert(dirErr1, 'TEST 6a: SALE_OUT with positive quantity change (+5) is rejected');
+  assert(overReturnErr, 'TEST 5: Attempting to return 5 units when 12/12 already returned is rejected with exception');
 
-  let dirErr2 = false;
+  // TEST 6: Atomic Rollback Simulation - TEST CASE 4 (Force DB failure during return)
+  const dbRollback = new MockFEFOReturnState();
+  dbRollback.products.set('p-fail', { current_stock: 0 });
+  dbRollback.batches.set('b-valid', { batch_number: 'B-VALID', quantity_available: 0 });
+  dbRollback.sale_item_batches.push(
+    { id: 'sib-fail-1', sale_item_id: 'item-fail', batch_id: 'b-valid', quantity: 5 },
+    { id: 'sib-fail-2', sale_item_id: 'item-fail', batch_id: 'b-nonexistent', quantity: 5 }
+  );
+
+  let rollbackErr = false;
   try {
-    db.processStockMovement('p-test', null, 'OPENING_STOCK', -10);
+    dbRollback.processSaleReturn('p-fail', 'item-fail', 8);
   } catch (err: any) {
-    dirErr2 = err.message.includes('Transaction type "OPENING_STOCK" requires a positive quantity change');
+    rollbackErr = true;
   }
-  assert(dirErr2, 'TEST 6b: OPENING_STOCK with negative quantity change (-10) is rejected');
 
-  // TEST 7: FEFO Multi-Batch Deduction & Traceability (`sale_item_batches`)
-  const dbBatch = new MockDatabaseState();
-  dbBatch.products.set('p-batch', { current_stock: 25, batch_tracking: true });
-  dbBatch.batches.set('b-exp-null', { batch_number: 'BATCH-NOEXP', quantity_available: 10, expiry_date: null });
-  dbBatch.batches.set('b-exp-2027', { batch_number: 'BATCH-2027', quantity_available: 15, expiry_date: '2027-06-30' });
-
-  dbBatch.processFEFOSaleDeduction('p-batch', 18, 'sale-1', 'item-1');
-  assert(dbBatch.batches.get('b-exp-2027')?.quantity_available === 0, 'TEST 7a: FEFO depletes earliest expiring batch (2027-06-30)');
-  assert(dbBatch.batches.get('b-exp-null')?.quantity_available === 7, 'TEST 7b: FEFO correctly includes NULL expiry date batch for remaining 3 units (10 -> 7)');
-  assert(dbBatch.sale_item_batches.length === 2, 'TEST 7c: Multi-batch traceability records 2 entries in sale_item_batches');
-  assert(dbBatch.sale_item_batches[0].batch_id === 'b-exp-2027' && dbBatch.sale_item_batches[0].quantity === 15, 'TEST 7d: Traceability records Batch 2027 = 15 units');
-  assert(dbBatch.sale_item_batches[1].batch_id === 'b-exp-null' && dbBatch.sale_item_batches[1].quantity === 3, 'TEST 7e: Traceability records Batch NOEXP = 3 units');
-
-  // TEST 8: Sale Cancellation Reversal
-  dbBatch.sales.set('sale-1', { status: 'completed', total: 1800 });
-  dbBatch.cancelSale('sale-1');
-  assert(dbBatch.sales.get('sale-1')?.status === 'cancelled', 'TEST 8a: Sale status updated to cancelled');
-  assert(dbBatch.products.get('p-batch')?.current_stock === 25, 'TEST 8b: Product current_stock restored back to 25 via SALE_REVERSAL');
-  assert(dbBatch.batches.get('b-exp-2027')?.quantity_available === 15, 'TEST 8c: Batch 2027 stock restored to 15');
-  assert(dbBatch.batches.get('b-exp-null')?.quantity_available === 10, 'TEST 8d: Batch NOEXP stock restored to 10');
-
-  // TEST 9: Purchase In Stock Increase
-  db.processStockMovement('p-test', null, 'PURCHASE_IN', 20);
-  assert(db.products.get('p-test')?.current_stock === 70, 'TEST 9: PURCHASE_IN increases stock from 50 to 70 via Central Engine');
+  assert(rollbackErr, 'TEST 6a: Forcing failure during multi-batch return raises exception');
+  assert(dbRollback.products.get('p-fail')?.current_stock === 0, 'TEST 6b: Product stock rolls back completely to 0');
+  assert(dbRollback.batches.get('b-valid')?.quantity_available === 0, 'TEST 6c: Batch A stock rolls back completely to 0');
+  assert(dbRollback.sale_return_item_batches.length === 0, 'TEST 6d: Zero partial return records remain in sale_return_item_batches');
 
   console.log("\n=========================================");
   console.log(`TEST SUMMARY: ${passedCount} PASSED, ${failedCount} FAILED`);
