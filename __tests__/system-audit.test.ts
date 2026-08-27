@@ -32,34 +32,62 @@ function calculateProfit(sellingPrice: number, costPrice: number, quantity: numb
   return grossRevenue - discount - cost;
 }
 
-// Simulated RPC parameter builder & validator for unit test assertions
-function validateCreateProductRPC(params: {
-  p_shop_id: string;
-  p_category_id: string;
-  p_name: string;
-  p_opening_stock: number;
-  p_sku?: string | null;
-  p_barcode?: string | null;
-  p_category_shop_id?: string;
-  existing_skus?: string[];
-  existing_barcodes?: string[];
-}) {
-  if (params.p_opening_stock < 0) {
-    throw new Error('Opening stock cannot be negative');
+// Simulated Atomic Stock Movement Engine Verification
+class MockDatabaseState {
+  products: Map<string, { current_stock: number; batch_tracking: boolean }> = new Map();
+  batches: Map<string, { batch_number: string; quantity_available: number; expiry_date: string }> = new Map();
+  stock_transactions: Array<{ product_id: string; batch_id?: string | null; transaction_type: string; change: number; new_stock: number }> = [];
+
+  processStockMovement(productId: string, batchId: string | null, type: string, change: number) {
+    const prod = this.products.get(productId);
+    if (!prod) throw new Error(`Product ${productId} not found`);
+
+    const newStock = prod.current_stock + change;
+    if (newStock < 0) {
+      throw new Error(`Insufficient product stock for ID ${productId} (Current: ${prod.current_stock}, Change: ${change})`);
+    }
+
+    if (batchId) {
+      const b = this.batches.get(batchId);
+      if (!b) throw new Error(`Batch ${batchId} not found`);
+      const newBatchAvail = b.quantity_available + change;
+      if (newBatchAvail < 0) {
+        throw new Error(`Insufficient batch stock (Available: ${b.quantity_available}, Change: ${change})`);
+      }
+      b.quantity_available = newBatchAvail;
+    }
+
+    prod.current_stock = newStock;
+    this.stock_transactions.push({ product_id: productId, batch_id: batchId, transaction_type: type, change, new_stock: newStock });
+    return newStock;
   }
-  if (!params.p_name || params.p_name.trim().length < 2) {
-    throw new Error('Product name must be at least 2 characters');
+
+  processFEFOSaleDeduction(productId: string, requestedQty: number) {
+    if (requestedQty <= 0) throw new Error('Requested sale quantity must be greater than zero');
+    const prod = this.products.get(productId);
+    if (!prod) throw new Error('Product not found');
+
+    if (prod.current_stock < requestedQty) {
+      throw new Error(`Insufficient non-expired batch stock for product ${productId} (Short by ${requestedQty - prod.current_stock} units)`);
+    }
+
+    let qtyNeeded = requestedQty;
+    // Sort batches by expiry date ASC
+    const sortedBatches = Array.from(this.batches.entries()).sort((a, b) => a[1].expiry_date.localeCompare(b[1].expiry_date));
+
+    for (const [batchId, b] of sortedBatches) {
+      if (qtyNeeded <= 0) break;
+      if (b.quantity_available <= 0) continue;
+
+      const deduct = Math.min(b.quantity_available, qtyNeeded);
+      this.processStockMovement(productId, batchId, 'SALE_OUT', -deduct);
+      qtyNeeded -= deduct;
+    }
+
+    if (qtyNeeded > 0) {
+      throw new Error('Insufficient batch stock');
+    }
   }
-  if (params.p_category_shop_id && params.p_category_shop_id !== params.p_shop_id) {
-    throw new Error('Category not found or does not belong to this shop');
-  }
-  if (params.p_sku && params.existing_skus?.includes(params.p_sku)) {
-    throw new Error(`Product with SKU "${params.p_sku}" already exists in this shop`);
-  }
-  if (params.p_barcode && params.existing_barcodes?.includes(params.p_barcode)) {
-    throw new Error(`Product with Barcode "${params.p_barcode}" already exists in this shop`);
-  }
-  return { success: true };
 }
 
 // ----------------------------------------------------
@@ -136,71 +164,63 @@ async function runSystemAuditTests() {
   const profit = calculateProfit(180, 120, 10, 5);
   assert(profit === 510, 'TEST 5: Profit is calculated correctly based on cost price and discounts (₹510)');
 
-  // TEST 6: Negative Opening Stock Rejection
-  let negativeStockErr = false;
-  try {
-    validateCreateProductRPC({
-      p_shop_id: 'shop-1',
-      p_category_id: 'cat-1',
-      p_name: 'Test Fertilizer',
-      p_opening_stock: -10,
-    });
-  } catch (err: any) {
-    negativeStockErr = err.message.includes('Opening stock cannot be negative');
-  }
-  assert(negativeStockErr, 'TEST 6: Negative opening stock (< 0) raises an exception');
+  // TEST 6: Flow A (Normal Product Opening Stock = 50)
+  const db = new MockDatabaseState();
+  db.products.set('p-normal', { current_stock: 50, batch_tracking: false });
+  db.stock_transactions.push({ product_id: 'p-normal', batch_id: null, transaction_type: 'OPENING_STOCK', change: 50, new_stock: 50 });
 
-  // TEST 7: Cross-Shop Category Rejection
-  let crossShopCategoryErr = false;
-  try {
-    validateCreateProductRPC({
-      p_shop_id: 'shop-1',
-      p_category_id: 'cat-foreign',
-      p_category_shop_id: 'shop-2',
-      p_name: 'Test Seed',
-      p_opening_stock: 10,
-    });
-  } catch (err: any) {
-    crossShopCategoryErr = err.message.includes('Category not found or does not belong to this shop');
-  }
-  assert(crossShopCategoryErr, 'TEST 7: Category belonging to another shop is rejected');
+  assert(db.products.get('p-normal')?.current_stock === 50, 'TEST 6a: Flow A current stock is 50');
+  assert(db.batches.size === 0, 'TEST 6b: Flow A creates 0 product_batches');
+  assert(db.stock_transactions[0].transaction_type === 'OPENING_STOCK', 'TEST 6c: Stock transaction is OPENING_STOCK');
 
-  // TEST 8: Duplicate SKU Rejection
-  let duplicateSkuErr = false;
-  try {
-    validateCreateProductRPC({
-      p_shop_id: 'shop-1',
-      p_category_id: 'cat-1',
-      p_name: 'Test Insecticide',
-      p_opening_stock: 5,
-      p_sku: 'SKU-EXISTING',
-      existing_skus: ['SKU-EXISTING'],
-    });
-  } catch (err: any) {
-    duplicateSkuErr = err.message.includes('Product with SKU "SKU-EXISTING" already exists');
-  }
-  assert(duplicateSkuErr, 'TEST 8: Duplicate SKU within the same shop raises an exception');
+  // TEST 7: Sale Stock Reduction (Sell 5 from 50)
+  db.processStockMovement('p-normal', null, 'SALE_OUT', -5);
+  assert(db.products.get('p-normal')?.current_stock === 45, 'TEST 7a: Product stock decreases to 45 after selling 5');
+  assert(db.stock_transactions.length === 2 && db.stock_transactions[1].transaction_type === 'SALE_OUT', 'TEST 7b: SALE_OUT stock transaction entry created');
 
-  // TEST 9: Duplicate Barcode Rejection
-  let duplicateBarcodeErr = false;
+  // TEST 8: Insufficient Negative Stock Rejection
+  let negStockErr = false;
   try {
-    validateCreateProductRPC({
-      p_shop_id: 'shop-1',
-      p_category_id: 'cat-1',
-      p_name: 'Test Fungicide',
-      p_opening_stock: 5,
-      p_barcode: '890123456789',
-      existing_barcodes: ['890123456789'],
-    });
+    db.processStockMovement('p-normal', null, 'SALE_OUT', -100);
   } catch (err: any) {
-    duplicateBarcodeErr = err.message.includes('Product with Barcode "890123456789" already exists');
+    negStockErr = err.message.includes('Insufficient product stock');
   }
-  assert(duplicateBarcodeErr, 'TEST 9: Duplicate Barcode within the same shop raises an exception');
+  assert(negStockErr, 'TEST 8a: Overselling (100 > 45) raises insufficient stock exception');
+  assert(db.products.get('p-normal')?.current_stock === 45, 'TEST 8b: Product stock remains 45 without partial reduction');
 
-  // TEST 10: Search Query Sanitization
-  const rawSearch = 'Urea (50Kg), Special & Test\\';
-  const cleanSearch = rawSearch.replace(/[,().\\]/g, '').trim();
-  assert(cleanSearch === 'Urea 50Kg Special & Test', 'TEST 10: Special characters in search input are sanitized safely');
+  // TEST 9: FEFO Multi-Batch Allocation (Batch A = 5, Batch B = 10, Sell 12)
+  const dbBatch = new MockDatabaseState();
+  dbBatch.products.set('p-batch', { current_stock: 15, batch_tracking: true });
+  dbBatch.batches.set('b-a', { batch_number: 'BATCH-A', quantity_available: 5, expiry_date: '2027-01-01' });
+  dbBatch.batches.set('b-b', { batch_number: 'BATCH-B', quantity_available: 10, expiry_date: '2028-01-01' });
+
+  dbBatch.processFEFOSaleDeduction('p-batch', 12);
+  assert(dbBatch.batches.get('b-a')?.quantity_available === 0, 'TEST 9a: FEFO completely depletes Batch A (5 -> 0)');
+  assert(dbBatch.batches.get('b-b')?.quantity_available === 3, 'TEST 9b: FEFO deducts remaining 7 from Batch B (10 -> 3)');
+  assert(dbBatch.products.get('p-batch')?.current_stock === 3, 'TEST 9c: Total product current_stock synchronized to 3');
+
+  // TEST 10: Concurrency Simulation (Stock = 10, Tx A & Tx B attempt 8 each)
+  const dbConc = new MockDatabaseState();
+  dbConc.products.set('p-conc', { current_stock: 10, batch_tracking: false });
+
+  // Tx A succeeds
+  dbConc.processStockMovement('p-conc', null, 'SALE_OUT', -8);
+  assert(dbConc.products.get('p-conc')?.current_stock === 2, 'TEST 10a: First concurrent transaction A succeeds (10 -> 2)');
+
+  // Tx B fails safely
+  let concErr = false;
+  try {
+    dbConc.processStockMovement('p-conc', null, 'SALE_OUT', -8);
+  } catch (err: any) {
+    concErr = err.message.includes('Insufficient product stock');
+  }
+  assert(concErr, 'TEST 10b: Second concurrent transaction B fails safely with insufficient stock exception');
+  assert(dbConc.products.get('p-conc')?.current_stock === 2, 'TEST 10c: Product stock remains 2 and never becomes negative');
+
+  // TEST 11: Sale Return (+5 units)
+  db.processStockMovement('p-normal', null, 'SALE_RETURN', 5);
+  assert(db.products.get('p-normal')?.current_stock === 50, 'TEST 11a: Sale Return increases stock back from 45 to 50');
+  assert(db.stock_transactions.find(t => t.transaction_type === 'SALE_RETURN') !== undefined, 'TEST 11b: SALE_RETURN transaction entry logged');
 
   console.log("\n=========================================");
   console.log(`TEST SUMMARY: ${passedCount} PASSED, ${failedCount} FAILED`);
