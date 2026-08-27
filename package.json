@@ -62,9 +62,7 @@
     "typescript": "^5"
   },
   "allowScripts": {
-    "core-js": true,
     "core-js@3.50.0": true,
-    "unrs-resolver": true,
     "unrs-resolver@1.12.2": true
   }
 }
