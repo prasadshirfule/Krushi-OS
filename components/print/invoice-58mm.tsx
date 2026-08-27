@@ -22,7 +22,7 @@ export function Invoice58mm({ sale, shopSettings }: Invoice58mmProps) {
   const shopPhone = shopSettings.phone || shopSettings.shop_phone || ''
   const invNo = sale.invoice_number || sale.invoiceNumber || sale.id
   const dateStr = sale.sale_date || sale.created_at || sale.createdAt || new Date().toISOString()
-  const grandTotal = sale.grand_total ?? sale.totalAmount ?? 0
+  const grandTotal = Number(sale.total_amount ?? sale.grand_total ?? sale.totalAmount ?? 0)
 
   return (
     <div className="print-58mm bg-white text-black mx-auto p-2 leading-tight w-[58mm] text-[10px]">

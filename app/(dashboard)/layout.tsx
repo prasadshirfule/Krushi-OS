@@ -2,7 +2,9 @@ import { redirect } from 'next/navigation'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { Sidebar } from '@/components/layout/sidebar'
 import { Header } from '@/components/layout/header'
+import { GlobalNavigationIndicator } from '@/components/layout/global-navigation-indicator'
 import { cookies } from 'next/headers'
+import { Suspense } from 'react'
 
 export default async function DashboardLayout({
   children,
@@ -35,6 +37,9 @@ export default async function DashboardLayout({
           {children}
         </main>
       </div>
+      <Suspense fallback={null}>
+        <GlobalNavigationIndicator />
+      </Suspense>
     </div>
   )
 }

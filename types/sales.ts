@@ -19,6 +19,9 @@ export type SaleWithItems = Sale & {
   cgstTotal?: number;
   sgstTotal?: number;
   paymentMethod?: string;
+  total_amount?: number;
+  discount_amount?: number;
+  tax_amount?: number;
 };
 
 export interface BillingCartItem {

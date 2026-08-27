@@ -38,9 +38,10 @@ export function InvoiceA4({ sale, shopSettings }: InvoiceA4Props) {
 
   const invNo = sale.invoice_number || sale.invoiceNumber || sale.id
   const dateStr = sale.sale_date || sale.created_at || sale.createdAt || new Date().toISOString()
-  const grandTotal = sale.grand_total ?? sale.totalAmount ?? 0
-  const discountTotal = sale.total_discount ?? sale.discountAmount ?? 0
-  const taxTotal = sale.total_tax ?? (sale.cgstTotal ? (sale.cgstTotal + (sale.sgstTotal || 0)) : 0)
+  const grandTotal = Number(sale.total_amount ?? sale.grand_total ?? sale.totalAmount ?? 0)
+  const discountTotal = Number(sale.discount_amount ?? sale.total_discount ?? sale.discountAmount ?? 0)
+  const taxTotal = Number(sale.tax_amount ?? sale.total_tax ?? (sale.cgstTotal ? (sale.cgstTotal + (sale.sgstTotal || 0)) : 0))
+  const subtotal = Number(sale.subtotal ?? (grandTotal + discountTotal - taxTotal))
 
   return (
     <div className="print-a4 bg-white text-black p-8 mx-auto font-sans text-sm w-[210mm] min-h-[297mm]">

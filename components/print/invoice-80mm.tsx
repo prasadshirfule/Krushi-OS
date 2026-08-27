@@ -30,9 +30,10 @@ export function Invoice80mm({ sale, shopSettings }: Invoice80mmProps) {
 
   const invNo = sale.invoice_number || sale.invoiceNumber || sale.id
   const dateStr = sale.sale_date || sale.created_at || sale.createdAt || new Date().toISOString()
-  const grandTotal = sale.grand_total ?? sale.totalAmount ?? 0
-  const discountTotal = sale.total_discount ?? sale.discountAmount ?? 0
-  const taxTotal = sale.total_tax ?? (sale.cgstTotal ? (sale.cgstTotal + (sale.sgstTotal || 0)) : 0)
+  const grandTotal = Number(sale.total_amount ?? sale.grand_total ?? sale.totalAmount ?? 0)
+  const discountTotal = Number(sale.discount_amount ?? sale.total_discount ?? sale.discountAmount ?? 0)
+  const taxTotal = Number(sale.tax_amount ?? sale.total_tax ?? (sale.cgstTotal ? (sale.cgstTotal + (sale.sgstTotal || 0)) : 0))
+  const subtotal = Number(sale.subtotal ?? (grandTotal + discountTotal - taxTotal))
 
   return (
     <div className="print-80mm bg-white text-black mx-auto p-4 leading-tight w-[80mm]">
