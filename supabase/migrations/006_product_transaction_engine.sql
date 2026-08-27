@@ -6,7 +6,10 @@ ALTER TABLE stock_transactions DROP CONSTRAINT IF EXISTS stock_transactions_tran
 ALTER TABLE stock_transactions ADD CONSTRAINT stock_transactions_transaction_type_check
 CHECK (transaction_type IN ('PURCHASE_IN', 'SALE_OUT', 'RETURN_IN', 'ADJUSTMENT', 'DAMAGED', 'EXPIRED', 'OPENING_STOCK'));
 
--- 2. Atomic Product Creation Function (PL/pgSQL Transaction)
+-- 2. Partial unique index for barcode per shop
+CREATE UNIQUE INDEX IF NOT EXISTS idx_products_shop_barcode_unique ON products(shop_id, barcode) WHERE (barcode IS NOT NULL AND barcode != '' AND is_active = true);
+
+-- 3. Atomic Product Creation Function (PL/pgSQL Transaction)
 CREATE OR REPLACE FUNCTION create_product_with_stock(
   p_shop_id UUID,
   p_user_id UUID,
@@ -40,9 +43,13 @@ CREATE OR REPLACE FUNCTION create_product_with_stock(
 DECLARE
   v_product_id UUID;
   v_batch_id UUID := NULL;
-  v_stock INTEGER := GREATEST(0, COALESCE(p_opening_stock, 0));
+  v_stock INTEGER := COALESCE(p_opening_stock, 0);
 BEGIN
   -- 1. Validations
+  IF p_opening_stock < 0 THEN
+    RAISE EXCEPTION 'Opening stock cannot be negative';
+  END IF;
+
   IF p_name IS NULL OR length(trim(p_name)) < 2 THEN
     RAISE EXCEPTION 'Product name must be at least 2 characters';
   END IF;
@@ -51,10 +58,27 @@ BEGIN
     RAISE EXCEPTION 'Category ID is required';
   END IF;
 
+  -- Validate Category belongs to shop
+  IF NOT EXISTS (SELECT 1 FROM categories WHERE id = p_category_id AND shop_id = p_shop_id) THEN
+    RAISE EXCEPTION 'Category not found or does not belong to this shop';
+  END IF;
+
+  -- Validate Brand belongs to shop if provided
+  IF p_brand_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM brands WHERE id = p_brand_id AND shop_id = p_shop_id) THEN
+    RAISE EXCEPTION 'Brand not found or does not belong to this shop';
+  END IF;
+
   -- SKU Uniqueness Check if provided
   IF p_sku IS NOT NULL AND trim(p_sku) != '' THEN
     IF EXISTS (SELECT 1 FROM products WHERE shop_id = p_shop_id AND sku = trim(p_sku) AND is_active = true) THEN
       RAISE EXCEPTION 'Product with SKU "%" already exists in this shop', p_sku;
+    END IF;
+  END IF;
+
+  -- Barcode Uniqueness Check if provided
+  IF p_barcode IS NOT NULL AND trim(p_barcode) != '' THEN
+    IF EXISTS (SELECT 1 FROM products WHERE shop_id = p_shop_id AND barcode = trim(p_barcode) AND is_active = true) THEN
+      RAISE EXCEPTION 'Product with Barcode "%" already exists in this shop', p_barcode;
     END IF;
   END IF;
 

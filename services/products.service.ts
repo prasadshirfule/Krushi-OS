@@ -18,8 +18,10 @@ export async function getProducts(
       .eq('is_active', true);
     
     if (options.search) {
-      const q = options.search.trim();
-      query = query.or(`name.ilike.%${q}%,sku.ilike.%${q}%,barcode.ilike.%${q}%`);
+      const q = options.search.replace(/[,().\\]/g, '').trim();
+      if (q) {
+        query = query.or(`name.ilike.%${q}%,sku.ilike.%${q}%,barcode.ilike.%${q}%`);
+      }
     }
 
     if (options.category) query = query.eq('category_id', options.category);
@@ -108,16 +110,41 @@ export async function createProduct(shopId: string, data: CreateProductInput, us
 export async function updateProduct(shopId: string, productId: string, data: UpdateProductInput) {
   const supabase = await createServerSupabaseClient();
 
-  // Safely strip inventory & stock properties from metadata update payload
-  const { ...metadata } = data as any;
-  delete metadata.opening_stock;
-  delete metadata.current_stock;
-  delete metadata.stock;
-  delete metadata.batches;
+  // Explicit typed allowlist pick of product metadata fields
+  const allowedFields = {
+    name: data.name,
+    category_id: data.category_id,
+    brand_id: data.brand_id,
+    description: data.description,
+    sku: data.sku,
+    barcode: data.barcode,
+    purchase_price: data.purchase_price,
+    selling_price: data.selling_price,
+    wholesale_price: data.wholesale_price,
+    gst_rate: data.gst_rate,
+    hsn_code: data.hsn_code,
+    unit: data.unit,
+    min_stock: data.min_stock,
+    max_stock: data.max_stock,
+    product_type: data.product_type,
+    active_ingredient: data.active_ingredient,
+    formulation: data.formulation,
+    crop: data.crop,
+    target_pest: data.target_pest,
+    pack_size: data.pack_size,
+    licence_number: data.licence_number,
+  };
+
+  const cleanPayload: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(allowedFields)) {
+    if (value !== undefined) {
+      cleanPayload[key] = value;
+    }
+  }
 
   const { data: product, error } = await supabase
     .from('products')
-    .update(metadata)
+    .update(cleanPayload)
     .eq('shop_id', shopId)
     .eq('id', productId)
     .select()
@@ -169,7 +196,7 @@ export async function getProductByBarcode(shopId: string, barcode: string): Prom
 export async function searchProducts(shopId: string, queryText: string, limit = 20): Promise<ProductWithRelations[]> {
   try {
     const supabase = await createServerSupabaseClient();
-    const cleanQuery = queryText.trim();
+    const cleanQuery = queryText.replace(/[,().\\]/g, '').trim();
     if (!cleanQuery) return [];
 
     const { data, error } = await supabase

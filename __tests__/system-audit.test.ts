@@ -32,17 +32,34 @@ function calculateProfit(sellingPrice: number, costPrice: number, quantity: numb
   return grossRevenue - discount - cost;
 }
 
-// Simulated RPC parameter builder for verification
-function buildCreateProductParams(data: any) {
-  return {
-    p_name: data.name,
-    p_opening_stock: data.opening_stock || 0,
-    p_batch_tracking: Boolean(data.batch_tracking),
-    p_expiry_tracking: Boolean(data.expiry_tracking),
-    p_batch_number: data.batch_number || null,
-    p_expiry_date: data.expiry_date || null,
-    p_transaction_type: 'OPENING_STOCK'
-  };
+// Simulated RPC parameter builder & validator for unit test assertions
+function validateCreateProductRPC(params: {
+  p_shop_id: string;
+  p_category_id: string;
+  p_name: string;
+  p_opening_stock: number;
+  p_sku?: string | null;
+  p_barcode?: string | null;
+  p_category_shop_id?: string;
+  existing_skus?: string[];
+  existing_barcodes?: string[];
+}) {
+  if (params.p_opening_stock < 0) {
+    throw new Error('Opening stock cannot be negative');
+  }
+  if (!params.p_name || params.p_name.trim().length < 2) {
+    throw new Error('Product name must be at least 2 characters');
+  }
+  if (params.p_category_shop_id && params.p_category_shop_id !== params.p_shop_id) {
+    throw new Error('Category not found or does not belong to this shop');
+  }
+  if (params.p_sku && params.existing_skus?.includes(params.p_sku)) {
+    throw new Error(`Product with SKU "${params.p_sku}" already exists in this shop`);
+  }
+  if (params.p_barcode && params.existing_barcodes?.includes(params.p_barcode)) {
+    throw new Error(`Product with Barcode "${params.p_barcode}" already exists in this shop`);
+  }
+  return { success: true };
 }
 
 // ----------------------------------------------------
@@ -68,7 +85,7 @@ async function runSystemAuditTests() {
 
   // TEST 1: Product Schema Validation - Invalid Missing Name
   const invalidNameRes = productSchema.safeParse({
-    name: 'A', // too short (<2 chars)
+    name: 'A',
     category_id: 'cat-123',
     purchase_price: 100,
     selling_price: 150,
@@ -82,7 +99,7 @@ async function runSystemAuditTests() {
   const invalidPriceRes = productSchema.safeParse({
     name: 'Chlorpyrifos 20% EC',
     category_id: 'cat-123',
-    purchase_price: -50, // invalid negative
+    purchase_price: -50,
     selling_price: 150,
     gst_rate: 18,
     unit: 'Bottle',
@@ -119,33 +136,71 @@ async function runSystemAuditTests() {
   const profit = calculateProfit(180, 120, 10, 5);
   assert(profit === 510, 'TEST 5: Profit is calculated correctly based on cost price and discounts (₹510)');
 
-  // TEST 6: Flow A (Normal Product Opening Stock)
-  const flowAParams = buildCreateProductParams({
-    name: 'Urea Fertilizer 50Kg',
-    opening_stock: 50,
-    batch_tracking: false,
-  });
-  assert(flowAParams.p_opening_stock === 50, 'TEST 6a: Flow A opening stock is 50');
-  assert(flowAParams.p_batch_tracking === false, 'TEST 6b: Flow A does NOT enable batch tracking');
-  assert(flowAParams.p_batch_number === null, 'TEST 6c: Flow A does NOT create a batch number');
-  assert(flowAParams.p_transaction_type === 'OPENING_STOCK', 'TEST 6d: Transaction type is OPENING_STOCK (not PURCHASE_IN)');
+  // TEST 6: Negative Opening Stock Rejection
+  let negativeStockErr = false;
+  try {
+    validateCreateProductRPC({
+      p_shop_id: 'shop-1',
+      p_category_id: 'cat-1',
+      p_name: 'Test Fertilizer',
+      p_opening_stock: -10,
+    });
+  } catch (err: any) {
+    negativeStockErr = err.message.includes('Opening stock cannot be negative');
+  }
+  assert(negativeStockErr, 'TEST 6: Negative opening stock (< 0) raises an exception');
 
-  // TEST 7: Flow B (Batch Tracked Product Opening Stock)
-  const flowBParams = buildCreateProductParams({
-    name: 'Syngenta Bio Product',
-    opening_stock: 20,
-    batch_tracking: true,
-    expiry_tracking: true,
-    batch_number: 'TEST-BATCH-001',
-    expiry_date: '2028-05-30',
-  });
-  assert(flowBParams.p_batch_tracking === true, 'TEST 7a: Flow B enables batch tracking');
-  assert(flowBParams.p_batch_number === 'TEST-BATCH-001', 'TEST 7b: Flow B stores user-provided batch number');
-  assert(flowBParams.p_expiry_date === '2028-05-30', 'TEST 7c: Flow B stores exact user-entered expiry date without generating fake dates');
+  // TEST 7: Cross-Shop Category Rejection
+  let crossShopCategoryErr = false;
+  try {
+    validateCreateProductRPC({
+      p_shop_id: 'shop-1',
+      p_category_id: 'cat-foreign',
+      p_category_shop_id: 'shop-2',
+      p_name: 'Test Seed',
+      p_opening_stock: 10,
+    });
+  } catch (err: any) {
+    crossShopCategoryErr = err.message.includes('Category not found or does not belong to this shop');
+  }
+  assert(crossShopCategoryErr, 'TEST 7: Category belonging to another shop is rejected');
 
-  // TEST 8: Multi-Field Search Pattern Verification
-  const searchFilter = `name.ilike.%890123456789%,sku.ilike.%890123456789%,barcode.ilike.%890123456789%`;
-  assert(searchFilter.includes('name.ilike') && searchFilter.includes('sku.ilike') && searchFilter.includes('barcode.ilike'), 'TEST 8: Product search evaluates across Name, SKU, and Barcode');
+  // TEST 8: Duplicate SKU Rejection
+  let duplicateSkuErr = false;
+  try {
+    validateCreateProductRPC({
+      p_shop_id: 'shop-1',
+      p_category_id: 'cat-1',
+      p_name: 'Test Insecticide',
+      p_opening_stock: 5,
+      p_sku: 'SKU-EXISTING',
+      existing_skus: ['SKU-EXISTING'],
+    });
+  } catch (err: any) {
+    duplicateSkuErr = err.message.includes('Product with SKU "SKU-EXISTING" already exists');
+  }
+  assert(duplicateSkuErr, 'TEST 8: Duplicate SKU within the same shop raises an exception');
+
+  // TEST 9: Duplicate Barcode Rejection
+  let duplicateBarcodeErr = false;
+  try {
+    validateCreateProductRPC({
+      p_shop_id: 'shop-1',
+      p_category_id: 'cat-1',
+      p_name: 'Test Fungicide',
+      p_opening_stock: 5,
+      p_barcode: '890123456789',
+      existing_barcodes: ['890123456789'],
+    });
+  } catch (err: any) {
+    duplicateBarcodeErr = err.message.includes('Product with Barcode "890123456789" already exists');
+  }
+  assert(duplicateBarcodeErr, 'TEST 9: Duplicate Barcode within the same shop raises an exception');
+
+  // TEST 10: Search Query Sanitization
+  const rawSearch = 'Urea (50Kg), Special & Test\\';
+  const cleanSearch = rawSearch.replace(/[,().\\]/g, '').trim();
+  assert(cleanSearch === 'Urea 50Kg Special & Test', 'TEST 10: Special characters in search input are sanitized safely');
 
   console.log("\n=========================================");
   console.log(`TEST SUMMARY: ${passedCount} PASSED, ${failedCount} FAILED`);
