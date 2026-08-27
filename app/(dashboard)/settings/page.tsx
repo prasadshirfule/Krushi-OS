@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Store, Receipt, Printer, Percent, ShieldCheck, Save, LogOut, FileText, QrCode } from "lucide-react";
+import { Store, Receipt, Printer, Percent, ShieldCheck, Save, LogOut } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 const DEFAULTS = {
@@ -25,7 +25,7 @@ const DEFAULTS = {
     pesticideLicence: "LIC/PEST/2024/7834",
   },
   invoice: {
-    prefix: "KOS",
+    prefix: "KSK",
     nextNumber: "1004",
     format: "prefix-year-number",
     headerTitle: "TAX INVOICE / RETAIL BILL",
@@ -35,7 +35,8 @@ const DEFAULTS = {
   print: {
     format: "80mm",
     copies: "1",
-    showLogo: true,
+    headerText: "Krushi Seva Kendra - Seeds, Fertilizers & Pesticides",
+    showShopName: true,
     showAddress: true,
     showPhone: true,
     showGst: true,
@@ -55,7 +56,6 @@ const DEFAULTS = {
     stateCode: "23 - Madhya Pradesh",
     defaultHsn: "3808",
     requireHsn: true,
-    compositionScheme: false,
   },
   account: {
     businessType: "Krushi Seva Kendra (Agri Retail & Wholesale)",
@@ -241,7 +241,7 @@ export default function SettingsPage() {
                 />
               </div>
             </div>
-            <Button className="bg-green-600 hover:bg-green-700" onClick={() => handleSave("Shop Profile")} disabled={isSaving}>
+            <Button className="bg-green-600 hover:bg-green-700 font-semibold" onClick={() => handleSave("Shop Profile")} disabled={isSaving}>
               <Save className="h-4 w-4 mr-2" /> Save Shop Details
             </Button>
           </div>
@@ -255,11 +255,11 @@ export default function SettingsPage() {
             </h2>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Invoice Number Prefix</Label>
+                <Label>Invoice Number Prefix (e.g. INV / KSK)</Label>
                 <Input 
                   value={invoiceSettings.prefix} 
                   onChange={(e) => setInvoiceSettings({ ...invoiceSettings, prefix: e.target.value.toUpperCase() })} 
-                  placeholder="e.g. KOS, INV, KSK"
+                  placeholder="e.g. KSK, INV, KOS"
                 />
               </div>
               <div className="space-y-2">
@@ -300,7 +300,7 @@ export default function SettingsPage() {
             </div>
 
             <div className="space-y-2">
-              <Label>Standard Terms & Conditions (Shown on Invoices)</Label>
+              <Label>Invoice Footer Notes / Terms & Conditions</Label>
               <Textarea 
                 rows={4}
                 value={invoiceSettings.terms} 
@@ -318,8 +318,8 @@ export default function SettingsPage() {
               />
             </div>
 
-            <Button className="bg-green-600 hover:bg-green-700" onClick={() => handleSave("Invoice")} disabled={isSaving}>
-              <Save className="h-4 w-4 mr-2" /> Save Invoice Config
+            <Button className="bg-green-600 hover:bg-green-700 font-semibold" onClick={() => handleSave("Invoice")} disabled={isSaving}>
+              <Save className="h-4 w-4 mr-2" /> Save Invoice Settings
             </Button>
           </div>
         </TabsContent>
@@ -333,13 +333,13 @@ export default function SettingsPage() {
             
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Default Paper Format / Width</Label>
+                <Label>Paper Size Selection</Label>
                 <Select 
                   value={printSettings.format} 
                   onValueChange={(val) => setPrintSettings({ ...printSettings, format: val })}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select paper format" />
+                    <SelectValue placeholder="Select paper size" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="80mm">80mm Thermal Receipt (Standard POS)</SelectItem>
@@ -368,13 +368,33 @@ export default function SettingsPage() {
               </div>
             </div>
 
+            <div className="space-y-2 pt-2">
+              <Label>Header Text / Custom Header Message</Label>
+              <Input 
+                value={printSettings.headerText} 
+                onChange={(e) => setPrintSettings({ ...printSettings, headerText: e.target.value })} 
+                placeholder="e.g. Krushi Seva Kendra - Seeds, Fertilizers & Pesticides"
+              />
+            </div>
+
             <div className="space-y-3 pt-3 border-t">
-              <Label className="text-sm font-semibold">Print Elements Configuration</Label>
+              <Label className="text-sm font-semibold">Show / Hide Bill Elements</Label>
               
               <div className="flex items-center justify-between">
                 <div>
+                  <p className="text-sm font-medium">Show Shop Name & Header</p>
+                  <p className="text-xs text-muted-foreground">Print shop name at the top of the bill</p>
+                </div>
+                <Switch 
+                  checked={printSettings.showShopName} 
+                  onCheckedChange={(checked) => setPrintSettings({ ...printSettings, showShopName: checked })}
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div>
                   <p className="text-sm font-medium">Show Shop Address</p>
-                  <p className="text-xs text-muted-foreground">Print full address on header</p>
+                  <p className="text-xs text-muted-foreground">Print full address on receipt header</p>
                 </div>
                 <Switch 
                   checked={printSettings.showAddress} 
@@ -396,7 +416,7 @@ export default function SettingsPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium">Show GSTIN Number</p>
-                  <p className="text-xs text-muted-foreground">Display GST number on tax invoice</p>
+                  <p className="text-xs text-muted-foreground">Display GSTIN on tax invoice</p>
                 </div>
                 <Switch 
                   checked={printSettings.showGst} 
@@ -450,7 +470,7 @@ export default function SettingsPage() {
             </div>
 
             <div className="space-y-2 pt-2">
-              <Label>Thermal Bill Footer Message</Label>
+              <Label>Footer Message</Label>
               <Input 
                 value={printSettings.footerMessage} 
                 onChange={(e) => setPrintSettings({ ...printSettings, footerMessage: e.target.value })} 
@@ -458,8 +478,8 @@ export default function SettingsPage() {
               />
             </div>
 
-            <Button className="bg-green-600 hover:bg-green-700" onClick={() => handleSave("Print Layout")} disabled={isSaving}>
-              <Save className="h-4 w-4 mr-2" /> Save Printing Options
+            <Button className="bg-green-600 hover:bg-green-700 font-semibold" onClick={() => handleSave("Print Layout")} disabled={isSaving}>
+              <Save className="h-4 w-4 mr-2" /> Save Print Settings
             </Button>
           </div>
         </TabsContent>
@@ -474,7 +494,7 @@ export default function SettingsPage() {
             <div className="flex items-center justify-between p-3 bg-muted/40 rounded-lg border">
               <div>
                 <p className="text-sm font-semibold">Enable GST Billing</p>
-                <p className="text-xs text-muted-foreground">Calculate CGST, SGST, IGST on bills and sales invoices</p>
+                <p className="text-xs text-muted-foreground">Toggle GST tax calculations on bills and sales invoices</p>
               </div>
               <Switch 
                 checked={taxSettings.gstEnabled} 
@@ -530,7 +550,7 @@ export default function SettingsPage() {
               </div>
 
               <div className="space-y-1">
-                <Label className="text-xs">CGST %</Label>
+                <Label className="text-xs">Default CGST %</Label>
                 <Input 
                   type="number" 
                   className="h-9"
@@ -540,7 +560,7 @@ export default function SettingsPage() {
               </div>
 
               <div className="space-y-1">
-                <Label className="text-xs">SGST %</Label>
+                <Label className="text-xs">Default SGST %</Label>
                 <Input 
                   type="number" 
                   className="h-9"
@@ -550,7 +570,7 @@ export default function SettingsPage() {
               </div>
 
               <div className="space-y-1">
-                <Label className="text-xs">IGST %</Label>
+                <Label className="text-xs">Default IGST %</Label>
                 <Input 
                   type="number" 
                   className="h-9"
@@ -562,17 +582,21 @@ export default function SettingsPage() {
 
             <div className="grid grid-cols-2 gap-4 pt-2 border-t">
               <div className="space-y-2">
-                <Label>Default HSN Code</Label>
+                <Label>Default Agricultural HSN Code</Label>
                 <Input 
                   value={taxSettings.defaultHsn} 
                   onChange={(e) => setTaxSettings({ ...taxSettings, defaultHsn: e.target.value })} 
                   placeholder="e.g. 3808 (Pesticides) / 3105 (Fertilizers)"
                 />
+                <p className="text-[11px] text-muted-foreground">Standard 4-8 digit HSN code for agri-inputs</p>
               </div>
 
-              <div className="flex flex-col justify-end space-y-2 pb-1">
+              <div className="flex flex-col justify-center space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label className="text-xs">Require HSN on All Items</Label>
+                  <div>
+                    <Label className="text-xs font-semibold">Require HSN on Items</Label>
+                    <p className="text-[11px] text-muted-foreground">Mandate HSN on all bill items</p>
+                  </div>
                   <Switch 
                     checked={taxSettings.requireHsn} 
                     onCheckedChange={(checked) => setTaxSettings({ ...taxSettings, requireHsn: checked })}
@@ -581,7 +605,7 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            <Button className="bg-green-600 hover:bg-green-700" onClick={() => handleSave("GST & Tax")} disabled={isSaving}>
+            <Button className="bg-green-600 hover:bg-green-700 font-semibold" onClick={() => handleSave("GST & Tax")} disabled={isSaving}>
               <Save className="h-4 w-4 mr-2" /> Save Tax Settings
             </Button>
           </div>
@@ -660,6 +684,7 @@ export default function SettingsPage() {
                   <SelectContent>
                     <SelectItem value="1st April">1st April - 31st March (Indian FY)</SelectItem>
                     <SelectItem value="1st January">1st January - 31st December (Calendar Year)</SelectItem>
+                    <SelectItem value="1st July">1st July - 30th June</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -691,7 +716,7 @@ export default function SettingsPage() {
             </div>
 
             <div className="flex gap-3 pt-2">
-              <Button className="bg-green-600 hover:bg-green-700" onClick={() => handleSave("Account")} disabled={isSaving}>
+              <Button className="bg-green-600 hover:bg-green-700 font-semibold" onClick={() => handleSave("Account")} disabled={isSaving}>
                 <Save className="h-4 w-4 mr-2" /> Save Account Settings
               </Button>
               <Button variant="outline" onClick={handleLogout}>

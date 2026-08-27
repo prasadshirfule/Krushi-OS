@@ -286,35 +286,27 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
               <div className="space-y-4 md:col-span-2 pt-2 border-t">
                 <div className="flex items-center justify-between">
                   <div>
-                    <Label className="font-semibold">Batch Tracking</Label>
-                    <p className="text-xs text-muted-foreground">Enable tracking individual batch numbers and quantities.</p>
+                    <Label className="font-semibold">Track Batch & Expiry</Label>
+                    <p className="text-xs text-muted-foreground">Enable tracking batch numbers, manufacturing dates, and expiration alerts.</p>
                   </div>
                   <Switch
-                    checked={form.watch('batch_tracking')}
-                    onCheckedChange={(checked) => form.setValue('batch_tracking', checked)}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label className="font-semibold">Expiry Date Tracking</Label>
-                    <p className="text-xs text-muted-foreground">Monitor expiry dates and receive urgent expiration alerts.</p>
-                  </div>
-                  <Switch
-                    checked={form.watch('expiry_tracking')}
-                    onCheckedChange={(checked) => form.setValue('expiry_tracking', checked)}
+                    checked={form.watch('batch_tracking') || form.watch('expiry_tracking')}
+                    onCheckedChange={(checked) => {
+                      form.setValue('batch_tracking', checked);
+                      form.setValue('expiry_tracking', checked);
+                    }}
                   />
                 </div>
               </div>
 
-              {(watchBatchTracking || form.watch('expiry_tracking')) && mode === 'create' && (
+              {(form.watch('batch_tracking') || form.watch('expiry_tracking')) && (
                 <div className="grid grid-cols-2 gap-4 md:col-span-2 bg-muted/40 p-4 rounded-lg border">
                   <div className="space-y-2">
-                    <Label htmlFor="batch_number">Initial Batch Number (Optional)</Label>
+                    <Label htmlFor="batch_number">Batch Number {mode === 'create' ? '(Optional)' : ''}</Label>
                     <Input id="batch_number" placeholder="e.g. BATCH-2026-01" {...form.register('batch_number')} />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="expiry_date">Expiry Date (Optional)</Label>
+                    <Label htmlFor="expiry_date">Expiry Date {mode === 'create' ? '(Optional)' : ''}</Label>
                     <Input id="expiry_date" type="date" {...form.register('expiry_date')} />
                   </div>
                 </div>
