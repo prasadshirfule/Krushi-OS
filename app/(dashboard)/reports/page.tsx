@@ -3,11 +3,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SalesReport } from "@/components/reports/sales-report";
 import { InventoryReport } from "@/components/reports/inventory-report";
 import { FinancialReport } from "@/components/reports/financial-report";
-import { DataTable } from "@/components/ui/data-table";
-import { formatCurrency } from "@/lib/utils";
+import { CustomerReportTab } from "@/components/reports/customer-report-tab";
+import { SupplierReportTab } from "@/components/reports/supplier-report-tab";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
+
+export const dynamic = 'force-dynamic';
 
 export const metadata = {
   title: 'Reports | KRUSHI OS',
@@ -18,10 +19,7 @@ export default async function ReportsPage() {
   const { data: { user } } = await supabase.auth.getUser();
 
   const cookieStore = await cookies();
-  const isDemo = cookieStore.get('krushi_demo_session')?.value === 'true';
   const isPlaceholder = !process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('placeholder');
-
-  const effectiveUser = user || { id: 'demo-admin-id', email: 'admin@krushios.com' };
 
   let shopId = 'demo-shop-1';
   if (user && !isPlaceholder) {
@@ -43,46 +41,6 @@ export default async function ReportsPage() {
     getCustomerReport(shopId),
     getSupplierReport(shopId)
   ]);
-
-  const customerColumns = [
-    { accessorKey: "name", header: "Customer Name" },
-    { accessorKey: "mobile", header: "Mobile" },
-    { accessorKey: "village", header: "Village" },
-    { 
-      accessorKey: "total_purchases", 
-      header: "Total Purchases", 
-      cell: ({ row }: any) => formatCurrency(Number(row.original.total_purchases || 0)) 
-    },
-    { 
-      accessorKey: "outstanding", 
-      header: "Outstanding", 
-      cell: ({ row }: any) => (
-        <span className={Number(row.original.outstanding || 0) > 0 ? "text-red-600 font-bold" : ""}>
-          {formatCurrency(Number(row.original.outstanding || 0))}
-        </span>
-      ) 
-    }
-  ];
-
-  const supplierColumns = [
-    { accessorKey: "name", header: "Supplier Name" },
-    { accessorKey: "company", header: "Company" },
-    { accessorKey: "mobile", header: "Mobile" },
-    { 
-      accessorKey: "total_purchases", 
-      header: "Total Purchases", 
-      cell: ({ row }: any) => formatCurrency(Number(row.original.total_purchases || 0)) 
-    },
-    { 
-      accessorKey: "outstanding", 
-      header: "Outstanding Payable", 
-      cell: ({ row }: any) => (
-        <span className={Number(row.original.outstanding || 0) > 0 ? "text-red-600 font-bold" : ""}>
-          {formatCurrency(Number(row.original.outstanding || 0))}
-        </span>
-      ) 
-    }
-  ];
 
   return (
     <div className="space-y-6 p-6">
@@ -109,22 +67,10 @@ export default async function ReportsPage() {
           <FinancialReport data={financialReport} />
         </TabsContent>
         <TabsContent value="customer">
-          {customerReport.customers.length === 0 ? (
-            <div className="p-8 border border-dashed rounded-md text-center text-muted-foreground">
-              No customer records for reporting.
-            </div>
-          ) : (
-            <DataTable columns={customerColumns} data={customerReport.customers} searchKey="name" />
-          )}
+          <CustomerReportTab customers={customerReport.customers} />
         </TabsContent>
         <TabsContent value="supplier">
-          {supplierReport.suppliers.length === 0 ? (
-            <div className="p-8 border border-dashed rounded-md text-center text-muted-foreground">
-              No supplier records for reporting.
-            </div>
-          ) : (
-            <DataTable columns={supplierColumns} data={supplierReport.suppliers} searchKey="name" />
-          )}
+          <SupplierReportTab suppliers={supplierReport.suppliers} />
         </TabsContent>
       </Tabs>
     </div>

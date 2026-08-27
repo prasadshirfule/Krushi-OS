@@ -14,13 +14,19 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus } from "lucide-react";
+import { Plus, Loader2 } from "lucide-react";
 import { expenseSchema } from "@/lib/validations";
+import { createExpenseAction } from "@/actions/expenses";
+import { useRouter } from "next/navigation";
 
 type ExpenseFormValues = z.infer<typeof expenseSchema>;
 
 export function ExpenseFormDialog() {
   const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
+
   const form = useForm<ExpenseFormValues>({
     resolver: zodResolver(expenseSchema),
     defaultValues: {
@@ -32,43 +38,80 @@ export function ExpenseFormDialog() {
   });
 
   const onSubmit = async (data: ExpenseFormValues) => {
-    console.log(data);
-    setOpen(false);
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await createExpenseAction(data);
+      if (res.success) {
+        setOpen(false);
+        form.reset();
+        router.refresh();
+      } else {
+        setError(res.error || "Failed to record expense");
+      }
+    } catch (err: any) {
+      setError(err.message || "An unexpected error occurred");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={(val) => { setOpen(val); setError(null); }}>
       <DialogTrigger asChild>
-        <Button className="bg-green-600 hover:bg-green-700">
+        <Button className="bg-primary">
           <Plus className="mr-2 h-4 w-4" /> Add Expense
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Add New Expense</DialogTitle>
+          <DialogTitle>Record New Expense</DialogTitle>
         </DialogHeader>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          {error && (
+            <div className="p-3 text-sm rounded bg-destructive/15 text-destructive font-medium">
+              {error}
+            </div>
+          )}
+
           <div>
-            <label className="text-sm font-medium">Description</label>
-            <Textarea {...form.register("description")} placeholder="Expense details..." />
+            <label className="text-sm font-medium">Description *</label>
+            <Textarea {...form.register("description")} placeholder="e.g. Shop rent, electricity bill, tea/snacks..." />
+            {form.formState.errors.description && (
+              <p className="text-xs text-destructive mt-1">{form.formState.errors.description.message}</p>
+            )}
           </div>
+
           <div>
-            <label className="text-sm font-medium">Amount (₹)</label>
-            <Input type="number" step="0.01" {...form.register("amount", { valueAsNumber: true })} />
+            <label className="text-sm font-medium">Amount (₹) *</label>
+            <Input type="number" step="0.01" min="0.01" {...form.register("amount", { valueAsNumber: true })} />
+            {form.formState.errors.amount && (
+              <p className="text-xs text-destructive mt-1">{form.formState.errors.amount.message}</p>
+            )}
           </div>
+
           <div>
-            <label className="text-sm font-medium">Payment Method</label>
+            <label className="text-sm font-medium">Payment Method *</label>
             <select
               {...form.register("payment_method")}
               className="w-full h-10 px-3 border rounded-md bg-background text-sm"
             >
-              <option value="CASH">CASH</option>
-              <option value="UPI">UPI</option>
-              <option value="CARD">CARD</option>
-              <option value="BANK_TRANSFER">BANK TRANSFER</option>
+              <option value="CASH">Cash</option>
+              <option value="UPI">UPI / QR Code</option>
+              <option value="CARD">Card</option>
+              <option value="BANK_TRANSFER">Bank Transfer / NetBanking</option>
             </select>
           </div>
-          <Button type="submit" className="w-full bg-green-600 hover:bg-green-700">Save Expense</Button>
+
+          <div className="flex justify-end space-x-2 pt-2">
+            <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={loading}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={loading}>
+              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Save Expense
+            </Button>
+          </div>
         </form>
       </DialogContent>
     </Dialog>

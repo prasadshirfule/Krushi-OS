@@ -112,3 +112,26 @@ export async function searchSuppliers(shopId: string, queryText: string, limit =
     return [];
   }
 }
+
+export async function getSupplierSummary(shopId: string) {
+  try {
+    const supabase = await createServerSupabaseClient();
+    const { data, error } = await supabase
+      .from('suppliers')
+      .select('is_active, outstanding')
+      .eq('shop_id', shopId);
+
+    if (error || !data) {
+      return { totalSuppliers: 0, activeSuppliers: 0, totalOutstanding: 0 };
+    }
+
+    const totalSuppliers = data.length;
+    const activeSuppliers = data.filter(s => s.is_active !== false).length;
+    const totalOutstanding = data.reduce((sum, s) => sum + Number(s.outstanding || 0), 0);
+
+    return { totalSuppliers, activeSuppliers, totalOutstanding };
+  } catch (error) {
+    console.error("Error fetching supplier summary:", error);
+    return { totalSuppliers: 0, activeSuppliers: 0, totalOutstanding: 0 };
+  }
+}

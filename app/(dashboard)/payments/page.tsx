@@ -1,10 +1,10 @@
 import { getPayments, getTodayPaymentTotals } from '@/services/payments.service';
-import { DataTable } from '@/components/ui/data-table';
-import { Badge } from '@/components/ui/badge';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { PaymentTable } from '@/components/payments/payment-table';
+import { formatCurrency } from '@/lib/utils';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { cookies } from 'next/headers';
-import { redirect } from 'next/navigation';
+
+export const dynamic = 'force-dynamic';
 
 export const metadata = {
   title: 'Payments | KRUSHI OS',
@@ -15,10 +15,7 @@ export default async function PaymentsPage() {
   const { data: { user } } = await supabase.auth.getUser();
 
   const cookieStore = await cookies();
-  const isDemo = cookieStore.get('krushi_demo_session')?.value === 'true';
   const isPlaceholder = !process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('placeholder');
-
-  const effectiveUser = user || { id: 'demo-admin-id', email: 'admin@krushios.com' };
 
   let shopId = 'demo-shop-1';
   if (user && !isPlaceholder) {
@@ -32,55 +29,18 @@ export default async function PaymentsPage() {
     }
   }
 
-  const [{ payments, total }, todayTotals] = await Promise.all([
+  const [{ payments }, todayTotals] = await Promise.all([
     getPayments(shopId, { limit: 50 }),
     getTodayPaymentTotals(shopId)
   ]);
 
-  const columns = [
-    { 
-      accessorKey: 'payment_date', 
-      header: 'Date',
-      cell: ({ row }: any) => formatDate(row.original.payment_date || row.original.created_at)
-    },
-    { 
-      accessorKey: 'payment_type', 
-      header: 'Type', 
-      cell: ({ row }: any) => {
-        const type = row.original.payment_type;
-        const isIncoming = type === 'SALE' || type === 'CUSTOMER_PAYMENT';
-        return (
-          <Badge variant={isIncoming ? 'default' : 'secondary'}>
-            {isIncoming ? 'Incoming' : 'Outgoing'} ({type})
-          </Badge>
-        );
-      } 
-    },
-    { 
-      accessorKey: 'party', 
-      header: 'Party / Reference',
-      cell: ({ row }: any) => {
-        const partyName = row.original.customer?.name || row.original.supplier?.name || row.original.reference_type || 'General';
-        return <span className="font-medium">{partyName}</span>;
-      }
-    },
-    { accessorKey: 'payment_method', header: 'Method' },
-    { 
-      accessorKey: 'amount', 
-      header: 'Amount',
-      cell: ({ row }: any) => (
-        <span className="font-bold">
-          {formatCurrency(Number(row.original.amount || 0))}
-        </span>
-      )
-    },
-    { accessorKey: 'notes', header: 'Notes', cell: ({ row }: any) => row.original.notes || '-' }
-  ];
-
   return (
     <div className="space-y-6 p-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold tracking-tight">Payments Log</h1>
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Payments Log</h1>
+          <p className="text-sm text-muted-foreground">Detailed history of customer collections and supplier disbursements</p>
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
@@ -89,22 +49,18 @@ export default async function PaymentsPage() {
           <div className="text-3xl font-bold text-green-600 mt-2">
             {formatCurrency(todayTotals.collected)}
           </div>
+          <p className="text-xs text-muted-foreground mt-1">Customer collections & cash/UPI sales</p>
         </div>
         <div className="rounded-xl border bg-card text-card-foreground shadow p-6">
           <h3 className="text-sm font-medium text-muted-foreground">Total Paid Today</h3>
           <div className="text-3xl font-bold text-red-600 mt-2">
             {formatCurrency(todayTotals.paid)}
           </div>
+          <p className="text-xs text-muted-foreground mt-1">Supplier disbursements & payments</p>
         </div>
       </div>
 
-      {payments.length === 0 ? (
-        <div className="rounded-md border border-dashed p-8 text-center text-muted-foreground">
-          No payment transactions found. Payments from completed sales, purchases, and ledger entries will appear here.
-        </div>
-      ) : (
-        <DataTable columns={columns} data={payments} searchKey="payment_method" />
-      )}
+      <PaymentTable initialPayments={payments} />
     </div>
   );
 }

@@ -135,3 +135,60 @@ export async function searchCustomers(shopId: string, queryText: string, limit =
     return [];
   }
 }
+
+export async function getCreditCustomers(shopId: string, options: { search?: string, page?: number, limit?: number } = {}) {
+  try {
+    const supabase = await createServerSupabaseClient();
+    const page = options.page || 1;
+    const limit = options.limit || 50;
+    const offset = (page - 1) * limit;
+
+    let query = supabase.from('customers')
+      .select('*', { count: 'exact' })
+      .eq('shop_id', shopId)
+      .gt('outstanding', 0);
+    
+    if (options.search) {
+      query = query.or(`name.ilike.%${options.search}%,mobile.ilike.%${options.search}%`);
+    }
+    
+    query = query.order('outstanding', { ascending: false });
+
+    const { data, count, error } = await query.range(offset, offset + limit - 1);
+    if (error) {
+      console.error("Error fetching credit customers:", error);
+      return getCustomers(shopId, options);
+    }
+    
+    return { customers: data || [], total: count || 0 };
+  } catch (error) {
+    console.error("Failed to load credit customers:", error);
+    return { customers: [], total: 0 };
+  }
+}
+
+export async function getCreditSummary(shopId: string) {
+  try {
+    const supabase = await createServerSupabaseClient();
+    const { data, error } = await supabase
+      .from('customers')
+      .select('outstanding, is_active')
+      .eq('shop_id', shopId);
+
+    if (error || !data) {
+      return { totalOutstanding: 0, customersWithCredit: 0, overdueAmount: 0 };
+    }
+
+    const creditCustomers = data.filter(c => Number(c.outstanding || 0) > 0);
+    const totalOutstanding = creditCustomers.reduce((sum, c) => sum + Number(c.outstanding || 0), 0);
+    const customersWithCredit = creditCustomers.length;
+    const overdueAmount = creditCustomers
+      .filter(c => Number(c.outstanding || 0) > 5000)
+      .reduce((sum, c) => sum + Number(c.outstanding || 0), 0);
+
+    return { totalOutstanding, customersWithCredit, overdueAmount };
+  } catch (error) {
+    console.error("Error fetching credit summary:", error);
+    return { totalOutstanding: 0, customersWithCredit: 0, overdueAmount: 0 };
+  }
+}

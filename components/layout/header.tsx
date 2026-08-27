@@ -4,17 +4,38 @@ import { Bell, Search, User } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { MobileNav } from '@/components/layout/mobile-nav'
 import { CommandMenu } from '@/components/layout/command-menu'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
+import { getUnreadCountAction } from '@/actions/notifications'
 
 export function Header({ user }: { user: any }) {
   const [openCommand, setOpenCommand] = useState(false)
+  const [unreadCount, setUnreadCount] = useState<number>(0)
   const supabase = createClient()
   const router = useRouter()
+  const pathname = usePathname()
+
+  useEffect(() => {
+    let mounted = true
+    async function loadUnreadCount() {
+      try {
+        const res = await getUnreadCountAction()
+        if (mounted && res.success && typeof res.data === 'number') {
+          setUnreadCount(res.data)
+        }
+      } catch (err) {
+        // Ignore unread fetch errors gracefully
+      }
+    }
+    loadUnreadCount()
+    return () => {
+      mounted = false
+    }
+  }, [pathname])
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
@@ -51,9 +72,11 @@ export function Header({ user }: { user: any }) {
             <Bell className='h-5 w-5' />
             <span className='sr-only'>Toggle notifications</span>
           </Button>
-          <Badge className='absolute -top-1 -right-1 h-4 min-w-4 px-1 flex items-center justify-center text-[10px] font-bold bg-red-600 text-white border-2 border-background rounded-full pointer-events-none'>
-            3
-          </Badge>
+          {unreadCount > 0 && (
+            <Badge className='absolute -top-1 -right-1 h-4 min-w-4 px-1 flex items-center justify-center text-[10px] font-bold bg-red-600 text-white border-2 border-background rounded-full pointer-events-none'>
+              {unreadCount > 99 ? '99+' : unreadCount}
+            </Badge>
+          )}
         </div>
 
         <DropdownMenu>
