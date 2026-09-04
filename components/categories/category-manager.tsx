@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -13,6 +14,7 @@ import { Plus, Grid3X3 } from 'lucide-react';
 import { EmptyState } from '@/components/ui/empty-state';
 
 export function CategoryManager({ categories }: { categories: any[] }) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -30,11 +32,17 @@ export function CategoryManager({ categories }: { categories: any[] }) {
         setName('');
         setDescription('');
         setOpen(false);
+        router.refresh();
       } else {
         toast.error(res.error || 'Failed to create category');
       }
     } catch (err: any) {
-      toast.error(err.message || 'Error creating category');
+      const message = err?.message || '';
+      if (message.includes('fetch failed') || message.includes('ENOTFOUND') || message.includes('network')) {
+        toast.error('Unable to reach the server. Please check your network connection and Supabase configuration.');
+      } else {
+        toast.error(message || 'An unexpected error occurred while creating the category.');
+      }
     } finally {
       setLoading(false);
     }

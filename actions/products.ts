@@ -97,6 +97,7 @@ export async function createCategoryAction(data: { name: string, description?: s
     const userData = await getAuthAndPermissions('products.create');
     const result = await productsService.createCategory(userData.shop_id, data);
     revalidatePath('/categories');
+    revalidatePath('/products');
     return { success: true, data: result };
   } catch (error: any) {
     return { success: false, error: error.message || 'An unexpected error occurred' };

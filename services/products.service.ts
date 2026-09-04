@@ -1,5 +1,18 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { CreateProductInput, UpdateProductInput, ProductWithRelations, ProductListResponse } from '@/types/products';
+import { MOCK_CATEGORIES } from '@/lib/mock-data';
+
+/** Check if Supabase is running with placeholder credentials (demo mode). */
+function isPlaceholderMode(): boolean {
+  return !process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('placeholder');
+}
+
+/**
+ * In-memory store for categories created during a demo session.
+ * These persist across server-action calls within the same server process
+ * but are reset on server restart — acceptable for demo/placeholder mode.
+ */
+const demoCategories: Array<{ id: string; name: string; description: string | null; shop_id: string; is_active: boolean; created_at: string; count: number }> = [];
 
 export async function getProducts(
   shopId: string, 
@@ -221,6 +234,11 @@ export async function searchProducts(shopId: string, queryText: string, limit = 
 }
 
 export async function getCategories(shopId: string) {
+  if (isPlaceholderMode()) {
+    // Return seed mock categories + any created during this demo session
+    return [...MOCK_CATEGORIES, ...demoCategories].sort((a, b) => a.name.localeCompare(b.name));
+  }
+
   try {
     const supabase = await createServerSupabaseClient();
     const { data, error } = await supabase
@@ -241,6 +259,26 @@ export async function getCategories(shopId: string) {
 }
 
 export async function createCategory(shopId: string, data: { name: string; description?: string | null }) {
+  if (isPlaceholderMode()) {
+    // Check for duplicate name in demo data
+    const allDemo = [...MOCK_CATEGORIES, ...demoCategories];
+    if (allDemo.some(c => c.name.toLowerCase() === data.name.toLowerCase())) {
+      throw new Error(`Category "${data.name}" already exists`);
+    }
+
+    const newCategory = {
+      id: `cat-demo-${Date.now()}`,
+      name: data.name,
+      description: data.description || null,
+      shop_id: shopId,
+      is_active: true,
+      created_at: new Date().toISOString(),
+      count: 0,
+    };
+    demoCategories.push(newCategory);
+    return newCategory;
+  }
+
   const supabase = await createServerSupabaseClient();
   const { data: category, error } = await supabase
     .from('categories')
