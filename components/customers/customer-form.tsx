@@ -20,6 +20,12 @@ import {
 } from "@/components/ui/form";
 import { createCustomerAction, updateCustomerAction } from "@/actions/customers";
 
+import { 
+  isClientDemoMode, 
+  saveDemoCustomerClient, 
+  updateDemoCustomerClient 
+} from "@/lib/client-demo-store";
+
 const customerFormSchema = z.object({
   name: z.string().min(1, "Name is required"),
   mobile: z.string().optional(),
@@ -58,40 +64,81 @@ export function CustomerForm({ initialData, onSuccess, onCancel }: CustomerFormP
   async function onSubmit(data: CustomerFormValues) {
     setIsSubmitting(true);
     try {
-      let result;
-      if (initialData?.id) {
-        result = await updateCustomerAction(initialData.id, {
-          name: data.name.trim(),
-          mobile: data.mobile?.trim() || null,
-          village: data.village?.trim() || null,
-          address: data.address?.trim() || null,
-          farm_size: data.farm_size?.trim() || null,
-          crops: data.crops?.trim() || null,
-          notes: data.notes?.trim() || null,
-        });
+      const demoMode = isClientDemoMode();
+      let result: any = null;
+      let savedCust: any = null;
+
+      if (demoMode) {
+        // Save to browser localStorage demo store (one source of truth)
+        if (initialData?.id) {
+          savedCust = updateDemoCustomerClient(initialData.id, {
+            name: data.name.trim(),
+            mobile: data.mobile?.trim() || null,
+            village: data.village?.trim() || null,
+            address: data.address?.trim() || null,
+            farm_size: data.farm_size?.trim() || null,
+            crops: data.crops?.trim() || null,
+            notes: data.notes?.trim() || null,
+          });
+        } else {
+          savedCust = saveDemoCustomerClient({
+            name: data.name.trim(),
+            mobile: data.mobile?.trim() || null,
+            village: data.village?.trim() || null,
+            address: data.address?.trim() || null,
+            farm_size: data.farm_size?.trim() || null,
+            crops: data.crops?.trim() || null,
+            notes: data.notes?.trim() || null,
+          });
+        }
+        result = { success: true, data: savedCust };
+
+        // Call server action safely for server cache invalidation
+        try {
+          if (initialData?.id) {
+            updateCustomerAction(initialData.id, data).catch(() => {});
+          } else {
+            createCustomerAction(data).catch(() => {});
+          }
+        } catch {}
       } else {
-        result = await createCustomerAction({
-          name: data.name.trim(),
-          mobile: data.mobile?.trim() || null,
-          village: data.village?.trim() || null,
-          address: data.address?.trim() || null,
-          farm_size: data.farm_size?.trim() || null,
-          crops: data.crops?.trim() || null,
-          notes: data.notes?.trim() || null,
-        });
+        // Real Supabase mode
+        if (initialData?.id) {
+          result = await updateCustomerAction(initialData.id, {
+            name: data.name.trim(),
+            mobile: data.mobile?.trim() || null,
+            village: data.village?.trim() || null,
+            address: data.address?.trim() || null,
+            farm_size: data.farm_size?.trim() || null,
+            crops: data.crops?.trim() || null,
+            notes: data.notes?.trim() || null,
+          });
+        } else {
+          result = await createCustomerAction({
+            name: data.name.trim(),
+            mobile: data.mobile?.trim() || null,
+            village: data.village?.trim() || null,
+            address: data.address?.trim() || null,
+            farm_size: data.farm_size?.trim() || null,
+            crops: data.crops?.trim() || null,
+            notes: data.notes?.trim() || null,
+          });
+        }
+        savedCust = result.data;
       }
 
-      if (result.success) {
+      if (result && result.success) {
         toast.success(initialData?.id ? "Customer updated successfully" : "Customer created successfully");
         router.refresh();
         if (onSuccess) {
-          onSuccess(result.data);
+          onSuccess(savedCust);
         }
       } else {
-        toast.error(result.error || "Failed to save customer");
+        toast.error(result?.error || "Unable to save customer. Please try again.");
       }
     } catch (err: any) {
-      toast.error(err.message || "An unexpected error occurred");
+      console.error("Failed to save customer:", err);
+      toast.error("Unable to save customer. Please try again.");
     } finally {
       setIsSubmitting(false);
     }

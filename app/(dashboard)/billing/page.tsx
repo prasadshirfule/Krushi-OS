@@ -14,6 +14,11 @@ import { User, X, UserPlus, Wifi, Phone, MapPin, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
+import { 
+  isClientDemoMode, 
+  getDemoCustomersClient 
+} from '@/lib/client-demo-store';
+
 interface CustomerOption {
   id: string;
   name: string;
@@ -35,11 +40,37 @@ export default function BillingPage() {
   const [customerSearch, setCustomerSearch] = useState('');
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
   const [lastSaleId, setLastSaleId] = useState<string | null>(null);
+  const [lastInvoiceNumber, setLastInvoiceNumber] = useState<string | null>(null);
   const [showNewCustomerDialog, setShowNewCustomerDialog] = useState(false);
 
   /* ─── Fetch customers dynamically ─── */
   const loadCustomers = useCallback(async () => {
     try {
+      if (isClientDemoMode()) {
+        const demoCusts = getDemoCustomersClient();
+        const mapped: CustomerOption[] = demoCusts.map((c: any) => ({
+          id: String(c.id),
+          name: c.name,
+          phone: c.phone || c.mobile || '',
+          village: c.village || '',
+        }));
+        setCustomerList(mapped);
+
+        // Initialize recent IDs if empty
+        setRecentCustomerIds(prev => {
+          if (prev.length > 0) return prev;
+          try {
+            const saved = localStorage.getItem('krushi_recent_customer_ids');
+            if (saved) {
+              const parsed = JSON.parse(saved);
+              if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+            }
+          } catch {}
+          return mapped.slice(0, 3).map(c => c.id);
+        });
+        return;
+      }
+
       const res = await getCustomersAction({ limit: 100 });
       if (res.success && res.data?.customers) {
         const mapped: CustomerOption[] = res.data.customers.map((c: any) => ({
@@ -70,6 +101,14 @@ export default function BillingPage() {
 
   useEffect(() => {
     loadCustomers();
+
+    if (isClientDemoMode()) {
+      const handleCustomersUpdated = () => {
+        loadCustomers();
+      };
+      window.addEventListener('krushi-customers-updated', handleCustomersUpdated);
+      return () => window.removeEventListener('krushi-customers-updated', handleCustomersUpdated);
+    }
   }, [loadCustomers]);
 
   /* ─── Derived ─── */
@@ -164,8 +203,9 @@ export default function BillingPage() {
     }
   }, [cart]);
 
-  const handleSaleComplete = (saleId: string) => {
+  const handleSaleComplete = (saleId: string, invoiceNumber?: string) => {
     setLastSaleId(saleId);
+    if (invoiceNumber) setLastInvoiceNumber(invoiceNumber);
     setShowSuccessDialog(true);
     setCart([]);
     setCustomerId('');
@@ -381,6 +421,7 @@ export default function BillingPage() {
       {showSuccessDialog && lastSaleId && (
         <BillSuccessDialog
           saleId={lastSaleId}
+          invoiceNumber={lastInvoiceNumber || undefined}
           totals={totals}
           onClose={() => setShowSuccessDialog(false)}
         />

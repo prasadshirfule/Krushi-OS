@@ -46,7 +46,7 @@ export async function completeSaleAction(data: any): Promise<ActionResult<any>> 
     return { success: true, data: result };
   } catch (error: any) {
     console.error('completeSaleAction error:', error);
-    return { success: false, error: error.message || 'An unexpected error occurred' };
+    return { success: false, error: 'Unable to complete bill. Please try again.' };
   }
 }
 

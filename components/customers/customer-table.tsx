@@ -13,10 +13,34 @@ import { CustomerFormDialog } from './customer-form-dialog';
 import { deleteCustomerAction } from '@/actions/customers';
 import { toast } from 'sonner';
 
+import { useEffect } from 'react';
+import { 
+  isClientDemoMode, 
+  getDemoCustomersClient, 
+  deleteDemoCustomerClient 
+} from '@/lib/client-demo-store';
+
 export function CustomerTable({ initialData = [] }: { initialData?: any[] }) {
   const router = useRouter();
+  const [customers, setCustomers] = useState<any[]>(initialData);
   const [editingCustomer, setEditingCustomer] = useState<any | null>(null);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
+
+  // Sync with client-side demo store in demo mode
+  useEffect(() => {
+    if (isClientDemoMode()) {
+      setCustomers(getDemoCustomersClient());
+
+      const handleUpdate = () => {
+        setCustomers(getDemoCustomersClient());
+      };
+
+      window.addEventListener('krushi-customers-updated', handleUpdate);
+      return () => window.removeEventListener('krushi-customers-updated', handleUpdate);
+    } else {
+      setCustomers(initialData);
+    }
+  }, [initialData]);
 
   const handleDelete = async (id: string, name: string) => {
     if (!window.confirm(`Are you sure you want to delete customer "${name}"?`)) {
@@ -24,12 +48,21 @@ export function CustomerTable({ initialData = [] }: { initialData?: any[] }) {
     }
     setIsDeleting(id);
     try {
-      const res = await deleteCustomerAction(id);
-      if (res.success) {
+      if (isClientDemoMode()) {
+        deleteDemoCustomerClient(id);
+        setCustomers(getDemoCustomersClient());
+        try {
+          deleteCustomerAction(id).catch(() => {});
+        } catch {}
         toast.success(`Customer "${name}" deleted successfully`);
-        router.refresh();
       } else {
-        toast.error(res.error || "Failed to delete customer");
+        const res = await deleteCustomerAction(id);
+        if (res.success) {
+          toast.success(`Customer "${name}" deleted successfully`);
+          router.refresh();
+        } else {
+          toast.error(res.error || "Failed to delete customer");
+        }
       }
     } catch (err: any) {
       toast.error(err.message || "Failed to delete customer");
@@ -120,7 +153,7 @@ export function CustomerTable({ initialData = [] }: { initialData?: any[] }) {
 
   return (
     <>
-      {initialData.length === 0 ? (
+      {customers.length === 0 ? (
         <EmptyState
           icon={<Users className="h-10 w-10 text-muted-foreground/50" />}
           title="No customers registered yet"
@@ -129,7 +162,7 @@ export function CustomerTable({ initialData = [] }: { initialData?: any[] }) {
           actionHref="/customers/new"
         />
       ) : (
-        <DataTable columns={columns} data={initialData} searchKey="name" searchPlaceholder="Search customers by name or phone..." />
+        <DataTable columns={columns} data={customers} searchKey="name" searchPlaceholder="Search customers by name or phone..." />
       )}
 
       {editingCustomer && (
@@ -139,6 +172,9 @@ export function CustomerTable({ initialData = [] }: { initialData?: any[] }) {
           customer={editingCustomer}
           onSuccess={() => {
             setEditingCustomer(null);
+            if (isClientDemoMode()) {
+              setCustomers(getDemoCustomersClient());
+            }
             router.refresh();
           }}
         />

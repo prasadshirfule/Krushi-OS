@@ -10,13 +10,18 @@ import { PAYMENT_METHODS } from '@/lib/constants';
 import { CheckCircle2, Loader2, CreditCard, Banknote, QrCode, Building2, BookOpen, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
+import { 
+  isClientDemoMode, 
+  saveDemoSaleClient 
+} from '@/lib/client-demo-store';
+
 interface PaymentPanelProps {
   cart: any[];
   totals: any;
   customerId?: string;
   customerName?: string;
   customerPhone?: string;
-  onComplete: (saleId: string) => void;
+  onComplete: (saleId: string, invoiceNumber?: string) => void;
 }
 
 const PAYMENT_METHOD_ICONS: Record<string, React.ReactNode> = {
@@ -144,18 +149,33 @@ export default function PaymentPanel({ cart, totals, customerId, customerName, c
         totals,
       };
 
-      const result = await completeSaleAction(saleData);
+      if (isClientDemoMode()) {
+        const savedSale = saveDemoSaleClient(saleData);
+        // Safely invoke server action for any server cache invalidation
+        try {
+          completeSaleAction(saleData).catch(() => {});
+        } catch {}
 
-      if (result.success) {
         toast.success('Bill completed successfully!');
         router.refresh();
-        const saleId = result.data?.id || result.data?.saleId || `sale-${Date.now()}`;
-        onComplete(saleId);
+        const saleId = savedSale.id || `sale-${Date.now()}`;
+        const invNo = savedSale.invoice_number || savedSale.invoiceNumber;
+        onComplete(saleId, invNo);
       } else {
-        toast.error(result.error || 'Failed to complete sale');
+        const result = await completeSaleAction(saleData);
+
+        if (result.success) {
+          toast.success('Bill completed successfully!');
+          router.refresh();
+          const saleId = result.data?.id || result.data?.saleId || `sale-${Date.now()}`;
+          const invNo = result.data?.invoice_number || result.data?.invoiceNumber;
+          onComplete(saleId, invNo);
+        } else {
+          toast.error(result.error || 'Unable to complete bill. Please try again.');
+        }
       }
     } catch (error) {
-      toast.error('An unexpected error occurred while completing the bill');
+      toast.error('Unable to complete bill. Please try again.');
       console.error(error);
     } finally {
       setIsSubmitting(false);

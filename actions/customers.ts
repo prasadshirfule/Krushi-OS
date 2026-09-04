@@ -54,7 +54,8 @@ export async function createCustomerAction(data: any): Promise<ActionResult<any>
     safeRevalidatePath('/credit');
     return { success: true, data: result };
   } catch (error: any) {
-    return { success: false, error: error.message || 'An unexpected error occurred' };
+    console.error('Error in createCustomerAction:', error);
+    return { success: false, error: 'Unable to save customer. Please try again.' };
   }
 }
 
@@ -75,7 +76,8 @@ export async function updateCustomerAction(id: string, data: any): Promise<Actio
     safeRevalidatePath('/credit');
     return { success: true, data: result };
   } catch (error: any) {
-    return { success: false, error: error.message || 'An unexpected error occurred' };
+    console.error('Error in updateCustomerAction:', error);
+    return { success: false, error: 'Unable to update customer. Please try again.' };
   }
 }
 
@@ -90,7 +92,8 @@ export async function deleteCustomerAction(id: string): Promise<ActionResult<any
     safeRevalidatePath('/credit');
     return { success: true, data: result };
   } catch (error: any) {
-    return { success: false, error: error.message || 'An unexpected error occurred' };
+    console.error('Error in deleteCustomerAction:', error);
+    return { success: false, error: 'Unable to delete customer. Please try again.' };
   }
 }
 

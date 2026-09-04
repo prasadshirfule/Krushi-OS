@@ -9,11 +9,12 @@ import Link from 'next/link';
 
 interface BillSuccessDialogProps {
   saleId: string;
+  invoiceNumber?: string;
   totals: any;
   onClose: () => void;
 }
 
-export default function BillSuccessDialog({ saleId, totals, onClose }: BillSuccessDialogProps) {
+export default function BillSuccessDialog({ saleId, invoiceNumber, totals, onClose }: BillSuccessDialogProps) {
   const newBillBtnRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -29,6 +30,8 @@ export default function BillSuccessDialog({ saleId, totals, onClose }: BillSucce
     window.open(`/api/print/sale/${saleId}?type=${type}`, '_blank');
   };
 
+  const displayInv = invoiceNumber || (saleId.startsWith('KOS-') ? saleId : `KOS-${saleId.substring(0, 8).toUpperCase()}`);
+
   return (
     <Dialog open={true} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md text-center">
@@ -37,8 +40,8 @@ export default function BillSuccessDialog({ saleId, totals, onClose }: BillSucce
             <CheckCircle2 className="h-10 w-10 text-green-600" />
           </div>
           <DialogTitle className="text-2xl font-bold text-center">Sale Completed Successfully!</DialogTitle>
-          <DialogDescription className="text-center">
-            Invoice #{saleId.substring(0, 8).toUpperCase()}
+          <DialogDescription className="text-center font-mono font-bold text-foreground text-sm">
+            Invoice #{displayInv}
           </DialogDescription>
         </DialogHeader>
 
