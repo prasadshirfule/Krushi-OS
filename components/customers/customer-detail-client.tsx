@@ -6,13 +6,15 @@ import { CustomerLedger } from '@/components/customers/customer-ledger';
 import { CustomerDetailHeader } from '@/components/customers/customer-detail-header';
 import { formatCurrency } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, CreditCard, PlusCircle } from 'lucide-react';
 import Link from 'next/link';
 import { 
   isClientDemoMode, 
   getDemoCustomerByIdClient 
 } from '@/lib/client-demo-store';
 import { maskAadhaar } from '@/components/customers/customer-form';
+import { PaymentDialog } from '@/components/customers/payment-dialog';
+import { AddUdhariDialog } from '@/components/customers/add-udhari-dialog';
 
 interface CustomerDetailClientProps {
   initialCustomer: any | null;
@@ -21,15 +23,39 @@ interface CustomerDetailClientProps {
 
 export function CustomerDetailClient({ initialCustomer, customerId }: CustomerDetailClientProps) {
   const [customer, setCustomer] = useState<any | null>(initialCustomer);
+  const [showPayment, setShowPayment] = useState(false);
+  const [showUdhari, setShowUdhari] = useState(false);
 
-  useEffect(() => {
+  const loadCustomer = () => {
     if (!initialCustomer && isClientDemoMode()) {
       const found = getDemoCustomerByIdClient(customerId);
       if (found) setCustomer(found);
     } else {
       setCustomer(initialCustomer);
     }
+  };
+
+  useEffect(() => {
+    loadCustomer();
   }, [initialCustomer, customerId]);
+
+  // Listen for customer/ledger updates in demo mode
+  useEffect(() => {
+    if (isClientDemoMode()) {
+      const handleUpdate = () => {
+        const found = getDemoCustomerByIdClient(customerId);
+        if (found) setCustomer(found);
+      };
+      window.addEventListener('krushi-customers-updated', handleUpdate);
+      window.addEventListener('krushi-ledger-updated', handleUpdate);
+      window.addEventListener('krushi-sales-updated', handleUpdate);
+      return () => {
+        window.removeEventListener('krushi-customers-updated', handleUpdate);
+        window.removeEventListener('krushi-ledger-updated', handleUpdate);
+        window.removeEventListener('krushi-sales-updated', handleUpdate);
+      };
+    }
+  }, [customerId]);
 
   if (!customer) {
     return (
@@ -75,10 +101,33 @@ export function CustomerDetailClient({ initialCustomer, customerId }: CustomerDe
             <h3 className="text-sm font-medium text-muted-foreground">Estimated Paid</h3>
             <div className="text-2xl font-bold mt-2 text-green-600">{formatCurrency(totalPaid)}</div>
           </div>
-          <div className="rounded-xl border border-border bg-card text-card-foreground shadow p-6">
-            <h3 className="text-sm font-medium text-muted-foreground">Outstanding (Udhar)</h3>
-            <div className={`text-2xl font-bold mt-2 ${outstanding > 0 ? 'text-red-600' : 'text-green-600'}`}>
-              {formatCurrency(outstanding)}
+          <div className="rounded-xl border border-border bg-card text-card-foreground shadow p-6 flex flex-col justify-between">
+            <div>
+              <h3 className="text-sm font-medium text-muted-foreground">Outstanding (Udhar)</h3>
+              <div className={`text-3xl font-bold mt-2 ${outstanding > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                {formatCurrency(outstanding)}
+              </div>
+            </div>
+            
+            {/* Action Buttons for Udhari */}
+            <div className="mt-4 flex gap-2">
+              <Button 
+                size="sm" 
+                className="flex-1 bg-green-600 hover:bg-green-700 text-white font-medium"
+                onClick={() => setShowPayment(true)}
+              >
+                <CreditCard className="w-4 h-4 mr-1.5" /> 
+                Receive Payment
+              </Button>
+              <Button 
+                size="sm" 
+                variant="outline" 
+                className="flex-1 font-medium"
+                onClick={() => setShowUdhari(true)}
+              >
+                <PlusCircle className="w-4 h-4 mr-1.5" /> 
+                Add Udhari
+              </Button>
             </div>
           </div>
         </div>
@@ -98,6 +147,25 @@ export function CustomerDetailClient({ initialCustomer, customerId }: CustomerDe
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Modals */}
+      <PaymentDialog
+        open={showPayment}
+        onOpenChange={setShowPayment}
+        customerId={customerId}
+        customerName={customer.name}
+        outstanding={outstanding}
+        onSuccess={() => loadCustomer()}
+      />
+
+      <AddUdhariDialog
+        open={showUdhari}
+        onOpenChange={setShowUdhari}
+        customerId={customerId}
+        customerName={customer.name}
+        outstanding={outstanding}
+        onSuccess={() => loadCustomer()}
+      />
     </div>
   );
 }

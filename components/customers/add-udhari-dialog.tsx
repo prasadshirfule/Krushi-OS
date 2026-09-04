@@ -16,11 +16,11 @@ import { formatCurrency } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import {
   isClientDemoMode,
-  receiveDemoPaymentClient,
+  addDemoUdhariClient,
 } from "@/lib/client-demo-store";
-import { collectPaymentAction } from "@/actions/customers";
+// import { addUdhariAction } from "@/actions/customers"; // Assuming this might exist later
 
-interface PaymentDialogProps {
+interface AddUdhariDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   customerId: string;
@@ -29,24 +29,18 @@ interface PaymentDialogProps {
   onSuccess?: () => void;
 }
 
-const PAYMENT_METHODS = [
-  { value: "CASH", label: "Cash" },
-  { value: "UPI", label: "UPI" },
-  { value: "CARD", label: "Card" },
-  { value: "BANK_TRANSFER", label: "Bank Transfer" },
-];
-
-export function PaymentDialog({
+export function AddUdhariDialog({
   open,
   onOpenChange,
   customerId,
   customerName,
   outstanding,
   onSuccess,
-}: PaymentDialogProps) {
+}: AddUdhariDialogProps) {
   const router = useRouter();
   const [amount, setAmount] = useState("");
-  const [method, setMethod] = useState("CASH");
+  const [description, setDescription] = useState("");
+  const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -55,7 +49,8 @@ export function PaymentDialog({
     onOpenChange(val);
     if (val) {
       setAmount("");
-      setMethod("CASH");
+      setDescription("");
+      setDate(new Date().toISOString().split("T")[0]);
       setNotes("");
       setError(null);
     }
@@ -67,11 +62,11 @@ export function PaymentDialog({
 
     const numAmount = Number(amount);
     if (isNaN(numAmount) || numAmount <= 0) {
-      setError("Enter a payment amount greater than ₹0.");
+      setError("Enter a valid amount greater than ₹0.");
       return;
     }
-    if (numAmount > outstanding) {
-      setError(`Payment cannot be greater than the outstanding Udhari of ${formatCurrency(outstanding)}.`);
+    if (!description.trim()) {
+      setError("Please provide a reason or description.");
       return;
     }
 
@@ -79,25 +74,18 @@ export function PaymentDialog({
 
     try {
       if (isClientDemoMode()) {
-        receiveDemoPaymentClient(customerId, numAmount, method, notes || undefined);
-        toast.success(`Payment of ${formatCurrency(numAmount)} received from ${customerName}`);
+        addDemoUdhariClient(customerId, numAmount, description, notes || undefined);
+        toast.success(`Udhari of ${formatCurrency(numAmount)} added for ${customerName}`);
         handleOpen(false);
         if (onSuccess) onSuccess();
       } else {
-        const res = await collectPaymentAction({
-          customerId,
-          amount: numAmount,
-          paymentMethod: method,
-          notes: notes || undefined,
-        });
-        if (res.success) {
-          toast.success(`Payment of ${formatCurrency(numAmount)} received from ${customerName}`);
-          handleOpen(false);
-          router.refresh();
-          if (onSuccess) onSuccess();
-        } else {
-          setError(res.error || "Failed to record payment.");
-        }
+        // Fallback or placeholder for actual Supabase action
+        // const res = await addUdhariAction({ ... });
+        toast.warning("Manual Udhari addition in Supabase mode not fully implemented yet. Using demo logic.");
+        addDemoUdhariClient(customerId, numAmount, description, notes || undefined);
+        handleOpen(false);
+        router.refresh();
+        if (onSuccess) onSuccess();
       }
     } catch (err: any) {
       setError(err.message || "An unexpected error occurred.");
@@ -110,14 +98,14 @@ export function PaymentDialog({
     <Dialog open={open} onOpenChange={handleOpen}>
       <DialogContent className="sm:max-w-[460px]">
         <DialogHeader>
-          <DialogTitle>Receive Udhari Payment</DialogTitle>
+          <DialogTitle>Add New Udhari</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Customer Info */}
           <div className="rounded-lg bg-muted p-3 space-y-1">
             <div className="font-semibold text-sm">{customerName}</div>
             <div className="text-xs">
-              Outstanding Udhari:{" "}
+              Current Outstanding:{" "}
               <span className="font-bold text-red-600 text-base">
                 {formatCurrency(outstanding)}
               </span>
@@ -132,59 +120,52 @@ export function PaymentDialog({
 
           {/* Amount */}
           <div className="space-y-2">
-            <Label htmlFor="pay-amount">Amount Received <span className="text-destructive">*</span></Label>
+            <Label htmlFor="udhari-amount">Amount <span className="text-destructive">*</span></Label>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">₹</span>
               <Input
-                id="pay-amount"
+                id="udhari-amount"
                 className="pl-7"
                 type="number"
                 min="1"
                 step="any"
-                placeholder="Enter amount"
+                placeholder="Enter udhari amount"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 required
               />
             </div>
-            {outstanding > 0 && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="text-xs"
-                onClick={() => setAmount(String(outstanding))}
-              >
-                Pay Full ({formatCurrency(outstanding)})
-              </Button>
-            )}
           </div>
 
-          {/* Payment Method */}
+          {/* Reason */}
           <div className="space-y-2">
-            <Label>Payment Method</Label>
-            <div className="grid grid-cols-2 gap-2">
-              {PAYMENT_METHODS.map((pm) => (
-                <Button
-                  key={pm.value}
-                  type="button"
-                  variant={method === pm.value ? "default" : "outline"}
-                  size="sm"
-                  className={method === pm.value ? "bg-green-600 hover:bg-green-700 text-white" : ""}
-                  onClick={() => setMethod(pm.value)}
-                >
-                  {pm.label}
-                </Button>
-              ))}
-            </div>
+            <Label htmlFor="udhari-desc">Reason / Description <span className="text-destructive">*</span></Label>
+            <Input
+              id="udhari-desc"
+              placeholder="e.g. Previous farm input purchase"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              required
+            />
+          </div>
+
+          {/* Date */}
+          <div className="space-y-2">
+            <Label htmlFor="udhari-date">Date</Label>
+            <Input
+              id="udhari-date"
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+            />
           </div>
 
           {/* Notes */}
           <div className="space-y-2">
-            <Label htmlFor="pay-notes">Reference / Note (Optional)</Label>
+            <Label htmlFor="udhari-notes">Reference / Note (Optional)</Label>
             <Textarea
-              id="pay-notes"
-              placeholder="e.g. UPI Txn ID, Receipt #"
+              id="udhari-notes"
+              placeholder="Additional notes"
               className="resize-none h-16"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
@@ -196,8 +177,8 @@ export function PaymentDialog({
             <Button type="button" variant="outline" onClick={() => handleOpen(false)} disabled={loading}>
               Cancel
             </Button>
-            <Button type="submit" disabled={loading} className="bg-green-600 hover:bg-green-700 min-w-[150px]">
-              {loading ? "Recording..." : "RECEIVE PAYMENT"}
+            <Button type="submit" disabled={loading} className="bg-primary hover:bg-primary/90 min-w-[150px]">
+              {loading ? "Saving..." : "ADD UDHARI"}
             </Button>
           </div>
         </form>

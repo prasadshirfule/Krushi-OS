@@ -8,6 +8,7 @@ export const KRUSHI_DEMO_SALES_KEY = 'krushi_demo_sales';
 export const KRUSHI_DEMO_PRODUCTS_KEY = 'krushi_demo_products';
 export const KRUSHI_DEMO_CATEGORIES_KEY = 'krushi_demo_categories';
 export const KRUSHI_DEMO_BRANDS_KEY = 'krushi_demo_brands';
+export const KRUSHI_DEMO_LEDGER_KEY = 'krushi_demo_ledger';
 
 /** Check if running in browser and with demo / placeholder credentials */
 export function isClientDemoMode(): boolean {
@@ -184,6 +185,18 @@ export function saveDemoCustomerClient(data: {
   } catch (err) {
     console.error('Error saving demo customer to localStorage:', err);
   }
+
+  // Create opening balance ledger entry if previous_udhari > 0
+  if (openingBalance > 0) {
+    addDemoLedgerEntry({
+      customer_id: id,
+      type: 'DEBIT',
+      amount: openingBalance,
+      description: 'Opening Udhari',
+      reference: '-',
+    });
+  }
+
   return newCust;
 }
 
@@ -227,6 +240,156 @@ export function deleteDemoCustomerClient(id: string): boolean {
 export function getDemoCustomerByIdClient(id: string): any | null {
   const current = getDemoCustomersClient();
   return current.find(c => c.id === id) || null;
+}
+
+/* ═════════════════════════════════════════════════════════
+   CUSTOMER CREDIT LEDGER OPERATIONS (Client Demo Store)
+═════════════════════════════════════════════════════════ */
+
+/** Get all ledger entries, or filtered by customerId */
+export function getDemoLedgerClient(customerId?: string): any[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(KRUSHI_DEMO_LEDGER_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        const all = parsed;
+        if (customerId) {
+          return all.filter((e: any) => e.customer_id === customerId);
+        }
+        return all;
+      }
+    }
+  } catch (err) {
+    console.error('Error reading demo ledger from localStorage:', err);
+  }
+  return [];
+}
+
+/** Add a ledger entry for a specific customer */
+export function addDemoLedgerEntry(entry: {
+  customer_id: string;
+  type: 'DEBIT' | 'CREDIT';
+  amount: number;
+  description: string;
+  reference?: string;
+  date?: string;
+}): any {
+  const all = getDemoLedgerClient();
+  const id = `led-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+  const now = new Date();
+  const dateStr = entry.date || now.toISOString().split('T')[0];
+
+  // Calculate running balance for this customer
+  const customerEntries = all.filter(e => e.customer_id === entry.customer_id);
+  const prevBalance = customerEntries.length > 0
+    ? Number(customerEntries[customerEntries.length - 1].balance || 0)
+    : 0;
+  const newBalance = entry.type === 'DEBIT'
+    ? prevBalance + entry.amount
+    : prevBalance - entry.amount;
+
+  const newEntry = {
+    id,
+    customer_id: entry.customer_id,
+    date: dateStr,
+    description: entry.description,
+    reference: entry.reference || '-',
+    debit: entry.type === 'DEBIT' ? entry.amount : 0,
+    credit: entry.type === 'CREDIT' ? entry.amount : 0,
+    balance: Math.max(0, newBalance),
+    type: entry.type,
+    created_at: now.toISOString(),
+  };
+
+  all.push(newEntry);
+  try {
+    localStorage.setItem(KRUSHI_DEMO_LEDGER_KEY, JSON.stringify(all));
+    window.dispatchEvent(new CustomEvent('krushi-ledger-updated', { detail: newEntry }));
+  } catch (err) {
+    console.error('Error saving demo ledger entry to localStorage:', err);
+  }
+  return newEntry;
+}
+
+/** Helper: update a demo customer's outstanding balance */
+function updateDemoCustomerOutstanding(customerId: string, delta: number): void {
+  const customers = getDemoCustomersClient();
+  const idx = customers.findIndex(c => c.id === customerId);
+  if (idx === -1) return;
+
+  const current = Number(customers[idx].outstanding ?? customers[idx].outstanding_balance ?? 0);
+  const newOutstanding = Math.max(0, current + delta);
+  customers[idx].outstanding = newOutstanding;
+  customers[idx].outstanding_balance = newOutstanding;
+  customers[idx].updated_at = new Date().toISOString();
+
+  try {
+    localStorage.setItem(KRUSHI_DEMO_CUSTOMERS_KEY, JSON.stringify(customers));
+    window.dispatchEvent(new CustomEvent('krushi-customers-updated', { detail: customers[idx] }));
+  } catch (err) {
+    console.error('Error updating customer outstanding:', err);
+  }
+}
+
+/** Receive a payment from a customer — decreases outstanding, creates credit ledger entry */
+export function receiveDemoPaymentClient(
+  customerId: string,
+  amount: number,
+  method: string,
+  notes?: string
+): any {
+  if (amount <= 0) throw new Error('Payment amount must be greater than ₹0.');
+
+  const customer = getDemoCustomerByIdClient(customerId);
+  if (!customer) throw new Error('Customer not found.');
+
+  const outstanding = Number(customer.outstanding ?? customer.outstanding_balance ?? 0);
+  if (amount > outstanding) {
+    throw new Error(`Payment ₹${amount.toLocaleString('en-IN')} cannot be greater than outstanding Udhari ₹${outstanding.toLocaleString('en-IN')}.`);
+  }
+
+  // Decrease customer outstanding
+  updateDemoCustomerOutstanding(customerId, -amount);
+
+  // Create credit ledger entry
+  const entry = addDemoLedgerEntry({
+    customer_id: customerId,
+    type: 'CREDIT',
+    amount,
+    description: `Payment Received (${method})`,
+    reference: notes || `PAY-${Date.now().toString().slice(-6)}`,
+  });
+
+  return entry;
+}
+
+/** Add a manual udhari/credit for a customer — increases outstanding, creates debit ledger entry */
+export function addDemoUdhariClient(
+  customerId: string,
+  amount: number,
+  description: string,
+  notes?: string
+): any {
+  if (amount <= 0) throw new Error('Udhari amount must be greater than ₹0.');
+
+  const customer = getDemoCustomerByIdClient(customerId);
+  if (!customer) throw new Error('Customer not found.');
+
+  // Increase customer outstanding
+  updateDemoCustomerOutstanding(customerId, amount);
+
+  // Create debit ledger entry
+  const entry = addDemoLedgerEntry({
+    customer_id: customerId,
+    type: 'DEBIT',
+    amount,
+    description: description || 'New Udhari',
+    reference: notes || '-',
+  });
+
+  return entry;
 }
 
 /* ═════════════════════════════════════════════════════════
@@ -404,6 +567,31 @@ export function saveDemoSaleClient(data: any): any {
     if (productsChanged) {
       localStorage.setItem(KRUSHI_DEMO_PRODUCTS_KEY, JSON.stringify(products));
       window.dispatchEvent(new CustomEvent('krushi-products-updated'));
+    }
+
+    // If CREDIT sale with a real customer, update their outstanding and create ledger entry
+    const saleCustomerId = newSale.customer_id;
+    if (isCredit && saleCustomerId && saleCustomerId !== 'walk-in') {
+      updateDemoCustomerOutstanding(saleCustomerId, payable);
+      addDemoLedgerEntry({
+        customer_id: saleCustomerId,
+        type: 'DEBIT',
+        amount: payable,
+        description: `Credit Sale (${invoiceNum})`,
+        reference: invoiceNum,
+      });
+    }
+
+    // Update customer total_purchases regardless of payment method
+    if (saleCustomerId && saleCustomerId !== 'walk-in') {
+      const custList = getDemoCustomersClient();
+      const cIdx = custList.findIndex(c => c.id === saleCustomerId);
+      if (cIdx !== -1) {
+        custList[cIdx].total_purchases = Number(custList[cIdx].total_purchases || 0) + payable;
+        custList[cIdx].totalPurchases = custList[cIdx].total_purchases;
+        localStorage.setItem(KRUSHI_DEMO_CUSTOMERS_KEY, JSON.stringify(custList));
+        window.dispatchEvent(new CustomEvent('krushi-customers-updated'));
+      }
     }
   } catch (err) {
     console.error('Error saving demo sale to localStorage:', err);

@@ -240,11 +240,17 @@ export async function deleteCustomer(shopId: string, id: string) {
 export async function getCustomerLedger(shopId: string, customerId: string, options: { page?: number; limit?: number } = {}) {
   if (isPlaceholderMode()) {
     const cust = await getCustomerById(shopId, customerId);
+    
+    // We import this dynamically to avoid circular dependencies or server-side issues with localStorage
+    let entries = [];
+    if (typeof window !== 'undefined') {
+       const { getDemoLedgerClient } = require('@/lib/client-demo-store');
+       entries = getDemoLedgerClient(customerId);
+    }
+
     return {
-      entries: [
-        { id: '1', date: new Date().toISOString().split('T')[0], description: 'Opening Balance', reference: '-', debit: 0, credit: 0, balance: Number(cust?.outstanding || 0) }
-      ],
-      total: 1,
+      entries,
+      total: entries.length,
       balance: Number(cust?.outstanding || 0),
     };
   }
