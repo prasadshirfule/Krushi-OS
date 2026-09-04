@@ -5,7 +5,7 @@ import { ComponentProps } from 'react'
 
 export function Providers({ children, ...props }: ComponentProps<typeof NextThemesProvider>) {
   return (
-    <NextThemesProvider attribute='class' defaultTheme='system' enableSystem {...props}>
+    <NextThemesProvider attribute='class' defaultTheme='dark' enableSystem {...props}>
       {children}
     </NextThemesProvider>
   )

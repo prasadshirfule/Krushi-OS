@@ -164,12 +164,12 @@ export default function ProductSearch({ onAddToCart }: ProductSearchProps) {
   };
 
   return (
-    <section className="rounded-2xl border-2 border-green-100 bg-white p-5 md:p-6 shadow-sm space-y-5">
+    <section className="rounded-xl border border-border bg-card p-5 md:p-6 shadow-sm space-y-5 text-card-foreground">
       {/* ─── Header & Search ─── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <div className="h-9 w-9 rounded-full bg-green-100 flex items-center justify-center">
-            <Package className="h-5 w-5 text-green-700" />
+        <div className="flex items-center gap-2.5">
+          <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center">
+            <Package className="h-5 w-5 text-primary" />
           </div>
           <h2 className="text-lg font-semibold text-foreground">Select Products</h2>
         </div>
@@ -182,7 +182,7 @@ export default function ProductSearch({ onAddToCart }: ProductSearchProps) {
             value={query}
             onChange={e => setQuery(e.target.value)}
             placeholder="Search product or barcode (F4)..."
-            className="pl-10 pr-10 py-5 text-base rounded-xl border-2 focus-visible:border-green-500"
+            className="pl-10 pr-10 py-5 text-base rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground focus-visible:border-primary"
           />
           {query ? (
             <Button
@@ -194,7 +194,7 @@ export default function ProductSearch({ onAddToCart }: ProductSearchProps) {
               <X className="h-4 w-4" />
             </Button>
           ) : (
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 text-[11px] font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded border pointer-events-none">
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 text-[11px] font-mono text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded border border-border pointer-events-none">
               <Barcode className="h-3 w-3" /> F4
             </div>
           )}
@@ -207,10 +207,10 @@ export default function ProductSearch({ onAddToCart }: ProductSearchProps) {
           type="button"
           size="sm"
           variant={selectedCategory === 'all' ? 'default' : 'outline'}
-          className={`rounded-full px-4 py-2 h-auto text-sm font-semibold transition-all shrink-0 ${
+          className={`rounded-full px-4 py-1.5 h-auto text-sm font-semibold transition-all shrink-0 ${
             selectedCategory === 'all'
-              ? 'bg-green-600 hover:bg-green-700 text-white shadow-sm'
-              : 'hover:bg-green-50 hover:text-green-700 hover:border-green-300'
+              ? 'bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm'
+              : 'border-border bg-background/50 text-foreground hover:bg-primary/10 hover:text-primary hover:border-primary/50'
           }`}
           onClick={() => setSelectedCategory('all')}
         >
@@ -224,10 +224,10 @@ export default function ProductSearch({ onAddToCart }: ProductSearchProps) {
               type="button"
               size="sm"
               variant={isSelected ? 'default' : 'outline'}
-              className={`rounded-full px-4 py-2 h-auto text-sm font-semibold transition-all shrink-0 ${
+              className={`rounded-full px-4 py-1.5 h-auto text-sm font-semibold transition-all shrink-0 ${
                 isSelected
-                  ? 'bg-green-600 hover:bg-green-700 text-white shadow-sm'
-                  : 'hover:bg-green-50 hover:text-green-700 hover:border-green-300'
+                  ? 'bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm'
+                  : 'border-border bg-background/50 text-foreground hover:bg-primary/10 hover:text-primary hover:border-primary/50'
               }`}
               onClick={() => setSelectedCategory(cat.id)}
             >
@@ -240,13 +240,13 @@ export default function ProductSearch({ onAddToCart }: ProductSearchProps) {
       {/* ─── Products Grid ─── */}
       {loading ? (
         <div className="py-12 text-center text-muted-foreground flex flex-col items-center gap-2">
-          <div className="h-8 w-8 rounded-full border-4 border-green-600 border-t-transparent animate-spin" />
+          <div className="h-8 w-8 rounded-full border-4 border-primary border-t-transparent animate-spin" />
           <p className="text-sm font-medium">Searching products...</p>
         </div>
       ) : displayedProducts.length === 0 ? (
-        <div className="py-12 text-center border-2 border-dashed border-gray-200 rounded-xl p-8">
+        <div className="py-12 text-center border-2 border-dashed border-border rounded-xl p-8">
           <Package className="h-10 w-10 text-muted-foreground/40 mx-auto mb-2" />
-          <p className="text-base font-semibold text-gray-700">No products found</p>
+          <p className="text-base font-semibold text-foreground">No products found</p>
           <p className="text-sm text-muted-foreground mt-1">
             {query ? `No items matching "${query}" in this category.` : 'No products available in this category.'}
           </p>
@@ -254,7 +254,7 @@ export default function ProductSearch({ onAddToCart }: ProductSearchProps) {
             <Button
               variant="outline"
               size="sm"
-              className="mt-4 text-green-700 border-green-300 hover:bg-green-50"
+              className="mt-4 text-primary border-primary/40 hover:bg-primary/10"
               onClick={() => {
                 setQuery('');
                 setSelectedCategory('all');
@@ -278,18 +278,18 @@ export default function ProductSearch({ onAddToCart }: ProductSearchProps) {
             return (
               <div
                 key={product.id}
-                className={`relative rounded-xl border-2 p-4 flex flex-col justify-between transition-all bg-white hover:shadow-md ${
+                className={`relative rounded-xl border p-4 flex flex-col justify-between transition-all bg-card ${
                   isOut
-                    ? 'border-gray-200 opacity-60 bg-gray-50/50'
+                    ? 'border-border/50 opacity-50 bg-muted/20'
                     : isJustAdded
-                    ? 'border-green-500 bg-green-50/30 ring-2 ring-green-400'
-                    : 'border-gray-100 hover:border-green-300'
+                    ? 'border-primary bg-primary/10 ring-2 ring-primary/30'
+                    : 'border-border hover:border-primary/50 hover:shadow-md'
                 }`}
               >
                 <div>
                   {/* Category & Stock Badges */}
                   <div className="flex items-center justify-between gap-1 mb-2">
-                    <span className="text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-200">
+                    <span className="text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
                       {categoryName}
                     </span>
                     {isOut ? (
@@ -297,7 +297,7 @@ export default function ProductSearch({ onAddToCart }: ProductSearchProps) {
                         Out of stock
                       </span>
                     ) : isLow ? (
-                      <span className="text-[11px] font-semibold text-amber-600 flex items-center gap-1 bg-amber-50 px-1.5 py-0.5 rounded">
+                      <span className="text-[11px] font-semibold text-amber-400 flex items-center gap-1 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded">
                         <AlertTriangle className="h-3 w-3" /> {stock} left
                       </span>
                     ) : (
@@ -308,7 +308,7 @@ export default function ProductSearch({ onAddToCart }: ProductSearchProps) {
                   </div>
 
                   {/* Product Title */}
-                  <h3 className="font-bold text-gray-900 text-base leading-snug line-clamp-2 mb-1" title={product.name}>
+                  <h3 className="font-bold text-foreground text-base leading-snug line-clamp-2 mb-1" title={product.name}>
                     {product.name}
                   </h3>
 
@@ -319,10 +319,10 @@ export default function ProductSearch({ onAddToCart }: ProductSearchProps) {
                 </div>
 
                 {/* Price and Add Button */}
-                <div className="pt-3 border-t border-gray-100 flex items-center justify-between gap-2 mt-2">
+                <div className="pt-3 border-t border-border flex items-center justify-between gap-2 mt-2">
                   <div>
                     <span className="text-xs text-muted-foreground block leading-none mb-0.5">Price</span>
-                    <span className="text-lg md:text-xl font-black text-green-700">
+                    <span className="text-lg md:text-xl font-black text-primary">
                       {formatCurrency(product.selling_price || 0)}
                     </span>
                   </div>
@@ -331,12 +331,12 @@ export default function ProductSearch({ onAddToCart }: ProductSearchProps) {
                     size="sm"
                     disabled={isOut}
                     onClick={() => handleAdd(product)}
-                    className={`h-10 px-4 rounded-xl font-bold transition-all ${
+                    className={`h-9 px-3.5 rounded-lg font-bold transition-all ${
                       isJustAdded
-                        ? 'bg-emerald-600 text-white'
+                        ? 'bg-primary text-primary-foreground'
                         : isOut
-                        ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                        : 'bg-green-600 hover:bg-green-700 text-white shadow-sm active:scale-95'
+                        ? 'bg-muted text-muted-foreground cursor-not-allowed'
+                        : 'bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm active:scale-95'
                     }`}
                   >
                     {isJustAdded ? (

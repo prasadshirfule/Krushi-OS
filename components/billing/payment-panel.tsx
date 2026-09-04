@@ -145,11 +145,11 @@ export default function PaymentPanel({ cart, totals, customerId, onComplete }: P
   };
 
   return (
-    <section className="rounded-2xl border-2 border-green-100 bg-white p-5 md:p-6 shadow-sm space-y-5">
+    <section className="rounded-xl border border-border bg-card p-5 md:p-6 shadow-sm space-y-5 text-card-foreground">
       {/* ─── Header ─── */}
-      <div className="flex items-center gap-2">
-        <div className="h-9 w-9 rounded-full bg-green-100 flex items-center justify-center">
-          <CreditCard className="h-5 w-5 text-green-700" />
+      <div className="flex items-center gap-2.5">
+        <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center">
+          <CreditCard className="h-5 w-5 text-primary" />
         </div>
         <div>
           <h2 className="text-lg font-semibold text-foreground">Payment Method</h2>
@@ -170,8 +170,8 @@ export default function PaymentPanel({ cart, totals, customerId, onComplete }: P
               variant={isSelected ? 'default' : 'outline'}
               className={`h-14 rounded-xl text-sm font-bold flex items-center justify-center transition-all ${
                 isSelected
-                  ? 'bg-green-600 hover:bg-green-700 text-white shadow-md ring-2 ring-green-500 ring-offset-1'
-                  : 'bg-white hover:bg-green-50 hover:text-green-700 hover:border-green-300 text-gray-700 border-2 border-gray-200'
+                  ? 'bg-primary hover:bg-primary/90 text-primary-foreground shadow-md ring-2 ring-primary ring-offset-2 ring-offset-background'
+                  : 'bg-background/60 hover:bg-accent hover:border-primary/40 text-foreground border border-border'
               }`}
               onClick={() => setPaymentMethod(method)}
             >
@@ -184,8 +184,8 @@ export default function PaymentPanel({ cart, totals, customerId, onComplete }: P
 
       {/* ─── Credit Warning Banner ─── */}
       {creditError && (
-        <div className="bg-amber-50 border-2 border-amber-200 rounded-xl p-3.5 flex items-center gap-2.5 text-amber-800 text-sm">
-          <AlertCircle className="h-5 w-5 text-amber-600 shrink-0" />
+        <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3.5 flex items-center gap-2.5 text-amber-300 text-sm">
+          <AlertCircle className="h-5 w-5 text-amber-400 shrink-0" />
           <span>
             <strong>Credit (Udhaar) requires a customer.</strong> Please select or add a customer in the Customer section at the top of the page.
           </span>
@@ -194,20 +194,20 @@ export default function PaymentPanel({ cart, totals, customerId, onComplete }: P
 
       {/* ─── Cash Tendered & Change Calculator ─── */}
       {paymentMethod === 'Cash' && payableAmount > 0 && (
-        <div className="bg-gray-50 border rounded-xl p-4 space-y-3">
+        <div className="bg-muted/30 border border-border rounded-xl p-4 space-y-3">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex-1">
-              <label className="text-xs font-semibold text-gray-700 block mb-1">
+              <label className="text-xs font-semibold text-foreground block mb-1">
                 Cash Received from Customer (Optional)
               </label>
               <div className="flex items-center gap-2">
-                <span className="text-gray-500 font-bold">₹</span>
+                <span className="text-muted-foreground font-bold">₹</span>
                 <Input
                   type="number"
                   placeholder={payableAmount.toString()}
                   value={cashTendered}
                   onChange={e => setCashTendered(e.target.value)}
-                  className="h-10 text-lg font-bold bg-white max-w-xs"
+                  className="h-10 text-lg font-bold bg-background border-border text-foreground max-w-xs"
                 />
               </div>
             </div>
@@ -218,7 +218,7 @@ export default function PaymentPanel({ cart, totals, customerId, onComplete }: P
                 type="button"
                 variant="outline"
                 size="sm"
-                className="h-8 text-xs bg-white"
+                className="h-8 text-xs bg-background border-border text-foreground hover:bg-accent"
                 onClick={() => setCashTendered(payableAmount.toString())}
               >
                 Exact (₹{payableAmount})
@@ -227,7 +227,7 @@ export default function PaymentPanel({ cart, totals, customerId, onComplete }: P
                 type="button"
                 variant="outline"
                 size="sm"
-                className="h-8 text-xs bg-white"
+                className="h-8 text-xs bg-background border-border text-foreground hover:bg-accent"
                 onClick={() => setCashTendered((Math.ceil(payableAmount / 100) * 100).toString())}
               >
                 ₹{Math.ceil(payableAmount / 100) * 100}
@@ -236,7 +236,7 @@ export default function PaymentPanel({ cart, totals, customerId, onComplete }: P
                 type="button"
                 variant="outline"
                 size="sm"
-                className="h-8 text-xs bg-white"
+                className="h-8 text-xs bg-background border-border text-foreground hover:bg-accent"
                 onClick={() => setCashTendered((Math.ceil(payableAmount / 500) * 500).toString())}
               >
                 ₹{Math.ceil(payableAmount / 500) * 500}
@@ -246,9 +246,9 @@ export default function PaymentPanel({ cart, totals, customerId, onComplete }: P
 
           {/* Change return result */}
           {tenderedNum >= payableAmount && (
-            <div className="pt-2 border-t flex items-center justify-between">
-              <span className="text-sm font-semibold text-gray-700">Change to Return:</span>
-              <span className="text-xl font-black text-blue-700">
+            <div className="pt-2 border-t border-border flex items-center justify-between">
+              <span className="text-sm font-semibold text-foreground">Change to Return:</span>
+              <span className="text-xl font-black text-primary">
                 {formatCurrency(changeToReturn)}
               </span>
             </div>
@@ -262,7 +262,7 @@ export default function PaymentPanel({ cart, totals, customerId, onComplete }: P
           value={notes}
           onChange={e => setNotes(e.target.value)}
           placeholder="Bill notes / remarks (optional)..."
-          className="text-sm bg-gray-50/50"
+          className="text-sm bg-background/50 border-border text-foreground placeholder:text-muted-foreground"
         />
       </div>
 
@@ -272,10 +272,10 @@ export default function PaymentPanel({ cart, totals, customerId, onComplete }: P
           type="button"
           onClick={handleCompleteSale}
           disabled={isSaleDisabled}
-          className={`w-full h-16 rounded-2xl text-xl md:text-2xl font-black transition-all flex items-center justify-center gap-3 shadow-lg ${
+          className={`w-full h-16 rounded-xl text-xl md:text-2xl font-black transition-all flex items-center justify-center gap-3 shadow-lg ${
             isSaleDisabled
-              ? 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none'
-              : 'bg-green-600 hover:bg-green-700 text-white shadow-green-600/30 hover:shadow-xl active:scale-[0.99] cursor-pointer'
+              ? 'bg-muted text-muted-foreground cursor-not-allowed shadow-none'
+              : 'bg-primary hover:bg-primary/90 text-primary-foreground shadow-primary/25 hover:shadow-xl active:scale-[0.99] cursor-pointer'
           }`}
         >
           {isSubmitting ? (
@@ -300,7 +300,7 @@ export default function PaymentPanel({ cart, totals, customerId, onComplete }: P
             Add products to the bill to enable completion
           </p>
         ) : creditError ? (
-          <p className="text-xs text-amber-600 font-semibold text-center mt-2.5">
+          <p className="text-xs text-amber-400 font-semibold text-center mt-2.5">
             Select a customer at the top to complete credit sale
           </p>
         ) : null}
