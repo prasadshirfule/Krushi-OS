@@ -1,44 +1,73 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { CustomerSelector } from '@/components/customers/customer-selector';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { completeSaleAction } from '@/actions/sales';
-import { formatCurrency, numberToWords, generateId } from '@/lib/utils';
+import { formatCurrency, generateId } from '@/lib/utils';
 import { PAYMENT_METHODS } from '@/lib/constants';
-import { CheckCircle2, Loader2 } from 'lucide-react';
+import { CheckCircle2, Loader2, CreditCard, Banknote, QrCode, Building2, BookOpen, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface PaymentPanelProps {
   cart: any[];
   totals: any;
+  customerId?: string;
   onComplete: (saleId: string) => void;
 }
 
-export default function PaymentPanel({ cart, totals, onComplete }: PaymentPanelProps) {
-  const [customerId, setCustomerId] = useState<string>('');
+const PAYMENT_METHOD_ICONS: Record<string, React.ReactNode> = {
+  Cash: <Banknote className="h-5 w-5 mr-2" />,
+  UPI: <QrCode className="h-5 w-5 mr-2" />,
+  Card: <CreditCard className="h-5 w-5 mr-2" />,
+  'Bank Transfer': <Building2 className="h-5 w-5 mr-2" />,
+  Credit: <BookOpen className="h-5 w-5 mr-2" />,
+};
+
+const METHOD_TO_ENUM: Record<string, 'CASH' | 'UPI' | 'CARD' | 'BANK_TRANSFER' | 'CREDIT'> = {
+  Cash: 'CASH',
+  UPI: 'UPI',
+  Card: 'CARD',
+  'Bank Transfer': 'BANK_TRANSFER',
+  Credit: 'CREDIT',
+};
+
+export default function PaymentPanel({ cart, totals, customerId, onComplete }: PaymentPanelProps) {
   const [paymentMethod, setPaymentMethod] = useState<string>(PAYMENT_METHODS[0]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [notes, setNotes] = useState('');
+  const [cashTendered, setCashTendered] = useState<string>('');
 
   const payableAmount = Number(totals?.payableAmount || 0);
-  const isSaleDisabled = cart.length === 0 || payableAmount <= 0 || isSubmitting || (paymentMethod === 'Credit' && !customerId);
+  const isCredit = paymentMethod === 'Credit';
+  const hasCustomer = Boolean(customerId && customerId !== 'walk-in');
+  const creditError = isCredit && !hasCustomer;
 
+  const isSaleDisabled =
+    cart.length === 0 ||
+    payableAmount <= 0 ||
+    isSubmitting ||
+    creditError;
+
+  // Cash change calculation
+  const tenderedNum = parseFloat(cashTendered) || 0;
+  const changeToReturn = tenderedNum > payableAmount ? tenderedNum - payableAmount : 0;
+
+  // F8 Keyboard shortcut
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'F8') {
         e.preventDefault();
         if (cart.length === 0) {
-          toast.warning('Cart is empty. Add products to the cart to complete the sale.');
+          toast.warning('Cart is empty. Please add products to complete the bill.');
           return;
         }
         if (payableAmount <= 0) {
-          toast.warning('Grand total must be greater than ₹0 to complete a sale.');
+          toast.warning('Total amount must be greater than ₹0.');
           return;
         }
-        if (paymentMethod === 'Credit' && !customerId) {
-          toast.error('Customer is required for credit sales');
+        if (creditError) {
+          toast.error('Customer is required for credit (Udhaar) sales. Please select customer at top.');
           return;
         }
         if (!isSubmitting) {
@@ -48,44 +77,67 @@ export default function PaymentPanel({ cart, totals, onComplete }: PaymentPanelP
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [cart, customerId, paymentMethod, totals, payableAmount, isSubmitting]);
+  }, [cart, customerId, paymentMethod, totals, payableAmount, isSubmitting, creditError]);
 
   const handleCompleteSale = async () => {
     if (cart.length === 0) {
-      toast.warning('Cart is empty. Add products before completing a sale.');
+      toast.warning('Cart is empty. Add products before completing the bill.');
       return;
     }
     if (payableAmount <= 0) {
-      toast.warning('Grand total must be greater than ₹0 to complete a sale.');
+      toast.warning('Total amount must be greater than ₹0.');
       return;
     }
-    if (paymentMethod === 'Credit' && !customerId) {
-      toast.error('Customer is required for credit sales');
+    if (creditError) {
+      toast.error('A registered customer is required for credit sales. Please select or add a customer.');
       return;
     }
 
     setIsSubmitting(true);
     try {
       const idempotencyKey = generateId();
+
+      // Format items to match saleItemSchema
+      const formattedItems = cart.map(item => ({
+        product_id: item.product_id || item.id,
+        batch_id: item.batch_id || undefined,
+        quantity: Math.max(1, Number(item.quantity) || 1),
+        unit_price: Number(item.rate) || 0,
+        discount_percent: Number(item.discount) || 0,
+        gst_rate: Number(item.gst_rate) || 0,
+      }));
+
+      // Format payment to match paymentSplitSchema
+      const methodEnum = METHOD_TO_ENUM[paymentMethod] || 'CASH';
+      const formattedPayments = [
+        {
+          method: methodEnum,
+          amount: payableAmount,
+        },
+      ];
+
       const saleData = {
-        customer_id: customerId || null,
-        items: cart,
-        totals,
+        customer_id: hasCustomer ? customerId : null,
+        items: formattedItems,
+        payments: formattedPayments,
+        notes: notes.trim() || null,
+        idempotency_key: idempotencyKey,
+        // Legacy fallback fields
         payment_method: paymentMethod,
-        notes,
-        idempotency_key: idempotencyKey
+        totals,
       };
 
       const result = await completeSaleAction(saleData);
-      
+
       if (result.success) {
-        toast.success('Sale completed successfully');
-        onComplete(result.data?.id || result.data?.saleId || '');
+        toast.success('Bill completed successfully!');
+        const saleId = result.data?.id || result.data?.saleId || `sale-${Date.now()}`;
+        onComplete(saleId);
       } else {
         toast.error(result.error || 'Failed to complete sale');
       }
     } catch (error) {
-      toast.error('An unexpected error occurred');
+      toast.error('An unexpected error occurred while completing the bill');
       console.error(error);
     } finally {
       setIsSubmitting(false);
@@ -93,90 +145,166 @@ export default function PaymentPanel({ cart, totals, onComplete }: PaymentPanelP
   };
 
   return (
-    <div className="flex flex-col h-full gap-6">
-      <div>
-        <Label className="mb-2 block">Customer (Optional)</Label>
-        <CustomerSelector value={customerId} onChange={setCustomerId} />
-      </div>
-
-      <div className="bg-muted/30 rounded-lg p-4 space-y-2 text-sm border">
-        <div className="flex justify-between">
-          <span className="text-muted-foreground">Subtotal</span>
-          <span>{formatCurrency(totals.subtotal || 0)}</span>
+    <section className="rounded-2xl border-2 border-green-100 bg-white p-5 md:p-6 shadow-sm space-y-5">
+      {/* ─── Header ─── */}
+      <div className="flex items-center gap-2">
+        <div className="h-9 w-9 rounded-full bg-green-100 flex items-center justify-center">
+          <CreditCard className="h-5 w-5 text-green-700" />
         </div>
-        <div className="flex justify-between">
-          <span className="text-muted-foreground">Discount</span>
-          <span className="text-destructive">-{formatCurrency(totals.totalDiscount || 0)}</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-muted-foreground">CGST</span>
-          <span>{formatCurrency(totals.cgst || 0)}</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-muted-foreground">SGST</span>
-          <span>{formatCurrency(totals.sgst || 0)}</span>
-        </div>
-        <div className="flex justify-between border-t pt-2 mt-2">
-          <span className="text-muted-foreground">Round Off</span>
-          <span>{formatCurrency(totals.roundOff || 0)}</span>
-        </div>
-        <div className="flex justify-between items-end border-t pt-2 mt-2">
-          <span className="font-semibold text-lg">Grand Total</span>
-          <span className="font-bold text-3xl text-green-700">{formatCurrency(payableAmount)}</span>
-        </div>
-        <div className="text-[10px] text-muted-foreground italic text-right mt-1">
-          {numberToWords(payableAmount)}
+        <div>
+          <h2 className="text-lg font-semibold text-foreground">Payment Method</h2>
+          <span className="text-xs text-muted-foreground font-medium">
+            Select how the customer is paying
+          </span>
         </div>
       </div>
 
-      <div className="space-y-3 flex-1">
-        <Label>Payment Method</Label>
-        <div className="grid grid-cols-2 gap-2">
-          {PAYMENT_METHODS.map(method => (
+      {/* ─── Payment Methods Grid ─── */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5">
+        {PAYMENT_METHODS.map(method => {
+          const isSelected = paymentMethod === method;
+          return (
             <Button
               key={method}
               type="button"
-              variant={paymentMethod === method ? 'default' : 'outline'}
-              className={paymentMethod === method ? 'bg-primary' : ''}
+              variant={isSelected ? 'default' : 'outline'}
+              className={`h-14 rounded-xl text-sm font-bold flex items-center justify-center transition-all ${
+                isSelected
+                  ? 'bg-green-600 hover:bg-green-700 text-white shadow-md ring-2 ring-green-500 ring-offset-1'
+                  : 'bg-white hover:bg-green-50 hover:text-green-700 hover:border-green-300 text-gray-700 border-2 border-gray-200'
+              }`}
               onClick={() => setPaymentMethod(method)}
             >
+              {PAYMENT_METHOD_ICONS[method]}
               {method}
             </Button>
-          ))}
-        </div>
-        {paymentMethod === 'Credit' && !customerId && (
-          <div className="text-xs text-destructive mt-1">
-            ⚠️ Please select a customer for credit sale.
-          </div>
-        )}
+          );
+        })}
       </div>
 
-      <div className="mt-auto pt-4">
-        <Button 
-          className="w-full h-14 text-lg font-bold bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:bg-muted disabled:text-muted-foreground disabled:cursor-not-allowed transition-all" 
+      {/* ─── Credit Warning Banner ─── */}
+      {creditError && (
+        <div className="bg-amber-50 border-2 border-amber-200 rounded-xl p-3.5 flex items-center gap-2.5 text-amber-800 text-sm">
+          <AlertCircle className="h-5 w-5 text-amber-600 shrink-0" />
+          <span>
+            <strong>Credit (Udhaar) requires a customer.</strong> Please select or add a customer in the Customer section at the top of the page.
+          </span>
+        </div>
+      )}
+
+      {/* ─── Cash Tendered & Change Calculator ─── */}
+      {paymentMethod === 'Cash' && payableAmount > 0 && (
+        <div className="bg-gray-50 border rounded-xl p-4 space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex-1">
+              <label className="text-xs font-semibold text-gray-700 block mb-1">
+                Cash Received from Customer (Optional)
+              </label>
+              <div className="flex items-center gap-2">
+                <span className="text-gray-500 font-bold">₹</span>
+                <Input
+                  type="number"
+                  placeholder={payableAmount.toString()}
+                  value={cashTendered}
+                  onChange={e => setCashTendered(e.target.value)}
+                  className="h-10 text-lg font-bold bg-white max-w-xs"
+                />
+              </div>
+            </div>
+
+            {/* Quick cash shortcut buttons */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs bg-white"
+                onClick={() => setCashTendered(payableAmount.toString())}
+              >
+                Exact (₹{payableAmount})
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs bg-white"
+                onClick={() => setCashTendered((Math.ceil(payableAmount / 100) * 100).toString())}
+              >
+                ₹{Math.ceil(payableAmount / 100) * 100}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs bg-white"
+                onClick={() => setCashTendered((Math.ceil(payableAmount / 500) * 500).toString())}
+              >
+                ₹{Math.ceil(payableAmount / 500) * 500}
+              </Button>
+            </div>
+          </div>
+
+          {/* Change return result */}
+          {tenderedNum >= payableAmount && (
+            <div className="pt-2 border-t flex items-center justify-between">
+              <span className="text-sm font-semibold text-gray-700">Change to Return:</span>
+              <span className="text-xl font-black text-blue-700">
+                {formatCurrency(changeToReturn)}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ─── Notes / Remarks Input (Optional) ─── */}
+      <div>
+        <Input
+          value={notes}
+          onChange={e => setNotes(e.target.value)}
+          placeholder="Bill notes / remarks (optional)..."
+          className="text-sm bg-gray-50/50"
+        />
+      </div>
+
+      {/* ─── Massive COMPLETE BILL Action Button ─── */}
+      <div className="pt-2">
+        <Button
+          type="button"
           onClick={handleCompleteSale}
           disabled={isSaleDisabled}
+          className={`w-full h-16 rounded-2xl text-xl md:text-2xl font-black transition-all flex items-center justify-center gap-3 shadow-lg ${
+            isSaleDisabled
+              ? 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none'
+              : 'bg-green-600 hover:bg-green-700 text-white shadow-green-600/30 hover:shadow-xl active:scale-[0.99] cursor-pointer'
+          }`}
         >
           {isSubmitting ? (
-            <><Loader2 className="mr-2 h-6 w-6 animate-spin" /> Processing...</>
+            <>
+              <Loader2 className="h-7 w-7 animate-spin" />
+              <span>Processing Bill...</span>
+            </>
           ) : (
-            <><CheckCircle2 className="mr-2 h-6 w-6" /> COMPLETE SALE (F8)</>
+            <>
+              <CheckCircle2 className="h-7 w-7 stroke-[2.5]" />
+              <span>
+                COMPLETE BILL {payableAmount > 0 ? `• ${formatCurrency(payableAmount)}` : ''}
+              </span>
+              <span className="text-sm font-normal opacity-80 ml-1 hidden sm:inline">(F8)</span>
+            </>
           )}
         </Button>
+
+        {/* Helpful status messages under button */}
         {cart.length === 0 ? (
-          <p className="text-xs text-muted-foreground text-center mt-2">
-            Add products to the cart to complete the sale
+          <p className="text-xs text-muted-foreground text-center mt-2.5">
+            Add products to the bill to enable completion
           </p>
-        ) : payableAmount <= 0 ? (
-          <p className="text-xs text-muted-foreground text-center mt-2">
-            Grand total must be greater than ₹0
-          </p>
-        ) : paymentMethod === 'Credit' && !customerId ? (
-          <p className="text-xs text-destructive text-center mt-2">
-            Select a customer to complete credit sale
+        ) : creditError ? (
+          <p className="text-xs text-amber-600 font-semibold text-center mt-2.5">
+            Select a customer at the top to complete credit sale
           </p>
         ) : null}
       </div>
-    </div>
+    </section>
   );
 }

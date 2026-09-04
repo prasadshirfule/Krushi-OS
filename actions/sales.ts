@@ -6,8 +6,24 @@ import { saleSchema } from '@/lib/validations';
 import * as salesService from '@/services/sales.service';
 import { ActionResult } from './types';
 
+function isPlaceholderMode(): boolean {
+  return !process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('placeholder');
+}
+
 export async function completeSaleAction(data: any): Promise<ActionResult<any>> {
   try {
+    if (isPlaceholderMode()) {
+      const saleId = `sale-${Date.now()}`;
+      return {
+        success: true,
+        data: {
+          id: saleId,
+          saleId: saleId,
+          invoice_number: `KOS-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
+        },
+      };
+    }
+
     const userData = await getAuthAndPermissions('sales.create');
     
     const validated = saleSchema.safeParse(data);

@@ -1,129 +1,314 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { BillingCartItem } from '@/types/sales';
-import { calculateItemTotal } from '@/lib/calculations';
-import { formatCurrency } from '@/lib/utils';
+import { calculateItemTotal, calculateBillTotal } from '@/lib/calculations';
+import { formatCurrency, numberToWords } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Trash2, ShoppingBasket } from 'lucide-react';
-import Link from 'next/link';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Trash2, ShoppingBasket, Plus, Minus, Receipt, Percent, AlertCircle } from 'lucide-react';
 
 interface BillingCartProps {
   items: BillingCartItem[];
   onChange: (items: BillingCartItem[]) => void;
   onClear: () => void;
+  totals?: any;
 }
 
-export default function BillingCart({ items, onChange, onClear }: BillingCartProps) {
+export default function BillingCart({ items, onChange, onClear, totals: propTotals }: BillingCartProps) {
+  const [showDiscountIndex, setShowDiscountIndex] = useState<number | null>(null);
+
+  // Use passed totals or calculate on the fly
+  const totals = propTotals || calculateBillTotal(items);
+
   const updateItem = (index: number, updates: Partial<BillingCartItem>) => {
     const newItems = [...items];
     newItems[index] = { ...newItems[index], ...updates };
     onChange(newItems);
   };
 
+  const handleQtyChange = (index: number, delta: number) => {
+    const item = items[index];
+    const newQty = (item.quantity || 1) + delta;
+    const maxStock = item.available_stock || 9999;
+
+    if (newQty < 1) {
+      // Remove item if decremented below 1
+      removeItem(index);
+      return;
+    }
+
+    if (newQty > maxStock) {
+      return;
+    }
+
+    updateItem(index, { quantity: newQty });
+  };
+
   const removeItem = (index: number) => {
     onChange(items.filter((_, i) => i !== index));
+    if (showDiscountIndex === index) {
+      setShowDiscountIndex(null);
+    }
   };
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex justify-between items-center p-4 border-b">
-        <h2 className="font-semibold">Cart Items ({items.length})</h2>
-        <Button variant="outline" size="sm" onClick={onClear} disabled={items.length === 0}>
-          Clear All (F2)
-        </Button>
+    <section className="rounded-2xl border-2 border-green-100 bg-white p-5 md:p-6 shadow-sm space-y-5">
+      {/* ─── Header ─── */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="h-9 w-9 rounded-full bg-green-100 flex items-center justify-center">
+            <Receipt className="h-5 w-5 text-green-700" />
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold text-foreground">Current Bill</h2>
+            <span className="text-xs text-muted-foreground font-medium">
+              {items.length} {items.length === 1 ? 'item' : 'items'} added
+            </span>
+          </div>
+        </div>
+
+        {items.length > 0 && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onClear}
+            className="text-destructive border-red-200 hover:bg-red-50 hover:text-destructive text-xs"
+          >
+            Clear Bill (F2)
+          </Button>
+        )}
       </div>
-      
-      <div className="flex-1 overflow-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-12">#</TableHead>
-              <TableHead>Product</TableHead>
-              <TableHead className="w-20">Qty</TableHead>
-              <TableHead>Rate</TableHead>
-              <TableHead>Disc %</TableHead>
-              <TableHead>GST %</TableHead>
-              <TableHead className="text-right">Amount</TableHead>
-              <TableHead className="w-12"></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {items.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={8} className="h-48">
-                  <div className="flex flex-col items-center justify-center text-center gap-2">
-                    <ShoppingBasket className="h-10 w-10 text-muted-foreground/40" />
-                    <p className="text-sm font-medium text-muted-foreground">Your cart is empty</p>
-                    <p className="text-xs text-muted-foreground max-w-xs">
-                      Use the product search (F4) on the left to find and add items to this bill.
-                    </p>
-                    <p className="text-[11px] text-muted-foreground/70 mt-1">
-                      No products yet? Start by adding{' '}
-                      <Link href="/categories" className="text-primary underline">Categories</Link>{' → '}
-                      <Link href="/products/new" className="text-primary underline">Products</Link>{' → '}
-                      <Link href="/purchases/new" className="text-primary underline">Purchases</Link>{' → then use Billing.'}
-                    </p>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ) : (
-              items.map((item, idx) => {
-                const itemTotal = calculateItemTotal(item.quantity, item.rate, item.discount, item.gst_rate);
-                return (
-                  <TableRow key={item.id || idx}>
-                    <TableCell>{idx + 1}</TableCell>
-                    <TableCell className="font-medium">
-                      {item.product_name}
-                      {item.quantity > (item.available_stock || 0) && (
-                        <div className="text-[10px] text-destructive">Exceeds stock</div>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Input 
-                        type="number" 
-                        min="1" 
-                        max={item.available_stock}
-                        value={item.quantity} 
-                        onChange={(e) => updateItem(idx, { quantity: Number(e.target.value) || 1 })}
-                        className="h-8 w-16 px-2"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Input 
-                        type="number" 
-                        value={item.rate} 
-                        onChange={(e) => updateItem(idx, { rate: Number(e.target.value) || 0 })}
-                        className="h-8 w-20 px-2"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Input 
-                        type="number" 
-                        min="0" max="100"
-                        value={item.discount} 
-                        onChange={(e) => updateItem(idx, { discount: Number(e.target.value) || 0 })}
-                        className="h-8 w-16 px-2"
-                      />
-                    </TableCell>
-                    <TableCell>{item.gst_rate}%</TableCell>
-                    <TableCell className="text-right font-medium">
-                      {formatCurrency(itemTotal.total)}
-                    </TableCell>
-                    <TableCell>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => removeItem(idx)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                );
-              })
-            )}
-          </TableBody>
-        </Table>
-      </div>
-    </div>
+
+      {/* ─── Table / Item List ─── */}
+      {items.length === 0 ? (
+        <div className="py-12 border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center text-center p-6 gap-2">
+          <ShoppingBasket className="h-12 w-12 text-muted-foreground/30" />
+          <p className="text-base font-semibold text-gray-700">Your bill is empty</p>
+          <p className="text-sm text-muted-foreground max-w-sm">
+            Select products from the list above or type in the search box to add items to this bill.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {/* Scrollable Table on mobile/tablet */}
+          <div className="overflow-x-auto rounded-xl border border-gray-100">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-gray-50/80 text-xs font-semibold text-muted-foreground uppercase tracking-wider border-b">
+                  <th className="py-3 px-3 w-10 text-center">#</th>
+                  <th className="py-3 px-4">Product Name</th>
+                  <th className="py-3 px-3 text-right">Rate</th>
+                  <th className="py-3 px-4 text-center w-36">Quantity</th>
+                  <th className="py-3 px-4 text-right">Amount</th>
+                  <th className="py-3 px-3 w-10 text-center"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {items.map((item, idx) => {
+                  const itemTotal = calculateItemTotal(
+                    item.quantity || 1,
+                    item.rate || 0,
+                    item.discount || 0,
+                    item.gst_rate || 0
+                  );
+                  const isDiscountOpen = showDiscountIndex === idx;
+                  const hasDiscount = (item.discount || 0) > 0;
+                  const stockExceeded = item.available_stock && item.quantity > item.available_stock;
+
+                  return (
+                    <tr key={item.id || idx} className="hover:bg-green-50/20 transition-colors">
+                      {/* # Index */}
+                      <td className="py-3.5 px-3 text-center text-sm text-muted-foreground font-mono">
+                        {idx + 1}
+                      </td>
+
+                      {/* Product Name */}
+                      <td className="py-3.5 px-4">
+                        <div className="font-bold text-gray-900 text-base">{item.product_name}</div>
+                        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                          {item.batch_number && (
+                            <span className="text-[11px] text-muted-foreground font-mono bg-gray-100 px-1.5 py-0.5 rounded">
+                              Batch: {item.batch_number}
+                            </span>
+                          )}
+                          <span className="text-[11px] text-muted-foreground">
+                            GST: {item.gst_rate || 0}%
+                          </span>
+
+                          {/* Discount toggle button */}
+                          <button
+                            type="button"
+                            onClick={() => setShowDiscountIndex(isDiscountOpen ? null : idx)}
+                            className={`text-[11px] flex items-center gap-0.5 px-1.5 py-0.5 rounded transition-colors ${
+                              hasDiscount
+                                ? 'bg-amber-100 text-amber-800 font-semibold'
+                                : 'text-green-700 hover:bg-green-50 underline'
+                            }`}
+                          >
+                            <Percent className="h-2.5 w-2.5" />
+                            {hasDiscount ? `${item.discount}% off` : '+ Add Discount'}
+                          </button>
+                        </div>
+
+                        {/* Inline Discount Editor */}
+                        {isDiscountOpen && (
+                          <div className="mt-2 flex items-center gap-2 bg-amber-50/70 p-2 rounded-lg border border-amber-200">
+                            <span className="text-xs font-semibold text-amber-800">Discount %:</span>
+                            <Input
+                              type="number"
+                              min="0"
+                              max="100"
+                              value={item.discount || ''}
+                              placeholder="0"
+                              onChange={e => updateItem(idx, { discount: Math.min(100, Math.max(0, Number(e.target.value) || 0)) })}
+                              className="h-7 w-20 px-2 text-xs bg-white"
+                              autoFocus
+                            />
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 px-2 text-xs text-amber-900 hover:bg-amber-100"
+                              onClick={() => setShowDiscountIndex(null)}
+                            >
+                              Done
+                            </Button>
+                          </div>
+                        )}
+
+                        {stockExceeded && (
+                          <div className="text-[11px] text-destructive flex items-center gap-1 mt-1">
+                            <AlertCircle className="h-3 w-3" /> Exceeds available stock ({item.available_stock})
+                          </div>
+                        )}
+                      </td>
+
+                      {/* Rate */}
+                      <td className="py-3.5 px-3 text-right font-medium text-gray-700">
+                        {formatCurrency(item.rate || 0)}
+                      </td>
+
+                      {/* Quantity Stepper with Large + and − buttons */}
+                      <td className="py-3.5 px-4">
+                        <div className="flex items-center justify-center gap-1">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            className="h-8 w-8 rounded-lg border-2 hover:bg-red-50 hover:text-destructive hover:border-red-200 shrink-0"
+                            onClick={() => handleQtyChange(idx, -1)}
+                            title="Decrease quantity"
+                          >
+                            <Minus className="h-3.5 w-3.5 stroke-[3]" />
+                          </Button>
+                          <Input
+                            type="number"
+                            min="1"
+                            max={item.available_stock}
+                            value={item.quantity}
+                            onChange={e => updateItem(idx, { quantity: Math.max(1, Number(e.target.value) || 1) })}
+                            className="h-8 w-14 text-center font-bold text-base px-1 rounded-lg"
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            className="h-8 w-8 rounded-lg border-2 hover:bg-green-50 hover:text-green-700 hover:border-green-300 shrink-0"
+                            onClick={() => handleQtyChange(idx, 1)}
+                            disabled={Boolean(item.available_stock && item.quantity >= item.available_stock)}
+                            title="Increase quantity"
+                          >
+                            <Plus className="h-3.5 w-3.5 stroke-[3]" />
+                          </Button>
+                        </div>
+                      </td>
+
+                      {/* Amount */}
+                      <td className="py-3.5 px-4 text-right">
+                        <span className="font-extrabold text-base text-gray-900">
+                          {formatCurrency(itemTotal.total)}
+                        </span>
+                        {hasDiscount && (
+                          <span className="block text-[11px] text-muted-foreground line-through">
+                            {formatCurrency(itemTotal.subtotal)}
+                          </span>
+                        )}
+                      </td>
+
+                      {/* Remove Button */}
+                      <td className="py-3.5 px-3 text-center">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 rounded-lg text-muted-foreground hover:text-destructive hover:bg-red-50"
+                          onClick={() => removeItem(idx)}
+                          title="Remove item"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* ─── Bill Breakdown Summary ─── */}
+          <div className="bg-green-50/60 rounded-xl border border-green-200 p-4 md:p-5">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm pb-4 border-b border-green-200/80">
+              <div>
+                <span className="text-xs text-muted-foreground block font-medium">Total Items</span>
+                <span className="font-bold text-gray-900 text-base">
+                  {items.length} items ({items.reduce((sum, it) => sum + (it.quantity || 1), 0)} units)
+                </span>
+              </div>
+              <div>
+                <span className="text-xs text-muted-foreground block font-medium">Subtotal</span>
+                <span className="font-bold text-gray-900 text-base">
+                  {formatCurrency(totals.subtotal || 0)}
+                </span>
+              </div>
+              <div>
+                <span className="text-xs text-muted-foreground block font-medium">Total GST</span>
+                <span className="font-bold text-gray-900 text-base">
+                  {formatCurrency(totals.totalTax || 0)}
+                </span>
+              </div>
+              <div>
+                <span className="text-xs text-muted-foreground block font-medium">Total Discount</span>
+                <span className="font-bold text-amber-700 text-base">
+                  {(totals.totalDiscount || 0) > 0 ? `-${formatCurrency(totals.totalDiscount)}` : '₹0.00'}
+                </span>
+              </div>
+            </div>
+
+            {/* Prominent Grand Total Display */}
+            <div className="pt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <span className="text-xs uppercase font-bold text-green-800 tracking-wider block">
+                  Total Payable Amount
+                </span>
+                <span className="text-xs text-muted-foreground italic">
+                  {numberToWords(totals.payableAmount || 0)}
+                </span>
+              </div>
+
+              <div className="text-right">
+                <span className="text-3xl md:text-4xl font-black text-green-700 tracking-tight">
+                  {formatCurrency(totals.payableAmount || 0)}
+                </span>
+                {totals.roundOff !== 0 && (
+                  <span className="text-[11px] text-muted-foreground block">
+                    (Round off: {totals.roundOff > 0 ? `+${totals.roundOff}` : totals.roundOff})
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </section>
   );
 }
