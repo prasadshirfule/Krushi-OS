@@ -347,8 +347,9 @@ export default function ProductSearch({ onAddToCart }: ProductSearchProps) {
                       </span>
                     ) : (
                       <span className="text-[11px] font-medium text-muted-foreground">
-                        Stock: {stock}
+                        Stock: {stock} {product.unit || ''}
                       </span>
+
                     )}
                   </div>
 

@@ -139,6 +139,9 @@ async function runSystemAuditTests() {
     gst_rate: 18,
     unit: 'Bottle',
     min_stock: 5,
+    opening_stock: 10,
+    batch_number: 'BATCH-001',
+    expiry_date: '04/09/2027',
   });
   assert(!invalidNameRes.success, 'TEST 1: Product validation fails when name is less than 2 characters');
 
@@ -152,11 +155,14 @@ async function runSystemAuditTests() {
     unit: 'Bottle',
     min_stock: 10,
     opening_stock: 50,
+    batch_number: 'CHLOR-2026-01',
+    expiry_date: '04/09/2027',
     product_type: 'Pesticide',
     active_ingredient: 'Chlorpyrifos 20% EC',
     licence_number: 'CIB-998811/2026',
   });
   assert(validProductRes.success, 'TEST 2: Valid agricultural product payload passes schema validation');
+
 
   // TEST 3: FEFO Return Allocation - TEST CASE 1 (Return 8 of 12: A = 5, B = 3)
   const dbReturn = new MockFEFOReturnState();

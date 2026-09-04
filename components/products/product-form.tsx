@@ -3,13 +3,16 @@
 import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { productSchema, ProductInput } from '@/lib/validations';
+import { 
+  productSchema, 
+  ProductInput, 
+  formatDDMMYYYYtoDB, 
+  formatToDDMMYYYY 
+} from '@/lib/validations';
 import { createProductAction, updateProductAction, createBrandAction } from '@/actions/products';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import {
@@ -20,7 +23,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { PRODUCT_UNITS, GST_RATES, AGRICULTURAL_TYPES } from '@/lib/constants';
+import { PRODUCT_UNITS, GST_RATES } from '@/lib/constants';
 import { MOCK_BRANDS } from '@/lib/mock-data';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
@@ -30,11 +33,10 @@ import {
   Package, 
   IndianRupee, 
   Boxes, 
-  Sparkles, 
   Plus, 
   Building2, 
   Check, 
-  Barcode 
+  Calendar
 } from 'lucide-react';
 
 import { 
@@ -75,6 +77,19 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
   const [newBrandCompany, setNewBrandCompany] = useState('');
   const [isSavingBrand, setIsSavingBrand] = useState(false);
 
+  // Normalize unit value from initialData
+  const normalizeUnit = (u?: string) => {
+    if (!u) return 'KG';
+    const found = PRODUCT_UNITS.find(item => item.value.toLowerCase() === u.toLowerCase());
+    return found ? found.value : u;
+  };
+
+  const initialBatch = initialData?.batches?.[0];
+  const initialBatchNumber = initialData?.batch_number || initialBatch?.batch_number || '';
+  const rawInitialExpiry = initialData?.expiry_date || initialBatch?.expiry_date || initialBatch?.exp_date || '';
+  const initialExpiryFormatted = formatToDDMMYYYY(rawInitialExpiry);
+  const initialStock = initialData?.current_stock ?? initialData?.stock_quantity ?? initialData?.opening_stock ?? initialBatch?.quantity_available ?? (mode === 'create' ? 50 : 0);
+
   // Form Setup
   const form = useForm<ProductInput>({
     resolver: zodResolver(productSchema),
@@ -87,16 +102,16 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
       description: initialData?.description || '',
       purchase_price: initialData?.purchase_price ?? 0,
       selling_price: initialData?.selling_price ?? 0,
-      wholesale_price: initialData?.wholesale_price ?? 0,
+      wholesale_price: initialData?.wholesale_price ?? initialData?.mrp ?? initialData?.selling_price ?? 0,
       hsn_code: initialData?.hsn_code || '',
       gst_rate: initialData?.gst_rate ?? 18,
-      unit: initialData?.unit || 'Bag',
+      unit: normalizeUnit(initialData?.unit),
       min_stock: initialData?.min_stock ?? 5,
-      opening_stock: initialData?.current_stock ?? 0,
-      batch_tracking: initialData?.batch_tracking ?? false,
-      expiry_tracking: initialData?.expiry_tracking ?? false,
-      batch_number: initialData?.batch_number || (initialData?.batches?.[0]?.batch_number || ''),
-      expiry_date: initialData?.expiry_date || (initialData?.batches?.[0]?.expiry_date || ''),
+      opening_stock: Number(initialStock),
+      batch_tracking: true,
+      expiry_tracking: true,
+      batch_number: initialBatchNumber,
+      expiry_date: initialExpiryFormatted,
       product_type: initialData?.product_type || 'Fertilizer',
       active_ingredient: initialData?.active_ingredient || '',
       formulation: initialData?.formulation || '',
@@ -107,7 +122,27 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
     },
   });
 
-  const watchBatchTracking = form.watch('batch_tracking');
+  // Handle formatted typing for Expiry Date (DD/MM/YYYY)
+  const handleExpiryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const inputVal = e.target.value;
+    const prevVal = form.getValues('expiry_date') || '';
+    
+    // Allow user to backspace freely
+    if (inputVal.length < prevVal.length) {
+      form.setValue('expiry_date', inputVal, { shouldValidate: false });
+      return;
+    }
+
+    // Extract digits and automatically format with slashes
+    const digits = inputVal.replace(/\D/g, '').slice(0, 8);
+    let formatted = digits;
+    if (digits.length > 2 && digits.length <= 4) {
+      formatted = `${digits.slice(0, 2)}/${digits.slice(2)}`;
+    } else if (digits.length > 4) {
+      formatted = `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+    }
+    form.setValue('expiry_date', formatted, { shouldValidate: true });
+  };
 
   // Sync demo brands on mount and listen to events
   useEffect(() => {
@@ -197,17 +232,29 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
   const onSubmit = async (data: ProductInput) => {
     setIsSubmitting(true);
     try {
+      const dbExpiry = formatDDMMYYYYtoDB(data.expiry_date) || data.expiry_date;
+      const formattedData: ProductInput = {
+        ...data,
+        expiry_date: dbExpiry,
+        batch_tracking: true,
+        expiry_tracking: true,
+        sku: data.sku || `SKU-${Date.now().toString().slice(-4)}`,
+        barcode: data.barcode || '',
+        description: data.description || '',
+        hsn_code: data.hsn_code || '',
+      };
+
       if (isClientDemoMode()) {
         if (mode === 'create') {
-          saveDemoProductClient(data);
+          saveDemoProductClient(formattedData);
         } else {
-          updateDemoProductClient(initialData.id, data);
+          updateDemoProductClient(initialData.id, formattedData);
         }
         try {
           if (mode === 'create') {
-            await createProductAction(data);
+            await createProductAction(formattedData);
           } else {
-            await updateProductAction(initialData.id, data);
+            await updateProductAction(initialData.id, formattedData);
           }
         } catch (e) {
           console.warn('Server action fallback in demo mode:', e);
@@ -221,9 +268,9 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
 
       let result;
       if (mode === 'create') {
-        result = await createProductAction(data);
+        result = await createProductAction(formattedData);
       } else {
-        result = await updateProductAction(initialData.id, data);
+        result = await updateProductAction(initialData.id, formattedData);
       }
 
       if (result.success) {
@@ -243,7 +290,7 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
 
   return (
     <>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8 max-w-5xl mx-auto pb-24">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8 max-w-4xl mx-auto pb-24">
         {/* ─── Page Header ─── */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-border">
           <div className="flex items-center gap-3">
@@ -261,7 +308,7 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
                 {mode === 'create' ? 'Add New Product' : `Edit Product: ${initialData?.name}`}
               </h1>
               <p className="text-sm text-muted-foreground mt-0.5">
-                Simple one-page product entry for agricultural stock, pricing, and tax
+                Simple shopkeeper form: Product → Price → Batch → Expiry → Quantity
               </p>
             </div>
           </div>
@@ -277,7 +324,7 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
               {isSubmitting ? (
                 <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</>
               ) : (
-                <><Check className="mr-2 h-4 w-4 stroke-[3]" /> {mode === 'create' ? 'Save Product' : 'Update Product'}</>
+                <><Check className="mr-2 h-4 w-4 stroke-[3]" /> {mode === 'create' ? 'SAVE PRODUCT' : 'UPDATE PRODUCT'}</>
               )}
             </Button>
           </div>
@@ -293,9 +340,9 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
                 <Package className="h-5 w-5" />
               </div>
               <div>
-                <CardTitle className="text-lg font-bold text-foreground">Product Details</CardTitle>
+                <CardTitle className="text-lg font-bold text-foreground">PRODUCT DETAILS</CardTitle>
                 <CardDescription className="text-xs text-muted-foreground">
-                  Product name, category, manufacturer, and code identifiers
+                  Product name, category, and manufacturer
                 </CardDescription>
               </div>
             </div>
@@ -308,7 +355,7 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
               </Label>
               <Input
                 id="name"
-                placeholder="e.g. Confidor Insecticide 100ml or DAP Fertilizer 50kg (IFFCO)"
+                placeholder="e.g. Test Urea, DAP 50kg (IFFCO), Confidor 100ml"
                 className="h-11 text-base rounded-lg border-border bg-background"
                 {...form.register('name')}
               />
@@ -344,7 +391,7 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label htmlFor="brand_id" className="text-sm font-semibold text-foreground">
-                  Manufacturer / Brand
+                  Manufacturer
                 </Label>
                 <button
                   type="button"
@@ -367,7 +414,7 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
                 }}
               >
                 <SelectTrigger id="brand_id" className="h-11 rounded-lg border-border bg-background text-foreground">
-                  <SelectValue placeholder="Select Manufacturer (Optional)" />
+                  <SelectValue placeholder="Select Manufacturer" />
                 </SelectTrigger>
                 <SelectContent className="max-h-72">
                   <SelectItem value="__none__" className="text-muted-foreground font-normal">
@@ -393,51 +440,6 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
                 </SelectContent>
               </Select>
             </div>
-
-            {/* SKU / Product Code */}
-            <div className="space-y-2">
-              <Label htmlFor="sku" className="text-sm font-semibold text-foreground">
-                SKU / Product Code
-              </Label>
-              <Input
-                id="sku"
-                placeholder="e.g. FERT-DAP-50"
-                className="h-11 rounded-lg border-border bg-background font-mono text-sm"
-                {...form.register('sku')}
-              />
-            </div>
-
-            {/* Barcode */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="barcode" className="text-sm font-semibold text-foreground">
-                  Barcode
-                </Label>
-                <span className="text-[11px] text-muted-foreground flex items-center gap-1">
-                  <Barcode className="h-3 w-3" /> Quick scan supported
-                </span>
-              </div>
-              <Input
-                id="barcode"
-                placeholder="Scan or enter barcode number"
-                className="h-11 rounded-lg border-border bg-background font-mono text-sm"
-                {...form.register('barcode')}
-              />
-            </div>
-
-            {/* Description (Full Width) */}
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="description" className="text-sm font-semibold text-foreground">
-                Description / Notes
-              </Label>
-              <Textarea
-                id="description"
-                placeholder="Product description, recommended usage, handling warnings..."
-                rows={3}
-                className="rounded-lg border-border bg-background resize-none"
-                {...form.register('description')}
-              />
-            </div>
           </CardContent>
         </Card>
 
@@ -451,18 +453,18 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
                 <IndianRupee className="h-5 w-5" />
               </div>
               <div>
-                <CardTitle className="text-lg font-bold text-foreground">Pricing & Tax</CardTitle>
+                <CardTitle className="text-lg font-bold text-foreground">PRICING & TAX</CardTitle>
                 <CardDescription className="text-xs text-muted-foreground">
-                  Purchase cost, retail selling price, MRP, and GST rate
+                  Purchase price, selling price, MRP, and GST
                 </CardDescription>
               </div>
             </div>
           </CardHeader>
-          <CardContent className="p-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          <CardContent className="p-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
             {/* Purchase Price */}
             <div className="space-y-2">
               <Label htmlFor="purchase_price" className="text-sm font-semibold text-foreground">
-                Purchase Cost (₹)
+                Purchase Price <span className="text-destructive font-bold">*</span>
               </Label>
               <div className="relative">
                 <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold text-sm">₹</span>
@@ -481,10 +483,10 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
               )}
             </div>
 
-            {/* Selling Price (Required) */}
+            {/* Selling Price */}
             <div className="space-y-2">
               <Label htmlFor="selling_price" className="text-sm font-semibold text-foreground">
-                Selling Price (₹) <span className="text-destructive font-bold">*</span>
+                Selling Price <span className="text-destructive font-bold">*</span>
               </Label>
               <div className="relative">
                 <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-primary font-bold text-base">₹</span>
@@ -503,10 +505,10 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
               )}
             </div>
 
-            {/* MRP / Wholesale Price */}
+            {/* MRP */}
             <div className="space-y-2">
               <Label htmlFor="wholesale_price" className="text-sm font-semibold text-foreground">
-                MRP / Max Retail Price (₹)
+                MRP
               </Label>
               <div className="relative">
                 <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold text-sm">₹</span>
@@ -522,43 +524,30 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
               </div>
             </div>
 
-            {/* GST Rate */}
+            {/* GST */}
             <div className="space-y-2">
               <Label htmlFor="gst_rate" className="text-sm font-semibold text-foreground">
-                GST Rate (%)
+                GST
               </Label>
               <Select
                 value={String(form.watch('gst_rate'))}
                 onValueChange={(val) => form.setValue('gst_rate', Number(val))}
               >
                 <SelectTrigger id="gst_rate" className="h-11 rounded-lg border-border bg-background text-foreground">
-                  <SelectValue placeholder="Select GST Rate" />
+                  <SelectValue placeholder="Select GST" />
                 </SelectTrigger>
                 <SelectContent>
                   {GST_RATES.map((rate) => (
-                    <SelectItem key={rate} value={String(rate)}>{rate}% GST</SelectItem>
+                    <SelectItem key={rate} value={String(rate)}>{rate}%</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-
-            {/* HSN Code */}
-            <div className="space-y-2">
-              <Label htmlFor="hsn_code" className="text-sm font-semibold text-foreground">
-                HSN Code
-              </Label>
-              <Input
-                id="hsn_code"
-                placeholder="e.g. 3808 (Pesticide) / 3102 (Fertilizer)"
-                className="h-11 rounded-lg border-border bg-background font-mono text-sm"
-                {...form.register('hsn_code')}
-              />
             </div>
           </CardContent>
         </Card>
 
         {/* ═════════════════════════════════════════════════════════
-            SECTION 3: INVENTORY & STOCK
+            SECTION 3: STOCK & BATCH
         ═════════════════════════════════════════════════════════ */}
         <Card className="border border-border bg-card shadow-sm rounded-xl overflow-hidden">
           <CardHeader className="bg-muted/30 border-b border-border pb-4">
@@ -567,237 +556,113 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
                 <Boxes className="h-5 w-5" />
               </div>
               <div>
-                <CardTitle className="text-lg font-bold text-foreground">Inventory & Stock</CardTitle>
+                <CardTitle className="text-lg font-bold text-foreground">STOCK & BATCH</CardTitle>
                 <CardDescription className="text-xs text-muted-foreground">
-                  Unit of measurement, stock reorder alerts, and optional batch tracking
-                </CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="p-6 space-y-6">
-            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {/* Unit of Measurement */}
-              <div className="space-y-2">
-                <Label htmlFor="unit" className="text-sm font-semibold text-foreground">
-                  Unit of Measurement <span className="text-destructive font-bold">*</span>
-                </Label>
-                <Select
-                  value={form.watch('unit')}
-                  onValueChange={(val) => form.setValue('unit', val, { shouldValidate: true })}
-                >
-                  <SelectTrigger id="unit" className="h-11 rounded-lg border-border bg-background text-foreground">
-                    <SelectValue placeholder="Select Unit" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {PRODUCT_UNITS.map((u: any) => {
-                      const val = typeof u === 'string' ? u : u.value;
-                      const lbl = typeof u === 'string' ? u : u.label;
-                      return <SelectItem key={val} value={val}>{lbl}</SelectItem>;
-                    })}
-                  </SelectContent>
-                </Select>
-                {form.formState.errors.unit && (
-                  <p className="text-xs text-destructive font-medium">{form.formState.errors.unit.message}</p>
-                )}
-              </div>
-
-              {/* Minimum Stock Level */}
-              <div className="space-y-2">
-                <Label htmlFor="min_stock" className="text-sm font-semibold text-foreground">
-                  Minimum Stock Alert Level
-                </Label>
-                <Input
-                  id="min_stock"
-                  type="number"
-                  min="0"
-                  placeholder="e.g. 5"
-                  className="h-11 rounded-lg border-border bg-background"
-                  {...form.register('min_stock')}
-                />
-                <p className="text-[11px] text-muted-foreground">Alerts when stock is at or below this amount</p>
-              </div>
-
-              {/* Opening Stock (Create Mode) */}
-              {mode === 'create' && (
-                <div className="space-y-2">
-                  <Label htmlFor="opening_stock" className="text-sm font-semibold text-foreground">
-                    Opening Stock Quantity
-                  </Label>
-                  <Input
-                    id="opening_stock"
-                    type="number"
-                    min="0"
-                    placeholder="e.g. 50"
-                    className="h-11 rounded-lg border-border bg-background"
-                    {...form.register('opening_stock')}
-                  />
-                  <p className="text-[11px] text-muted-foreground">Initial stock available in shop</p>
-                </div>
-              )}
-            </div>
-
-            {/* Batch & Expiry Tracking Box */}
-            <div className="rounded-xl border border-border bg-muted/20 p-5 space-y-4">
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <h4 className="text-sm font-bold text-foreground">Enable Batch & Expiry Tracking</h4>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Recommended for pesticides, seeds, and agrochemicals requiring batch tracking and expiry monitoring
-                  </p>
-                </div>
-                <Switch
-                  checked={Boolean(watchBatchTracking)}
-                  onCheckedChange={(checked) => {
-                    form.setValue('batch_tracking', checked);
-                    form.setValue('expiry_tracking', checked);
-                  }}
-                />
-              </div>
-
-              {watchBatchTracking && (
-                <div className="grid gap-4 sm:grid-cols-2 pt-3 border-t border-border/60">
-                  <div className="space-y-2">
-                    <Label htmlFor="batch_number" className="text-xs font-semibold text-foreground">
-                      Batch Number {mode === 'create' ? '(Optional)' : ''}
-                    </Label>
-                    <Input
-                      id="batch_number"
-                      placeholder="e.g. BATCH-2026-01"
-                      className="h-10 rounded-lg border-border bg-background font-mono text-sm"
-                      {...form.register('batch_number')}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="expiry_date" className="text-xs font-semibold text-foreground">
-                      Expiry Date {mode === 'create' ? '(Optional)' : ''}
-                    </Label>
-                    <Input
-                      id="expiry_date"
-                      type="date"
-                      className="h-10 rounded-lg border-border bg-background text-sm"
-                      {...form.register('expiry_date')}
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* ═════════════════════════════════════════════════════════
-            SECTION 4: AGRICULTURAL INFORMATION
-        ═════════════════════════════════════════════════════════ */}
-        <Card className="border border-border bg-card shadow-sm rounded-xl overflow-hidden">
-          <CardHeader className="bg-muted/30 border-b border-border pb-4">
-            <div className="flex items-center gap-3">
-              <div className="h-9 w-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold">
-                <Sparkles className="h-5 w-5" />
-              </div>
-              <div>
-                <CardTitle className="text-lg font-bold text-foreground">Agricultural Information</CardTitle>
-                <CardDescription className="text-xs text-muted-foreground">
-                  Crop suitability, active ingredients, dosage recommendations, and licence details
+                  Batch number, expiry date, quantity, and unit of measurement
                 </CardDescription>
               </div>
             </div>
           </CardHeader>
           <CardContent className="p-6 grid gap-6 sm:grid-cols-2">
-            {/* Product Type */}
+            {/* Batch Number */}
             <div className="space-y-2">
-              <Label htmlFor="product_type" className="text-sm font-semibold text-foreground">
-                Product Type
-              </Label>
-              <Select
-                value={form.watch('product_type') || 'Fertilizer'}
-                onValueChange={(val) => form.setValue('product_type', val)}
-              >
-                <SelectTrigger id="product_type" className="h-11 rounded-lg border-border bg-background text-foreground">
-                  <SelectValue placeholder="Select Product Type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {AGRICULTURAL_TYPES.map((t) => (
-                    <SelectItem key={t} value={t}>{t}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Target Crops */}
-            <div className="space-y-2">
-              <Label htmlFor="crop" className="text-sm font-semibold text-foreground">
-                Crop / Usage (Target Crops)
+              <Label htmlFor="batch_number" className="text-sm font-semibold text-foreground">
+                Batch Number <span className="text-destructive font-bold">*</span>
               </Label>
               <Input
-                id="crop"
-                placeholder="e.g. Cotton, Soybean, Wheat, Rice, Sugarcane"
-                className="h-11 rounded-lg border-border bg-background"
-                {...form.register('crop')}
+                id="batch_number"
+                placeholder="e.g. UREA-2026-01"
+                className="h-11 text-base rounded-lg border-border bg-background font-mono"
+                {...form.register('batch_number')}
               />
+              {form.formState.errors.batch_number && (
+                <p className="text-xs text-destructive font-medium">{form.formState.errors.batch_number.message}</p>
+              )}
             </div>
 
-            {/* Dosage & Target Pest */}
+            {/* Expiry Date */}
             <div className="space-y-2">
-              <Label htmlFor="target_pest" className="text-sm font-semibold text-foreground">
-                Dosage / Target Pest / Instructions
-              </Label>
-              <Input
-                id="target_pest"
-                placeholder="e.g. 2ml per Litre of water / Stem Borer, Aphids"
-                className="h-11 rounded-lg border-border bg-background"
-                {...form.register('target_pest')}
-              />
+              <div className="flex items-center justify-between">
+                <Label htmlFor="expiry_date" className="text-sm font-semibold text-foreground">
+                  Expiry Date <span className="text-destructive font-bold">*</span>
+                </Label>
+                <span className="text-xs text-muted-foreground font-mono font-medium">DD/MM/YYYY</span>
+              </div>
+              <div className="relative">
+                <Input
+                  id="expiry_date"
+                  placeholder="DD/MM/YYYY"
+                  maxLength={10}
+                  className="h-11 text-base rounded-lg border-border bg-background font-mono pl-3.5 pr-10"
+                  value={form.watch('expiry_date') || ''}
+                  onChange={handleExpiryChange}
+                />
+                <Calendar className="absolute right-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+              </div>
+              {form.formState.errors.expiry_date ? (
+                <p className="text-xs text-destructive font-medium">{form.formState.errors.expiry_date.message}</p>
+              ) : (
+                <p className="text-[11px] text-muted-foreground">Expected format: DD/MM/YYYY (e.g. 04/09/2027)</p>
+              )}
             </div>
 
-            {/* Active Ingredient */}
+            {/* Quantity + Unit (Combined Control) */}
             <div className="space-y-2">
-              <Label htmlFor="active_ingredient" className="text-sm font-semibold text-foreground">
-                Active Ingredient / Technical Name
+              <Label htmlFor="opening_stock" className="text-sm font-semibold text-foreground">
+                Quantity <span className="text-destructive font-bold">*</span>
               </Label>
-              <Input
-                id="active_ingredient"
-                placeholder="e.g. Chlorpyrifos 20% EC or Imidacloprid 17.8% SL"
-                className="h-11 rounded-lg border-border bg-background"
-                {...form.register('active_ingredient')}
-              />
+              <div className="flex rounded-lg border border-border bg-background focus-within:ring-2 focus-within:ring-primary focus-within:border-primary overflow-hidden">
+                <Input
+                  id="opening_stock"
+                  type="number"
+                  step="any"
+                  min="0"
+                  placeholder="50"
+                  className="h-11 border-0 focus-visible:ring-0 focus-visible:ring-offset-0 rounded-none text-base font-bold text-foreground px-3.5 flex-1"
+                  {...form.register('opening_stock')}
+                />
+                <div className="w-[150px] sm:w-[170px] border-l border-border bg-muted/30">
+                  <Select
+                    value={form.watch('unit') || 'KG'}
+                    onValueChange={(val) => form.setValue('unit', val, { shouldValidate: true })}
+                  >
+                    <SelectTrigger className="h-11 border-0 focus:ring-0 rounded-none bg-transparent font-bold text-foreground">
+                      <SelectValue placeholder="Unit" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-64">
+                      {PRODUCT_UNITS.map((u) => (
+                        <SelectItem key={u.value} value={u.value}>
+                          {u.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              {form.formState.errors.opening_stock && (
+                <p className="text-xs text-destructive font-medium">{form.formState.errors.opening_stock.message}</p>
+              )}
             </div>
 
-            {/* Formulation Type */}
+            {/* Minimum Stock Level */}
             <div className="space-y-2">
-              <Label htmlFor="formulation" className="text-sm font-semibold text-foreground">
-                Formulation Type
+              <Label htmlFor="min_stock" className="text-sm font-semibold text-foreground">
+                Minimum Stock Level
               </Label>
-              <Input
-                id="formulation"
-                placeholder="e.g. EC, WP, SL, GR, SC, Granules"
-                className="h-11 rounded-lg border-border bg-background"
-                {...form.register('formulation')}
-              />
-            </div>
-
-            {/* Pack Size */}
-            <div className="space-y-2">
-              <Label htmlFor="pack_size" className="text-sm font-semibold text-foreground">
-                Pack Size
-              </Label>
-              <Input
-                id="pack_size"
-                placeholder="e.g. 100ml, 500ml, 1 Kg, 50 Kg Bag"
-                className="h-11 rounded-lg border-border bg-background"
-                {...form.register('pack_size')}
-              />
-            </div>
-
-            {/* CIB Registration / Licence Number (Full Width) */}
-            <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="licence_number" className="text-sm font-semibold text-foreground">
-                CIB Registration / Licence Number
-              </Label>
-              <Input
-                id="licence_number"
-                placeholder="e.g. CIR-12345/2025/Fertilizer or CIB-89012"
-                className="h-11 rounded-lg border-border bg-background font-mono text-sm"
-                {...form.register('licence_number')}
-              />
+              <div className="flex rounded-lg border border-border bg-background focus-within:ring-2 focus-within:ring-primary overflow-hidden">
+                <Input
+                  id="min_stock"
+                  type="number"
+                  min="0"
+                  placeholder="5"
+                  className="h-11 border-0 focus-visible:ring-0 focus-visible:ring-offset-0 rounded-none text-base px-3.5 flex-1"
+                  {...form.register('min_stock')}
+                />
+                <div className="px-3.5 py-2.5 bg-muted/40 border-l border-border text-xs font-bold text-muted-foreground flex items-center justify-center min-w-[70px]">
+                  {form.watch('unit') || 'KG'}
+                </div>
+              </div>
+              <p className="text-[11px] text-muted-foreground">Alerts when stock is at or below this amount</p>
             </div>
           </CardContent>
         </Card>
@@ -850,30 +715,29 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
 
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="newBrandName" className="text-sm font-semibold">
-                  Manufacturer / Brand Name <span className="text-destructive">*</span>
+                <Label htmlFor="new_brand_name" className="text-sm font-semibold">
+                  Manufacturer Name <span className="text-destructive">*</span>
                 </Label>
                 <Input
-                  id="newBrandName"
+                  id="new_brand_name"
+                  placeholder="e.g. Coromandel, Dhanuka, Sumitomo"
                   value={newBrandName}
                   onChange={(e) => setNewBrandName(e.target.value)}
-                  placeholder="e.g. Krushi Chemicals, Tata Rallis, Kaveri"
+                  className="h-10 text-sm"
                   autoFocus
-                  required
-                  className="h-11 rounded-lg border-border bg-background"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="newBrandCompany" className="text-sm font-semibold">
-                  Company / Organization (Optional)
+                <Label htmlFor="new_brand_company" className="text-sm font-semibold">
+                  Parent Company / Description (Optional)
                 </Label>
                 <Input
-                  id="newBrandCompany"
+                  id="new_brand_company"
+                  placeholder="e.g. Coromandel International Ltd"
                   value={newBrandCompany}
                   onChange={(e) => setNewBrandCompany(e.target.value)}
-                  placeholder="e.g. Krushi Agro Chemicals Pvt Ltd"
-                  className="h-11 rounded-lg border-border bg-background"
+                  className="h-10 text-sm"
                 />
               </div>
             </div>
@@ -890,10 +754,10 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
               <Button
                 type="submit"
                 disabled={isSavingBrand || !newBrandName.trim()}
-                className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
+                className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold"
               >
                 {isSavingBrand ? (
-                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Adding...</>
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</>
                 ) : (
                   'Add Manufacturer'
                 )}

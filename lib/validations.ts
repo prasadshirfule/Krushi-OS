@@ -30,6 +30,81 @@ export const brandSchema = z.object({
   manufacturer: z.string().optional().nullable(),
 });
 
+/**
+ * Strict calendar date validation for DD/MM/YYYY.
+ * Validates real calendar dates (handles leap years, exact days per month, rejects 31/02/2027, 99/99/9999, etc.)
+ */
+export function isValidDDMMYYYY(val: string): boolean {
+  if (!val || typeof val !== 'string') return false;
+  const match = val.trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!match) return false;
+  const d = parseInt(match[1], 10);
+  const m = parseInt(match[2], 10);
+  const y = parseInt(match[3], 10);
+  if (m < 1 || m > 12 || y < 1900 || y > 2100) return false;
+  const isLeap = (y % 4 === 0 && y % 100 !== 0) || (y % 400 === 0);
+  const daysInMonth = [31, isLeap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  return d >= 1 && d <= daysInMonth[m - 1];
+}
+
+/**
+ * Validates date in DD/MM/YYYY or YYYY-MM-DD.
+ */
+export function validateExpiryDate(val: string | null | undefined): boolean {
+  if (!val || typeof val !== 'string') return false;
+  const trimmed = val.trim();
+  if (!trimmed) return false;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    const [y, m, d] = trimmed.split('-').map(Number);
+    if (m < 1 || m > 12 || y < 1900 || y > 2100) return false;
+    const isLeap = (y % 4 === 0 && y % 100 !== 0) || (y % 400 === 0);
+    const daysInMonth = [31, isLeap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    return d >= 1 && d <= daysInMonth[m - 1];
+  }
+  return isValidDDMMYYYY(trimmed);
+}
+
+/**
+ * Converts DD/MM/YYYY -> YYYY-MM-DD for database storage.
+ */
+export function formatDDMMYYYYtoDB(val: string | null | undefined): string | null {
+  if (!val) return null;
+  const trimmed = String(val).trim();
+  if (!trimmed) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+  const match = trimmed.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!match) return trimmed;
+  const [, d, m, y] = match;
+  return `${y}-${m}-${d}`;
+}
+
+/**
+ * Converts YYYY-MM-DD or ISO string -> DD/MM/YYYY for UI display.
+ */
+export function formatToDDMMYYYY(val: string | Date | null | undefined): string {
+  if (!val) return '';
+  if (typeof val === 'string') {
+    const trimmed = val.trim();
+    const slashMatch = trimmed.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (slashMatch) return trimmed;
+    const isoMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (isoMatch) {
+      const [, y, m, d] = isoMatch;
+      return `${d}/${m}/${y}`;
+    }
+  }
+  try {
+    const d = new Date(val);
+    if (isNaN(d.getTime())) return '';
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return `${day}/${month}/${year}`;
+  } catch {
+    return '';
+  }
+}
+
 export const productSchema = z.object({
   name: z.string().min(2, 'Product name must be at least 2 characters').max(200),
   category_id: z.string().min(1, 'Category is required'),
@@ -43,14 +118,19 @@ export const productSchema = z.object({
   gst_rate: z.coerce.number().min(0).max(100),
   hsn_code: z.string().optional().nullable(),
   unit: z.string().min(1, 'Unit is required'),
-  min_stock: z.coerce.number().int().min(0),
-  max_stock: z.coerce.number().int().min(0).optional().nullable(),
-  opening_stock: z.coerce.number().int().min(0).optional().nullable(),
-  batch_tracking: z.boolean().optional().default(false),
-  expiry_tracking: z.boolean().optional().default(false),
-  batch_number: z.string().optional().nullable(),
+  min_stock: z.coerce.number().min(0).optional().nullable().default(5),
+  max_stock: z.coerce.number().min(0).optional().nullable(),
+  opening_stock: z.coerce.number({ invalid_type_error: 'Quantity is required' }).min(0.01, 'Quantity must be greater than 0'),
+  batch_tracking: z.boolean().optional().default(true),
+  expiry_tracking: z.boolean().optional().default(true),
+  batch_number: z.string({ required_error: 'Batch number is required.' }).trim().min(1, 'Batch number is required.'),
   mfd_date: z.string().optional().nullable(),
-  expiry_date: z.string().optional().nullable(),
+  expiry_date: z.string({ required_error: 'Expiry date is required.' })
+    .trim()
+    .min(1, 'Expiry date is required.')
+    .refine(validateExpiryDate, {
+      message: 'Invalid expiry date. Use format DD/MM/YYYY',
+    }),
   product_type: z.string().optional().nullable(),
   active_ingredient: z.string().optional().nullable(),
   formulation: z.string().optional().nullable(),
@@ -59,6 +139,7 @@ export const productSchema = z.object({
   pack_size: z.string().optional().nullable(),
   licence_number: z.string().optional().nullable(),
 });
+
 
 export const batchSchema = z.object({
   product_id: z.string().uuid(),

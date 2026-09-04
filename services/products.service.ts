@@ -2,6 +2,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { CreateProductInput, UpdateProductInput, ProductWithRelations, ProductListResponse } from '@/types/products';
 import { MOCK_CATEGORIES, MOCK_PRODUCTS, MOCK_BRANDS } from '@/lib/mock-data';
 import { getStoredDemoProducts, saveStoredDemoProducts } from '@/lib/demo-storage';
+import { formatDDMMYYYYtoDB } from '@/lib/validations';
 
 const demoBrands: Array<{ id: string; name: string; manufacturer?: string | null; shop_id: string; is_active: boolean; created_at: string }> = [];
 
@@ -190,12 +191,15 @@ export async function createProduct(shopId: string, data: CreateProductInput, us
     const allCats = [...MOCK_CATEGORIES, ...demoCategories];
     const cat = allCats.find(c => c.id === data.category_id) || { id: data.category_id || 'cat-1', name: 'General' };
 
+    const dbExpiry = formatDDMMYYYYtoDB(data.expiry_date) || data.expiry_date || null;
+    const batchNumber = data.batch_number || `BAT-${Date.now().toString().slice(-4)}`;
+
     const batch = {
       id: batchId,
       product_id: productId,
-      batch_number: data.batch_number || `BAT-${Date.now().toString().slice(-4)}`,
+      batch_number: batchNumber,
       mfg_date: data.mfd_date || new Date().toISOString().split('T')[0],
-      expiry_date: data.expiry_date || null,
+      expiry_date: dbExpiry,
       purchase_price: Number(data.purchase_price || 0),
       selling_price: Number(data.selling_price || 0),
       mrp: Number(data.selling_price || 0),
@@ -226,10 +230,13 @@ export async function createProduct(shopId: string, data: CreateProductInput, us
       stock_quantity: Number(data.opening_stock || 0),
       min_stock: Number(data.min_stock || 5),
       is_active: true,
+      batch_number: batchNumber,
+      expiry_date: dbExpiry,
       batches: [batch],
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     });
+
 
     all.unshift(newProd);
     saveStoredDemoProducts(all);
@@ -259,7 +266,7 @@ export async function createProduct(shopId: string, data: CreateProductInput, us
     p_expiry_tracking: Boolean(data.expiry_tracking),
     p_batch_number: data.batch_number || null,
     p_mfd_date: data.mfd_date || null,
-    p_expiry_date: data.expiry_date || null,
+    p_expiry_date: formatDDMMYYYYtoDB(data.expiry_date) || data.expiry_date || null,
     p_product_type: data.product_type || null,
     p_active_ingredient: data.active_ingredient || null,
     p_formulation: data.formulation || null,
@@ -294,16 +301,53 @@ export async function updateProduct(shopId: string, productId: string, data: Upd
       const foundCat = allCats.find(c => c.id === data.category_id);
       if (foundCat) category = { id: foundCat.id, name: foundCat.name };
     }
+    const dbExpiry = data.expiry_date ? (formatDDMMYYYYtoDB(data.expiry_date) || data.expiry_date) : current.expiry_date;
+    const batchNum = data.batch_number || current.batch_number || current.batches?.[0]?.batch_number;
+    const initialStock = (data as any).opening_stock !== undefined 
+      ? Number((data as any).opening_stock) 
+      : ((data as any).current_stock !== undefined ? Number((data as any).current_stock) : current.current_stock);
+
+    let updatedBatches = current.batches ? [...current.batches] : [];
+    if (batchNum || dbExpiry) {
+      if (updatedBatches.length > 0) {
+        updatedBatches[0] = {
+          ...updatedBatches[0],
+          batch_number: batchNum || updatedBatches[0].batch_number,
+          expiry_date: dbExpiry,
+          quantity_available: initialStock,
+        };
+      } else if (batchNum) {
+        updatedBatches = [
+          {
+            id: `batch-${Date.now()}`,
+            product_id: productId,
+            shop_id: shopId,
+            batch_number: batchNum,
+            expiry_date: dbExpiry,
+            purchase_price: Number(data.purchase_price ?? current.purchase_price ?? 0),
+            selling_price: Number(data.selling_price ?? current.selling_price ?? 0),
+            quantity_available: initialStock,
+          } as any
+        ];
+      }
+    }
+
     const updated = normalizeProduct({
       ...current,
       ...data,
       category,
+      batch_number: batchNum,
+      expiry_date: dbExpiry,
+      batches: updatedBatches,
+      current_stock: initialStock,
+      stock_quantity: initialStock,
       updated_at: new Date().toISOString(),
     });
     all[idx] = updated;
     saveStoredDemoProducts(all);
     return updated;
   }
+
 
   const supabase = await createServerSupabaseClient();
 

@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import Link from "next/link";
 import { formatCurrency } from "@/lib/utils";
+import { formatToDDMMYYYY } from "@/lib/validations";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Package } from "lucide-react";
 
@@ -23,17 +24,29 @@ export function getProductColumns(onDelete?: (product: any) => void): ColumnDef<
   return [
     {
       accessorKey: "name",
-      header: "Name",
-      cell: ({ row }) => (
-        <Link href={`/products/${row.original.id}`} className="font-medium text-primary hover:underline">
-          {row.getValue("name")}
-        </Link>
-      ),
-    },
-    {
-      accessorKey: "sku",
-      header: "SKU",
-      cell: ({ row }) => <span className="font-mono text-xs text-muted-foreground">{row.original.sku || 'N/A'}</span>
+      header: "Product",
+      cell: ({ row }) => {
+        const prod = row.original;
+        const firstBatch = prod.batches?.[0];
+        const batchNo = prod.batch_number || firstBatch?.batch_number;
+        const rawExp = prod.expiry_date || firstBatch?.expiry_date || firstBatch?.exp_date;
+        const expStr = rawExp ? formatToDDMMYYYY(rawExp) : null;
+
+        return (
+          <div className="space-y-1">
+            <Link href={`/products/${prod.id}`} className="font-semibold text-foreground hover:text-primary hover:underline block leading-snug">
+              {prod.name}
+            </Link>
+            {(batchNo || expStr) && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                {batchNo && <span>Batch: <span className="font-mono font-medium text-foreground/90">{batchNo}</span></span>}
+                {batchNo && expStr && <span>•</span>}
+                {expStr && <span>Expiry: <span className="font-medium text-foreground/90">{expStr}</span></span>}
+              </div>
+            )}
+          </div>
+        );
+      },
     },
     {
       accessorKey: "category.name",
@@ -43,7 +56,11 @@ export function getProductColumns(onDelete?: (product: any) => void): ColumnDef<
     {
       accessorKey: "selling_price",
       header: "Selling Price",
-      cell: ({ row }) => formatCurrency(Number(row.getValue("selling_price") || 0)),
+      cell: ({ row }) => (
+        <span className="font-bold text-foreground">
+          {formatCurrency(Number(row.getValue("selling_price") || 0))}
+        </span>
+      ),
     },
     {
       accessorKey: "current_stock",
@@ -53,12 +70,13 @@ export function getProductColumns(onDelete?: (product: any) => void): ColumnDef<
         const minStock = Number(row.original.min_stock || 0);
         const isLow = stock <= minStock;
         return (
-          <span className={isLow ? "text-destructive font-semibold" : "text-green-600 font-medium"}>
-            {stock} {row.original.unit || 'Piece'}
+          <span className={isLow ? "text-destructive font-bold" : "text-primary font-bold"}>
+            {stock} {row.original.unit || 'KG'}
           </span>
         );
       },
     },
+
     {
       accessorKey: "is_active",
       header: "Status",

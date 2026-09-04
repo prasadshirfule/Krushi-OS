@@ -17,6 +17,8 @@ import {
   getDemoBrandsClient,
   saveDemoBrandClient,
 } from '@/lib/client-demo-store';
+import { productSchema, formatToDDMMYYYY, formatDDMMYYYYtoDB, isValidDDMMYYYY } from '@/lib/validations';
+
 
 // Set up mock window and localStorage for Node test environment
 const mockStorage: Record<string, string> = {};
@@ -322,10 +324,158 @@ async function runTests() {
   // Clean up test product
   deleteDemoProductClient(prodWithBrand.id);
 
+  console.log('\n--- TEST 15: Product Validation Rules (Batch, Expiry, Quantity) ---');
+  // 15a: Missing Batch Number
+  const missingBatchRes = productSchema.safeParse({
+    name: 'Test Product',
+    category_id: 'cat-1',
+    purchase_price: 100,
+    selling_price: 120,
+    gst_rate: 18,
+    unit: 'KG',
+    opening_stock: 50,
+    expiry_date: '04/09/2027',
+    batch_number: '',
+  });
+  if (missingBatchRes.success) throw new Error('Expected validation error for missing batch number');
+  const batchErr = missingBatchRes.error.issues.find(i => i.path.includes('batch_number'))?.message;
+  console.log('Missing batch error message:', batchErr);
+  if (batchErr !== 'Batch number is required.') throw new Error(`Expected "Batch number is required.", got "${batchErr}"`);
+
+  // 15b: Missing Expiry Date
+  const missingExpRes = productSchema.safeParse({
+    name: 'Test Product',
+    category_id: 'cat-1',
+    purchase_price: 100,
+    selling_price: 120,
+    gst_rate: 18,
+    unit: 'KG',
+    opening_stock: 50,
+    batch_number: 'BATCH-123',
+    expiry_date: '',
+  });
+  if (missingExpRes.success) throw new Error('Expected validation error for missing expiry date');
+  const expErr = missingExpRes.error.issues.find(i => i.path.includes('expiry_date'))?.message;
+  console.log('Missing expiry error message:', expErr);
+  if (expErr !== 'Expiry date is required.') throw new Error(`Expected "Expiry date is required.", got "${expErr}"`);
+
+  // 15c: Invalid Expiry Date: 31/02/2027
+  const invalidFebRes = productSchema.safeParse({
+    name: 'Test Product',
+    category_id: 'cat-1',
+    purchase_price: 100,
+    selling_price: 120,
+    gst_rate: 18,
+    unit: 'KG',
+    opening_stock: 50,
+    batch_number: 'BATCH-123',
+    expiry_date: '31/02/2027',
+  });
+  if (invalidFebRes.success) throw new Error('Expected 31/02/2027 to be rejected');
+  console.log('31/02/2027 correctly rejected as invalid');
+
+  // 15d: Invalid Expiry Date: 99/99/9999
+  const invalid99Res = productSchema.safeParse({
+    name: 'Test Product',
+    category_id: 'cat-1',
+    purchase_price: 100,
+    selling_price: 120,
+    gst_rate: 18,
+    unit: 'KG',
+    opening_stock: 50,
+    batch_number: 'BATCH-123',
+    expiry_date: '99/99/9999',
+  });
+  if (invalid99Res.success) throw new Error('Expected 99/99/9999 to be rejected');
+  console.log('99/99/9999 correctly rejected as invalid');
+
+  // 15e: Quantity 0 must be rejected
+  const zeroQtyRes = productSchema.safeParse({
+    name: 'Test Product',
+    category_id: 'cat-1',
+    purchase_price: 100,
+    selling_price: 120,
+    gst_rate: 18,
+    unit: 'KG',
+    opening_stock: 0,
+    batch_number: 'BATCH-123',
+    expiry_date: '04/09/2027',
+  });
+  if (zeroQtyRes.success) throw new Error('Expected quantity 0 to be rejected');
+  const qtyErr = zeroQtyRes.error.issues.find(i => i.path.includes('opening_stock'))?.message;
+  console.log('0 Quantity error message:', qtyErr);
+  if (qtyErr !== 'Quantity must be greater than 0') throw new Error(`Expected "Quantity must be greater than 0", got "${qtyErr}"`);
+
+  console.log('\n--- TEST 16: Exact Test Urea Creation & Billing Verification ---');
+  // Exact Test Urea specification from user prompt
+  const testUrea = saveDemoProductClient({
+    name: 'Test Urea',
+    category_id: 'cat-1',
+    brand_id: 'brand-iffco',
+    brand: { id: 'brand-iffco', name: 'IFFCO' },
+    purchase_price: 450,
+    selling_price: 500,
+    wholesale_price: 550,
+    mrp: 550,
+    gst_rate: 18,
+    batch_number: 'UREA-2026-01',
+    expiry_date: '04/09/2027',
+    opening_stock: 50,
+    unit: 'KG',
+  });
+
+  console.log('Created Test Urea:', testUrea.name);
+  console.log('Selling Price:', testUrea.selling_price);
+  console.log('Stock:', testUrea.current_stock, testUrea.unit);
+  console.log('Batch Number:', testUrea.batch_number);
+  console.log('Expiry Date (stored):', testUrea.expiry_date);
+  console.log('Expiry Date (formatted):', formatToDDMMYYYY(testUrea.expiry_date));
+
+  if (testUrea.name !== 'Test Urea') throw new Error('Name mismatch');
+  if (testUrea.selling_price !== 500) throw new Error('Price mismatch');
+  if (testUrea.current_stock !== 50) throw new Error('Stock mismatch');
+  if (testUrea.unit !== 'KG') throw new Error('Unit mismatch');
+  if (testUrea.batch_number !== 'UREA-2026-01') throw new Error('Batch mismatch');
+  if (testUrea.expiry_date !== '2027-09-04') throw new Error('Stored expiry date should be 2027-09-04');
+  if (formatToDDMMYYYY(testUrea.expiry_date) !== '04/09/2027') throw new Error('Display format should be 04/09/2027');
+
+  // Verify in Billing search
+  const ureaBillingSearch = searchDemoProductsClient('Test Urea');
+  if (ureaBillingSearch.length === 0) throw new Error('Test Urea not found in billing search');
+  console.log('Billing found Test Urea with stock:', ureaBillingSearch[0].current_stock, ureaBillingSearch[0].unit);
+  if (ureaBillingSearch[0].current_stock !== 50 || ureaBillingSearch[0].unit !== 'KG') {
+    throw new Error('Billing did not display 50 KG correctly');
+  }
+
+
+  console.log('\n--- TEST 17: Existing Product Edit Test ---');
+  // Edit Test Urea
+  const updatedUrea = updateDemoProductClient(testUrea.id, {
+    selling_price: 520,
+    opening_stock: 75,
+    unit: 'KG',
+    batch_number: 'UREA-2026-02',
+    expiry_date: '15/10/2027',
+  });
+
+  console.log('Updated Test Urea Price:', updatedUrea.selling_price);
+  console.log('Updated Test Urea Stock:', updatedUrea.current_stock, updatedUrea.unit);
+  console.log('Updated Test Urea Batch:', updatedUrea.batch_number);
+  console.log('Updated Test Urea Expiry:', formatToDDMMYYYY(updatedUrea.expiry_date));
+
+  if (updatedUrea.selling_price !== 520) throw new Error('Updated price mismatch');
+  if (updatedUrea.current_stock !== 75) throw new Error('Updated stock mismatch');
+  if (updatedUrea.batch_number !== 'UREA-2026-02') throw new Error('Updated batch mismatch');
+  if (formatToDDMMYYYY(updatedUrea.expiry_date) !== '15/10/2027') throw new Error('Updated expiry mismatch');
+
+  // Clean up Test Urea
+  deleteDemoProductClient(testUrea.id);
+
   console.log('\n========================================');
   console.log('🎉 ALL INTEGRATION, PERSISTENCE & CONSISTENCY TESTS PASSED!');
   console.log('========================================');
 }
+
 
 runTests().catch(err => {
   console.error('❌ TEST FAILED:', err);

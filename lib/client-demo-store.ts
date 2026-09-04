@@ -1,5 +1,6 @@
 import { MOCK_CUSTOMERS, MOCK_SALES, MOCK_PRODUCTS, MOCK_CATEGORIES, MOCK_BRANDS } from '@/lib/mock-data';
 import { calculateItemTotal, calculateBillTotal } from '@/lib/calculations';
+import { formatDDMMYYYYtoDB } from '@/lib/validations';
 
 export const KRUSHI_DEMO_CUSTOMERS_KEY = 'krushi_demo_customers';
 export const KRUSHI_DEMO_SALES_KEY = 'krushi_demo_sales';
@@ -242,7 +243,7 @@ export function getDemoSalesClient(): any[] {
 
 export function saveDemoSaleClient(data: any): any {
   const current = getDemoSalesClient();
-  const saleId = `sale-${Date.now()}`;
+  const saleId = `sale-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
   // Invoice Number generator: scans existing invoices to get highest sequence (KOS-YYYY-NNN)
   const currentYear = new Date().getFullYear();
@@ -514,24 +515,26 @@ export function getDemoProductsClient(): any[] {
 
 export function saveDemoProductClient(data: any): any {
   const current = getDemoProductsClient();
-  const id = `p-${Date.now()}`;
+  const id = `p-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   const categories = getDemoCategoriesClient();
   const foundCat = categories.find(c => c.id === data.category_id);
 
   const initialStock = Number(data.opening_stock ?? data.current_stock ?? 0);
   const sellingPrice = Number(data.selling_price ?? 0);
   const purchasePrice = Number(data.purchase_price ?? 0);
+  const dbExpiry = formatDDMMYYYYtoDB(data.expiry_date) || data.expiry_date || null;
+  const batchNumber = data.batch_number || `BAT-${Date.now().toString().slice(-4)}`;
 
-  const batches = data.batch_number ? [
+  const batches = [
     {
-      id: `batch-${Date.now()}`,
-      batch_number: data.batch_number,
-      expiry_date: data.expiry_date || null,
+      id: `batch-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      batch_number: batchNumber,
+      expiry_date: dbExpiry,
       quantity_available: initialStock,
       selling_price: sellingPrice,
       purchase_price: purchasePrice,
     }
-  ] : (data.batches || []);
+  ];
 
   const newProd = normalizeDemoProduct({
     id,
@@ -543,17 +546,19 @@ export function saveDemoProductClient(data: any): any {
     sku: data.sku || `SKU-${Date.now().toString().slice(-4)}`,
     barcode: data.barcode || '',
     description: data.description || '',
-    unit: data.unit || 'Piece',
+    unit: data.unit || 'KG',
     hsn_code: data.hsn_code || '',
     gst_rate: Number(data.gst_rate ?? 0),
     purchase_price: purchasePrice,
     selling_price: sellingPrice,
     wholesale_price: Number(data.wholesale_price ?? sellingPrice),
-    mrp: Number(data.mrp ?? sellingPrice),
+    mrp: Number(data.mrp ?? data.wholesale_price ?? sellingPrice),
     current_stock: initialStock,
     stock_quantity: initialStock,
     min_stock: Number(data.min_stock ?? 5),
     is_active: true,
+    batch_number: batchNumber,
+    expiry_date: dbExpiry,
     batches: batches,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
@@ -578,14 +583,53 @@ export function updateDemoProductClient(id: string, data: any): any {
   const catId = data.category_id !== undefined ? data.category_id : current[idx].category_id;
   const foundCat = categories.find(c => c.id === catId);
 
+  const initialStock = data.opening_stock !== undefined 
+    ? Number(data.opening_stock) 
+    : (data.current_stock !== undefined ? Number(data.current_stock) : current[idx].current_stock);
+  const dbExpiry = data.expiry_date ? (formatDDMMYYYYtoDB(data.expiry_date) || data.expiry_date) : current[idx].expiry_date;
+  const batchNum = data.batch_number || current[idx].batch_number || current[idx].batches?.[0]?.batch_number;
+
+  let updatedBatches = current[idx].batches ? [...current[idx].batches] : [];
+  if (batchNum || dbExpiry) {
+    if (updatedBatches.length > 0) {
+      updatedBatches[0] = {
+        ...updatedBatches[0],
+        batch_number: batchNum || updatedBatches[0].batch_number,
+        expiry_date: dbExpiry,
+        quantity_available: initialStock,
+        selling_price: data.selling_price !== undefined ? Number(data.selling_price) : updatedBatches[0].selling_price,
+        purchase_price: data.purchase_price !== undefined ? Number(data.purchase_price) : updatedBatches[0].purchase_price,
+      };
+    } else if (batchNum) {
+      updatedBatches = [
+        {
+          id: `batch-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          batch_number: batchNum,
+          expiry_date: dbExpiry,
+          quantity_available: initialStock,
+          selling_price: Number(data.selling_price ?? current[idx].selling_price),
+          purchase_price: Number(data.purchase_price ?? current[idx].purchase_price),
+        }
+      ];
+    }
+  }
+
   const updated = normalizeDemoProduct({
     ...current[idx],
     ...data,
     category_id: catId,
     category: foundCat || current[idx].category,
+    batch_number: batchNum,
+    expiry_date: dbExpiry,
+    batches: updatedBatches,
     selling_price: data.selling_price !== undefined ? Number(data.selling_price) : current[idx].selling_price,
     purchase_price: data.purchase_price !== undefined ? Number(data.purchase_price) : current[idx].purchase_price,
-    current_stock: data.current_stock !== undefined ? Number(data.current_stock) : current[idx].current_stock,
+    wholesale_price: data.wholesale_price !== undefined ? Number(data.wholesale_price) : current[idx].wholesale_price,
+    mrp: data.mrp !== undefined ? Number(data.mrp) : current[idx].mrp,
+    current_stock: initialStock,
+    stock_quantity: initialStock,
+    unit: data.unit || current[idx].unit || 'KG',
+    min_stock: data.min_stock !== undefined ? Number(data.min_stock) : current[idx].min_stock,
     updated_at: new Date().toISOString(),
   });
 
@@ -598,6 +642,7 @@ export function updateDemoProductClient(id: string, data: any): any {
   }
   return updated;
 }
+
 
 export function deleteDemoProductClient(id: string): boolean {
   const current = getDemoProductsClient();
