@@ -3,18 +3,14 @@ import { SaleInput } from '@/lib/validations';
 import { MOCK_SALES, MOCK_CUSTOMERS } from '@/lib/mock-data';
 import { calculateItemTotal, calculateBillTotal } from '@/lib/calculations';
 import { getDemoCustomers } from '@/services/customers.service';
+import { getStoredDemoSales, saveStoredDemoSales } from '@/lib/demo-storage';
 
 /** Check if Supabase is running with placeholder credentials (demo mode). */
 export function isPlaceholderMode(): boolean {
   return !process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('placeholder');
 }
 
-/** Global demo sales store to persist across server requests and HMR reloads */
-const globalSalesStore = globalThis as unknown as {
-  __KRUSHI_DEMO_SALES__?: any[];
-};
-
-function normalizeSale(sale: any) {
+export function normalizeSale(sale: any) {
   const items = sale.items || sale.sale_items || [];
   const total = Number(sale.total_amount ?? sale.grand_total ?? sale.totalAmount ?? 0);
   return {
@@ -41,17 +37,21 @@ function normalizeSale(sale: any) {
 }
 
 export function getDemoSales(): any[] {
-  if (!globalSalesStore.__KRUSHI_DEMO_SALES__) {
-    globalSalesStore.__KRUSHI_DEMO_SALES__ = MOCK_SALES.map(normalizeSale);
-  }
-  return globalSalesStore.__KRUSHI_DEMO_SALES__!;
+  return getStoredDemoSales(normalizeSale);
 }
 
 export async function completeSale(shopId: string, data: any, userId: string) {
   if (isPlaceholderMode()) {
-    const store = getDemoSales();
+    const store = getStoredDemoSales(normalizeSale);
     const saleId = `sale-${Date.now()}`;
-    const invoiceNum = `KOS-${new Date().getFullYear()}-${String(store.length + 1).padStart(3, '0')}`;
+    
+    // Generate unique invoice number, preventing collisions
+    let seq = store.length + 1;
+    let invoiceNum = `KOS-${new Date().getFullYear()}-${String(seq).padStart(3, '0')}`;
+    while (store.some(s => (s.invoice_number === invoiceNum || s.invoiceNumber === invoiceNum))) {
+      seq++;
+      invoiceNum = `KOS-${new Date().getFullYear()}-${String(seq).padStart(3, '0')}`;
+    }
 
     // Resolve customer info
     const customerId = data.customer_id;
@@ -141,8 +141,9 @@ export async function completeSale(shopId: string, data: any, userId: string) {
       sale_date: new Date().toISOString(),
     };
 
-    // Prepend to demo store so it appears at top of sales history
+    // Prepend to persistent demo store so it appears at top of sales history
     store.unshift(newSale);
+    saveStoredDemoSales(store);
     return newSale;
   }
 
@@ -219,7 +220,7 @@ export async function getSales(
   try {
     const supabase = await createServerSupabaseClient();
     const page = options.page || 1;
-    const limit = options.limit || 10;
+    const limit = options.limit || 50;
     const offset = (page - 1) * limit;
 
     let query = supabase
@@ -302,11 +303,12 @@ export async function getSaleByInvoice(shopId: string, invoiceNumber: string) {
 
 export async function cancelSale(shopId: string, saleId: string, userId: string, reason: string) {
   if (isPlaceholderMode()) {
-    const list = getDemoSales();
-    const found = list.find(s => s.id === saleId || s.invoice_number === saleId);
+    const store = getStoredDemoSales(normalizeSale);
+    const found = store.find(s => s.id === saleId || s.invoice_number === saleId);
     if (found) {
       found.status = 'CANCELLED';
       found.cancel_reason = reason;
+      saveStoredDemoSales(store);
     }
     return;
   }
@@ -326,10 +328,11 @@ export async function cancelSale(shopId: string, saleId: string, userId: string,
 
 export async function returnSale(shopId: string, saleId: string, items: { saleItemId: string, quantity: number, reason: string }[], userId: string) {
   if (isPlaceholderMode()) {
-    const list = getDemoSales();
-    const found = list.find(s => s.id === saleId);
+    const store = getStoredDemoSales(normalizeSale);
+    const found = store.find(s => s.id === saleId);
     if (found) {
       found.status = 'REFUNDED';
+      saveStoredDemoSales(store);
     }
     return { success: true };
   }

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { completeSaleAction } from '@/actions/sales';
@@ -35,6 +36,7 @@ const METHOD_TO_ENUM: Record<string, 'CASH' | 'UPI' | 'CARD' | 'BANK_TRANSFER' |
 };
 
 export default function PaymentPanel({ cart, totals, customerId, customerName, customerPhone, onComplete }: PaymentPanelProps) {
+  const router = useRouter();
   const [paymentMethod, setPaymentMethod] = useState<string>(PAYMENT_METHODS[0]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [notes, setNotes] = useState('');
@@ -146,6 +148,7 @@ export default function PaymentPanel({ cart, totals, customerId, customerName, c
 
       if (result.success) {
         toast.success('Bill completed successfully!');
+        router.refresh();
         const saleId = result.data?.id || result.data?.saleId || `sale-${Date.now()}`;
         onComplete(saleId);
       } else {

@@ -67,11 +67,18 @@ export default function BillSuccessDialog({ saleId, totals, onClose }: BillSucce
           >
             <PlusCircle className="mr-2 h-5 w-5" /> New Bill (Enter)
           </Button>
-          <Link href={`/sales/${saleId}`} className="w-full">
-            <Button variant="ghost" className="w-full">
-              View Invoice Details
-            </Button>
-          </Link>
+          <div className="grid grid-cols-2 gap-2 w-full">
+            <Link href={`/sales/${saleId}`} className="w-full">
+              <Button variant="outline" className="w-full">
+                View Invoice
+              </Button>
+            </Link>
+            <Link href="/sales" className="w-full">
+              <Button variant="outline" className="w-full border-primary/50 text-primary hover:bg-primary/10">
+                Sales History
+              </Button>
+            </Link>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

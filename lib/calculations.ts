@@ -10,29 +10,46 @@ export function calculateGST(amount: number, gstRate: number) {
   return { cgst, sgst, igst, totalTax, totalWithTax };
 }
 
-export function calculateItemTotal(quantity: number, rate: number, discount: number, gstRate: number) {
+export function calculateItemTotal(quantity: number, rate: number, discount: number, gstRate: number, isTaxInclusive = true) {
   const q = quantity || 0;
   const r = rate || 0;
   const d = discount || 0;
   const g = gstRate || 0;
 
-  const subtotal = q * r;
-  const discountAmount = (subtotal * d) / 100;
-  const taxableAmount = subtotal - discountAmount;
-  
-  const { cgst, sgst, totalTax } = calculateGST(taxableAmount, g);
-  
-  const total = taxableAmount + totalTax;
+  const grossAmount = q * r;
+  const discountAmount = (grossAmount * d) / 100;
+  const netAmount = grossAmount - discountAmount;
 
-  return {
-    subtotal,
-    discountAmount,
-    taxableAmount,
-    cgst,
-    sgst,
-    totalTax,
-    total,
-  };
+  if (isTaxInclusive && g > 0) {
+    const taxableAmount = Math.round((netAmount / (1 + g / 100)) * 100) / 100;
+    const totalTax = Math.round((netAmount - taxableAmount) * 100) / 100;
+    const cgst = Math.round((totalTax / 2) * 100) / 100;
+    const sgst = Math.round((totalTax - cgst) * 100) / 100;
+
+    return {
+      subtotal: grossAmount,
+      discountAmount,
+      taxableAmount,
+      cgst,
+      sgst,
+      totalTax,
+      total: netAmount,
+    };
+  } else {
+    const taxableAmount = netAmount;
+    const { cgst, sgst, totalTax } = calculateGST(taxableAmount, g);
+    const total = taxableAmount + totalTax;
+
+    return {
+      subtotal: grossAmount,
+      discountAmount,
+      taxableAmount,
+      cgst,
+      sgst,
+      totalTax,
+      total,
+    };
+  }
 }
 
 export function roundOff(amount: number) {

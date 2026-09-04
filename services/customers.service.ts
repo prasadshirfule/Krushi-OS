@@ -1,16 +1,12 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { CustomerInput } from '@/lib/validations';
 import { MOCK_CUSTOMERS } from '@/lib/mock-data';
+import { getStoredDemoCustomers, saveStoredDemoCustomers } from '@/lib/demo-storage';
 
 /** Check if Supabase is running with placeholder credentials (demo mode). */
 export function isPlaceholderMode(): boolean {
   return !process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('placeholder');
 }
-
-/** Global demo customers store to persist across server requests and HMR reloads */
-const globalCustomerStore = globalThis as unknown as {
-  __KRUSHI_DEMO_CUSTOMERS__?: any[];
-};
 
 export function normalizeCustomer(c: any) {
   const phone = c.phone || c.mobile || '';
@@ -47,10 +43,7 @@ export function normalizeCustomer(c: any) {
 }
 
 export function getDemoCustomers(): any[] {
-  if (!globalCustomerStore.__KRUSHI_DEMO_CUSTOMERS__) {
-    globalCustomerStore.__KRUSHI_DEMO_CUSTOMERS__ = MOCK_CUSTOMERS.map(normalizeCustomer);
-  }
-  return globalCustomerStore.__KRUSHI_DEMO_CUSTOMERS__!;
+  return getStoredDemoCustomers(normalizeCustomer);
 }
 
 export async function getCustomers(shopId: string, options: { search?: string; page?: number; limit?: number } = {}) {
@@ -123,7 +116,7 @@ export async function getCustomerById(shopId: string, customerId: string) {
 
 export async function createCustomer(shopId: string, data: CustomerInput) {
   if (isPlaceholderMode()) {
-    const store = getDemoCustomers();
+    const store = getStoredDemoCustomers(normalizeCustomer);
     const id = `cust-${Date.now()}`;
     const newCust = normalizeCustomer({
       id,
@@ -145,8 +138,9 @@ export async function createCustomer(shopId: string, data: CustomerInput) {
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     });
-    // Add to top of list so it's instantly available and prominent
+    // Add to top of persistent list
     store.unshift(newCust);
+    saveStoredDemoCustomers(store);
     return newCust;
   }
 
@@ -171,7 +165,7 @@ export async function createCustomer(shopId: string, data: CustomerInput) {
 
 export async function updateCustomer(shopId: string, id: string, data: Partial<CustomerInput> | any) {
   if (isPlaceholderMode()) {
-    const store = getDemoCustomers();
+    const store = getStoredDemoCustomers(normalizeCustomer);
     const idx = store.findIndex(c => c.id === id);
     if (idx !== -1) {
       const updated = normalizeCustomer({
@@ -183,6 +177,7 @@ export async function updateCustomer(shopId: string, id: string, data: Partial<C
         updated_at: new Date().toISOString(),
       });
       store[idx] = updated;
+      saveStoredDemoCustomers(store);
       return updated;
     }
     return null;
@@ -209,10 +204,11 @@ export async function updateCustomer(shopId: string, id: string, data: Partial<C
 
 export async function deleteCustomer(shopId: string, id: string) {
   if (isPlaceholderMode()) {
-    const store = getDemoCustomers();
+    const store = getStoredDemoCustomers(normalizeCustomer);
     const idx = store.findIndex(c => c.id === id);
     if (idx !== -1) {
       store.splice(idx, 1);
+      saveStoredDemoCustomers(store);
       return { success: true };
     }
     return { success: false, error: 'Customer not found' };

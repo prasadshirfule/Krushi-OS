@@ -10,6 +10,7 @@ import { format, parseISO } from 'date-fns';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+export const fetchCache = 'force-no-store';
 
 const safeFormatDate = (dateVal: any, formatStr: string) => {
   if (!dateVal) return '';
