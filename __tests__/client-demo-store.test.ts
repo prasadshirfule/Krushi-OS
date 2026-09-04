@@ -17,7 +17,15 @@ import {
   getDemoBrandsClient,
   saveDemoBrandClient,
 } from '@/lib/client-demo-store';
-import { productSchema, formatToDDMMYYYY, formatDDMMYYYYtoDB, isValidDDMMYYYY } from '@/lib/validations';
+import { 
+  productSchema, 
+  formatToDDMMYYYY, 
+  formatDDMMYYYYtoDB, 
+  isValidDDMMYYYY,
+  formatProductPackDisplay,
+  parseProductSize 
+} from '@/lib/validations';
+import { calculateItemTotal } from '@/lib/calculations';
 
 
 // Set up mock window and localStorage for Node test environment
@@ -470,6 +478,124 @@ async function runTests() {
 
   // Clean up Test Urea
   deleteDemoProductClient(testUrea.id);
+
+  console.log('\n--- TEST 18: QUANTITY vs PRODUCT SIZE (4 Requested Products) ---');
+  // PRODUCT 1: Urea (10 Pieces, 45 KG Bag)
+  const prodUrea = saveDemoProductClient({
+    name: 'Urea',
+    category_id: 'cat-1',
+    purchase_price: 1200,
+    selling_price: 1350,
+    gst_rate: 5,
+    batch_number: 'UREA-2026-01',
+    expiry_date: '04/09/2027',
+    opening_stock: 10,
+    unit: 'Bag',
+    product_size_value: 45,
+    product_size_unit: 'KG',
+  });
+  const ureaDisplay = formatProductPackDisplay(prodUrea);
+  console.log('Product 1: Urea -> Stock:', prodUrea.current_stock, 'Pieces | Pack:', ureaDisplay);
+  if (prodUrea.current_stock !== 10) throw new Error(`Expected Urea stock 10, got ${prodUrea.current_stock}`);
+  if (ureaDisplay !== '45 KG Bag') throw new Error(`Expected "45 KG Bag", got "${ureaDisplay}"`);
+
+  // PRODUCT 2: Confidor (20 Pieces, 100 ML Bottle)
+  const prodConfidor = saveDemoProductClient({
+    name: 'Confidor',
+    category_id: 'cat-2',
+    purchase_price: 480,
+    selling_price: 550,
+    gst_rate: 18,
+    batch_number: 'CONF-2026-01',
+    expiry_date: '04/09/2027',
+    opening_stock: 20,
+    unit: 'Bottle',
+    product_size_value: 100,
+    product_size_unit: 'ML',
+  });
+  const confidorDisplay = formatProductPackDisplay(prodConfidor);
+  console.log('Product 2: Confidor -> Stock:', prodConfidor.current_stock, 'Pieces | Pack:', confidorDisplay);
+  if (prodConfidor.current_stock !== 20) throw new Error(`Expected Confidor stock 20, got ${prodConfidor.current_stock}`);
+  if (confidorDisplay !== '100 ML Bottle') throw new Error(`Expected "100 ML Bottle", got "${confidorDisplay}"`);
+
+  // PRODUCT 3: Cotton Seeds (50 Pieces, 475 G Packet)
+  const prodCotton = saveDemoProductClient({
+    name: 'Cotton Seeds',
+    category_id: 'cat-3',
+    purchase_price: 750,
+    selling_price: 864,
+    gst_rate: 5,
+    batch_number: 'SEED-2026-01',
+    expiry_date: '04/09/2027',
+    opening_stock: 50,
+    unit: 'Packet',
+    product_size_value: 475,
+    product_size_unit: 'G',
+  });
+  const cottonDisplay = formatProductPackDisplay(prodCotton);
+  console.log('Product 3: Cotton Seeds -> Stock:', prodCotton.current_stock, 'Pieces | Pack:', cottonDisplay);
+  if (prodCotton.current_stock !== 50) throw new Error(`Expected Cotton Seeds stock 50, got ${prodCotton.current_stock}`);
+  if (cottonDisplay !== '475 G Packet') throw new Error(`Expected "475 G Packet", got "${cottonDisplay}"`);
+
+  // PRODUCT 4: Liquid Fertilizer (15 Pieces, 1 LTR Bottle)
+  const prodLiquid = saveDemoProductClient({
+    name: 'Liquid Fertilizer',
+    category_id: 'cat-1',
+    purchase_price: 400,
+    selling_price: 500,
+    gst_rate: 18,
+    batch_number: 'LIQ-2026-01',
+    expiry_date: '04/09/2027',
+    opening_stock: 15,
+    unit: 'Bottle',
+    product_size_value: 1,
+    product_size_unit: 'LTR',
+  });
+  const liquidDisplay = formatProductPackDisplay(prodLiquid);
+  console.log('Product 4: Liquid Fertilizer -> Stock:', prodLiquid.current_stock, 'Pieces | Pack:', liquidDisplay);
+  if (prodLiquid.current_stock !== 15) throw new Error(`Expected Liquid Fertilizer stock 15, got ${prodLiquid.current_stock}`);
+  if (liquidDisplay !== '1 LTR Bottle') throw new Error(`Expected "1 LTR Bottle", got "${liquidDisplay}"`);
+
+  console.log('\n--- TEST 19: BILLING CALCULATION & STOCK DEDUCTION (Urea 45 KG Bag) ---');
+  // Add 2 bags of Urea at ₹1,350 each
+  const billingCalculation = calculateItemTotal(2, prodUrea.selling_price, 0, prodUrea.gst_rate || 0, true);
+  console.log('Billing Calculation for 2 bags of Urea at ₹1,350:');
+  console.log('Subtotal / Total:', billingCalculation.total);
+  if (billingCalculation.total !== 2700) {
+    throw new Error(`Expected total ₹2,700 (2 × 1350), got ${billingCalculation.total}`);
+  }
+
+  // Complete bill in demo store
+  const ureaSale = saveDemoSaleClient({
+    customer_name: 'Walk-in Farmer',
+    payment_method: 'Cash',
+    items: [
+      {
+        product_id: prodUrea.id,
+        product_name: prodUrea.name,
+        quantity: 2,
+        unit_price: prodUrea.selling_price,
+        discount_percent: 0,
+        gst_rate: prodUrea.gst_rate || 5,
+        batch_number: prodUrea.batch_number,
+      }
+    ]
+  });
+  console.log('Created Urea Sale Invoice:', ureaSale.invoice_number, 'Total:', ureaSale.total_amount);
+  if (ureaSale.total_amount !== 2700) throw new Error(`Expected sale total ₹2,700, got ${ureaSale.total_amount}`);
+
+  // Check stock after sale
+  const ureaAfterSale = getDemoProductByIdClient(prodUrea.id);
+  console.log('Urea Stock after selling 2 pieces/bags:', ureaAfterSale?.current_stock, 'Pieces');
+  if (ureaAfterSale?.current_stock !== 8) {
+    throw new Error(`Expected stock 8 Pieces (10 - 2), got ${ureaAfterSale?.current_stock}`);
+  }
+
+  // Clean up test products
+  deleteDemoProductClient(prodUrea.id);
+  deleteDemoProductClient(prodConfidor.id);
+  deleteDemoProductClient(prodCotton.id);
+  deleteDemoProductClient(prodLiquid.id);
 
   console.log('\n========================================');
   console.log('🎉 ALL INTEGRATION, PERSISTENCE & CONSISTENCY TESTS PASSED!');

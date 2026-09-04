@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { BillingCartItem } from '@/types/sales';
 import { calculateItemTotal, calculateBillTotal } from '@/lib/calculations';
 import { formatCurrency, numberToWords } from '@/lib/utils';
+import { formatProductPackDisplay } from '@/lib/validations';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Trash2, ShoppingBasket, Plus, Minus, Receipt, Percent, AlertCircle } from 'lucide-react';
@@ -125,7 +126,14 @@ export default function BillingCart({ items, onChange, onClear, totals: propTota
 
                       {/* Product Name */}
                       <td className="py-3.5 px-4">
-                        <div className="font-bold text-foreground text-base">{item.product_name}</div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-bold text-foreground text-base">{item.product_name}</span>
+                          {formatProductPackDisplay(item.product || item) && (
+                            <span className="text-xs font-semibold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/25">
+                              {formatProductPackDisplay(item.product || item)}
+                            </span>
+                          )}
+                        </div>
                         <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                           {item.batch_number && (
                             <span className="text-[11px] text-muted-foreground font-mono bg-muted px-1.5 py-0.5 rounded border border-border">
@@ -191,36 +199,41 @@ export default function BillingCart({ items, onChange, onClear, totals: propTota
 
                       {/* Quantity Stepper with Large + and − buttons */}
                       <td className="py-3.5 px-4">
-                        <div className="flex items-center justify-center gap-1">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            className="h-8 w-8 rounded-lg border border-border bg-background hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30 shrink-0"
-                            onClick={() => handleQtyChange(idx, -1)}
-                            title="Decrease quantity"
-                          >
-                            <Minus className="h-3.5 w-3.5 stroke-[3]" />
-                          </Button>
-                          <Input
-                            type="number"
-                            min="1"
-                            max={item.available_stock}
-                            value={item.quantity}
-                            onChange={e => updateItem(idx, { quantity: Math.max(1, Number(e.target.value) || 1) })}
-                            className="h-8 w-14 text-center font-bold text-base px-1 rounded-lg bg-background border-border text-foreground"
-                          />
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            className="h-8 w-8 rounded-lg border border-border bg-background hover:bg-primary/10 hover:text-primary hover:border-primary/40 shrink-0"
-                            onClick={() => handleQtyChange(idx, 1)}
-                            disabled={Boolean(item.available_stock && item.quantity >= item.available_stock)}
-                            title="Increase quantity"
-                          >
-                            <Plus className="h-3.5 w-3.5 stroke-[3]" />
-                          </Button>
+                        <div className="flex flex-col items-center gap-1">
+                          <div className="flex items-center justify-center gap-1">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              className="h-8 w-8 rounded-lg border border-border bg-background hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30 shrink-0"
+                              onClick={() => handleQtyChange(idx, -1)}
+                              title="Decrease quantity"
+                            >
+                              <Minus className="h-3.5 w-3.5 stroke-[3]" />
+                            </Button>
+                            <Input
+                              type="number"
+                              min="1"
+                              max={item.available_stock}
+                              value={item.quantity}
+                              onChange={e => updateItem(idx, { quantity: Math.max(1, Number(e.target.value) || 1) })}
+                              className="h-8 w-14 text-center font-bold text-base px-1 rounded-lg bg-background border-border text-foreground"
+                            />
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              className="h-8 w-8 rounded-lg border border-border bg-background hover:bg-primary/10 hover:text-primary hover:border-primary/40 shrink-0"
+                              onClick={() => handleQtyChange(idx, 1)}
+                              disabled={Boolean(item.available_stock && item.quantity >= item.available_stock)}
+                              title="Increase quantity"
+                            >
+                              <Plus className="h-3.5 w-3.5 stroke-[3]" />
+                            </Button>
+                          </div>
+                          <span className="text-[11px] font-medium text-muted-foreground">
+                            {item.unit ? `${item.unit}` : 'Pieces'}
+                          </span>
                         </div>
                       </td>
 

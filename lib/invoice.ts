@@ -1,6 +1,7 @@
 import { jsPDF } from 'jspdf'
 import 'jspdf-autotable'
 import { formatCurrency, formatDate, numberToWords } from './utils'
+import { formatProductPackDisplay } from './validations'
 import type { SaleWithItems } from '@/types/sales'
 
 declare module 'jspdf' {
@@ -92,12 +93,14 @@ export function generateInvoicePDF(sale: SaleWithItems, settings: any) {
     const disc = item.discount_percent ?? item.discountPercent ?? item.discount ?? 0
     const total = item.total_amount ?? item.totalAmount ?? (qty * rate)
     const hsn = product.hsn_code || product.hsnCode || '-'
+    const pack = formatProductPackDisplay(product)
+    const displayName = (product.name || item.product_name || 'Unknown Item') + (pack ? ` (${pack})` : '')
 
     return [
       index + 1,
-      product.name || item.product_name || 'Unknown Item',
+      displayName,
       hsn,
-      `${qty} ${product.unit || 'pcs'}`,
+      `${qty} ${product.unit || item.unit || 'pcs'}`,
       rate.toFixed(2),
       `${disc}%`,
       total.toFixed(2)

@@ -1,18 +1,29 @@
-export const PRODUCT_UNITS = [
+export const PRODUCT_SIZE_UNITS = [
   { value: 'KG', label: 'Kilogram (kg)' },
-  { value: 'GRAM', label: 'Gram (g)' },
-  { value: 'MG', label: 'Milligram (mg)' },
-  { value: 'QUINTAL', label: 'Quintal (q)' },
-  { value: 'TONNE', label: 'Tonne (t)' },
-  { value: 'LITRE', label: 'Litre (L)' },
+  { value: 'G', label: 'Gram (g)' },
   { value: 'ML', label: 'Millilitre (ml)' },
-  { value: 'PIECE', label: 'Piece (pcs)' },
-  { value: 'PACKET', label: 'Packet' },
-  { value: 'BAG', label: 'Bag' },
-  { value: 'BOTTLE', label: 'Bottle' },
-  { value: 'BOX', label: 'Box' },
-  { value: 'CONTAINER', label: 'Container' },
+  { value: 'LTR', label: 'Litre (L)' },
+  { value: 'MG', label: 'Milligram (mg)' },
+  { value: 'Q', label: 'Quintal (q)' },
+  { value: 'TONNE', label: 'Tonne (t)' },
 ] as const;
+
+export const PACKAGING_TYPES = [
+  { value: 'Bag', label: 'Bag' },
+  { value: 'Bottle', label: 'Bottle' },
+  { value: 'Packet', label: 'Packet' },
+  { value: 'Box', label: 'Box' },
+  { value: 'Container', label: 'Container' },
+  { value: 'Piece', label: 'Piece' },
+  { value: 'Can', label: 'Can' },
+  { value: 'Drum', label: 'Drum' },
+] as const;
+
+export const PRODUCT_UNITS = [
+  ...PACKAGING_TYPES,
+  ...PRODUCT_SIZE_UNITS,
+] as const;
+
 
 export const PRODUCT_CATEGORIES = [
   'Seeds',

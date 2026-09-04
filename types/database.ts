@@ -56,6 +56,9 @@ export interface Product extends BaseEntity {
   shop_id: ID;
   hsn_code?: string | null;
   unit: string;
+  pack_size?: string | null;
+  product_size_value?: number | null;
+  product_size_unit?: string | null;
   description?: string | null;
   sku?: string | null;
   barcode?: string | null;

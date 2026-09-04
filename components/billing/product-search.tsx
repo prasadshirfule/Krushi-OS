@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Search, Plus, Package, AlertTriangle, Barcode, X, Sparkles, Check } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
+import { formatProductPackDisplay } from '@/lib/validations';
 import { useDebounce } from '@/hooks/use-debounce';
 import { MOCK_PRODUCTS, MOCK_CATEGORIES } from '@/lib/mock-data';
 import { 
@@ -195,9 +196,14 @@ export default function ProductSearch({ onAddToCart }: ProductSearchProps) {
 
     const cartItem = {
       product_id: product.id,
+      product: product,
       product_name: product.name,
       batch_id: activeBatch?.id || null,
       batch_number: activeBatch?.batch_number || null,
+      unit: product.unit || undefined,
+      pack_size: product.pack_size || undefined,
+      product_size_value: product.product_size_value ?? undefined,
+      product_size_unit: product.product_size_unit ?? undefined,
       quantity: 1,
       rate: activeBatch?.selling_price || product.selling_price || 0,
       gst_rate: product.gst_rate || 0,
@@ -343,13 +349,12 @@ export default function ProductSearch({ onAddToCart }: ProductSearchProps) {
                       </span>
                     ) : isLow ? (
                       <span className="text-[11px] font-semibold text-amber-400 flex items-center gap-1 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded">
-                        <AlertTriangle className="h-3 w-3" /> {stock} left
+                        <AlertTriangle className="h-3 w-3" /> {stock} Pieces left
                       </span>
                     ) : (
                       <span className="text-[11px] font-medium text-muted-foreground">
-                        Stock: {stock} {product.unit || ''}
+                        Stock: <span className="font-semibold text-foreground/90">{stock} Pieces</span>
                       </span>
-
                     )}
                   </div>
 
@@ -358,10 +363,16 @@ export default function ProductSearch({ onAddToCart }: ProductSearchProps) {
                     {product.name}
                   </h3>
 
-                  {/* Packing / Unit */}
-                  {product.unit && (
-                    <p className="text-xs text-muted-foreground mb-3">{product.unit}</p>
-                  )}
+                  {/* Packaging & Product Size */}
+                  {formatProductPackDisplay(product) ? (
+                    <div className="mb-2">
+                      <span className="inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/25">
+                        {formatProductPackDisplay(product)}
+                      </span>
+                    </div>
+                  ) : product.unit ? (
+                    <p className="text-xs text-muted-foreground mb-2">{product.unit}</p>
+                  ) : null}
                 </div>
 
                 {/* Price and Add Button */}

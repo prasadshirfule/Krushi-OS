@@ -32,6 +32,10 @@ export interface BillingCartItem {
   batch_id?: string | null;
   batch_number?: string | null;
   batch?: ProductBatch | null;
+  unit?: string;
+  pack_size?: string;
+  product_size_value?: number | null;
+  product_size_unit?: string | null;
   quantity: number;
   rate: number; // selling price
   unit_price?: number;

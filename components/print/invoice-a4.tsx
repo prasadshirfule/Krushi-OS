@@ -2,6 +2,7 @@
 
 import React from 'react'
 import { formatCurrency, formatDate, numberToWords } from '@/lib/utils'
+import { formatProductPackDisplay } from '@/lib/validations'
 import type { SaleWithItems } from '@/types/sales'
 
 interface Settings {
@@ -103,11 +104,14 @@ export function InvoiceA4({ sale, shopSettings }: InvoiceA4Props) {
                 <tr key={item.id || index} className="border-b border-gray-200 hover:bg-gray-50">
                   <td className="border border-gray-300 p-2 text-center text-xs">{index + 1}</td>
                   <td className="border border-gray-300 p-2 text-xs">
-                    <div className="font-medium">{product.name || item.product_name || 'Unknown Product'}</div>
+                    <div className="font-medium">
+                      {product.name || item.product_name || 'Unknown Product'}
+                      {formatProductPackDisplay(product) ? ` (${formatProductPackDisplay(product)})` : ''}
+                    </div>
                     {batchNum && <div className="text-[10px] text-gray-500">Batch: {batchNum}</div>}
                   </td>
                   <td className="border border-gray-300 p-2 text-center text-xs">{hsn}</td>
-                  <td className="border border-gray-300 p-2 text-right text-xs">{qty} {product.unit || 'pcs'}</td>
+                  <td className="border border-gray-300 p-2 text-right text-xs">{qty} {product.unit || item.unit || 'pcs'}</td>
                   <td className="border border-gray-300 p-2 text-right text-xs">{formatCurrency(rate)}</td>
                   <td className="border border-gray-300 p-2 text-right text-xs">{disc}%</td>
                   <td className="border border-gray-300 p-2 text-right text-xs font-medium">{formatCurrency(total)}</td>

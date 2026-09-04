@@ -220,6 +220,9 @@ export async function createProduct(shopId: string, data: CreateProductInput, us
       barcode: data.barcode || '',
       description: data.description || '',
       unit: data.unit || 'Piece',
+      pack_size: data.pack_size || ((data as any).product_size_value ? `${(data as any).product_size_value} ${(data as any).product_size_unit || 'KG'}` : (data.unit || '')),
+      product_size_value: (data as any).product_size_value ?? null,
+      product_size_unit: (data as any).product_size_unit ?? null,
       hsn_code: data.hsn_code || '',
       gst_rate: Number(data.gst_rate || 0),
       purchase_price: Number(data.purchase_price || 0),
@@ -236,6 +239,7 @@ export async function createProduct(shopId: string, data: CreateProductInput, us
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     });
+
 
 
     all.unshift(newProd);

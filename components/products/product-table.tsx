@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import Link from "next/link";
 import { formatCurrency } from "@/lib/utils";
-import { formatToDDMMYYYY } from "@/lib/validations";
+import { formatToDDMMYYYY, formatProductPackDisplay } from "@/lib/validations";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Package } from "lucide-react";
 
@@ -27,6 +27,7 @@ export function getProductColumns(onDelete?: (product: any) => void): ColumnDef<
       header: "Product",
       cell: ({ row }) => {
         const prod = row.original;
+        const packDisplay = formatProductPackDisplay(prod);
         const firstBatch = prod.batches?.[0];
         const batchNo = prod.batch_number || firstBatch?.batch_number;
         const rawExp = prod.expiry_date || firstBatch?.expiry_date || firstBatch?.exp_date;
@@ -34,9 +35,16 @@ export function getProductColumns(onDelete?: (product: any) => void): ColumnDef<
 
         return (
           <div className="space-y-1">
-            <Link href={`/products/${prod.id}`} className="font-semibold text-foreground hover:text-primary hover:underline block leading-snug">
-              {prod.name}
-            </Link>
+            <div className="flex items-center gap-2 flex-wrap">
+              <Link href={`/products/${prod.id}`} className="font-semibold text-foreground hover:text-primary hover:underline block leading-snug">
+                {prod.name}
+              </Link>
+              {packDisplay && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/25">
+                  {packDisplay}
+                </span>
+              )}
+            </div>
             {(batchNo || expStr) && (
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 {batchNo && <span>Batch: <span className="font-mono font-medium text-foreground/90">{batchNo}</span></span>}
@@ -71,7 +79,7 @@ export function getProductColumns(onDelete?: (product: any) => void): ColumnDef<
         const isLow = stock <= minStock;
         return (
           <span className={isLow ? "text-destructive font-bold" : "text-primary font-bold"}>
-            {stock} {row.original.unit || 'KG'}
+            {stock} Pieces
           </span>
         );
       },

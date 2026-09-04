@@ -1,6 +1,7 @@
 import { MOCK_CUSTOMERS, MOCK_SALES, MOCK_PRODUCTS, MOCK_CATEGORIES, MOCK_BRANDS } from '@/lib/mock-data';
 import { calculateItemTotal, calculateBillTotal } from '@/lib/calculations';
-import { formatDDMMYYYYtoDB } from '@/lib/validations';
+import { formatDDMMYYYYtoDB, parseProductSize, formatProductPackDisplay } from '@/lib/validations';
+
 
 export const KRUSHI_DEMO_CUSTOMERS_KEY = 'krushi_demo_customers';
 export const KRUSHI_DEMO_SALES_KEY = 'krushi_demo_sales';
@@ -362,6 +363,24 @@ export function saveDemoSaleClient(data: any): any {
   try {
     localStorage.setItem(KRUSHI_DEMO_SALES_KEY, JSON.stringify(updatedSales));
     window.dispatchEvent(new CustomEvent('krushi-sales-updated', { detail: newSale }));
+
+    // Deduct product stock in demo store (quantity represents pieces)
+    const products = getDemoProductsClient();
+    let productsChanged = false;
+    for (const it of items) {
+      const pIdx = products.findIndex(p => p.id === it.product_id);
+      if (pIdx !== -1) {
+        const curStock = Number(products[pIdx].current_stock ?? products[pIdx].stock_quantity ?? 0);
+        const newStock = Math.max(0, curStock - (Number(it.quantity) || 1));
+        products[pIdx].current_stock = newStock;
+        products[pIdx].stock_quantity = newStock;
+        productsChanged = true;
+      }
+    }
+    if (productsChanged) {
+      localStorage.setItem(KRUSHI_DEMO_PRODUCTS_KEY, JSON.stringify(products));
+      window.dispatchEvent(new CustomEvent('krushi-products-updated'));
+    }
   } catch (err) {
     console.error('Error saving demo sale to localStorage:', err);
   }
@@ -463,6 +482,15 @@ export function normalizeDemoProduct(p: any) {
     brand = { id: p.brand_id || 'brand-1', name: brand };
   }
 
+  // Parse product size and packaging
+  const parsed = parseProductSize(p.pack_size, p.unit);
+  const sizeValue = p.product_size_value !== undefined && p.product_size_value !== null 
+    ? (p.product_size_value === '' ? null : Number(p.product_size_value)) 
+    : parsed.sizeValue;
+  const sizeUnit = p.product_size_unit || parsed.sizeUnit;
+  const packaging = p.unit || parsed.packaging || 'Piece';
+  const packSize = p.pack_size || (sizeValue ? `${sizeValue} ${sizeUnit}` : (p.unit || ''));
+
   return {
     ...p,
     id: String(p.id),
@@ -474,7 +502,10 @@ export function normalizeDemoProduct(p: any) {
     sku: p.sku || '',
     barcode: p.barcode || '',
     description: p.description || '',
-    unit: p.unit || 'Piece',
+    unit: packaging,
+    pack_size: packSize,
+    product_size_value: sizeValue,
+    product_size_unit: sizeUnit,
     hsn_code: p.hsn_code || '',
     gst_rate: Number(p.gst_rate ?? 0),
     purchase_price: purchasePrice,
@@ -525,6 +556,13 @@ export function saveDemoProductClient(data: any): any {
   const dbExpiry = formatDDMMYYYYtoDB(data.expiry_date) || data.expiry_date || null;
   const batchNumber = data.batch_number || `BAT-${Date.now().toString().slice(-4)}`;
 
+  const sizeValue = data.product_size_value !== undefined && data.product_size_value !== null && data.product_size_value !== ''
+    ? Number(data.product_size_value)
+    : null;
+  const sizeUnit = data.product_size_unit || (sizeValue ? 'KG' : null);
+  const packaging = data.unit || 'Piece';
+  const packSize = data.pack_size || (sizeValue ? `${sizeValue} ${sizeUnit}` : (data.unit || ''));
+
   const batches = [
     {
       id: `batch-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -546,7 +584,10 @@ export function saveDemoProductClient(data: any): any {
     sku: data.sku || `SKU-${Date.now().toString().slice(-4)}`,
     barcode: data.barcode || '',
     description: data.description || '',
-    unit: data.unit || 'KG',
+    unit: packaging,
+    pack_size: packSize,
+    product_size_value: sizeValue,
+    product_size_unit: sizeUnit,
     hsn_code: data.hsn_code || '',
     gst_rate: Number(data.gst_rate ?? 0),
     purchase_price: purchasePrice,
@@ -589,6 +630,15 @@ export function updateDemoProductClient(id: string, data: any): any {
   const dbExpiry = data.expiry_date ? (formatDDMMYYYYtoDB(data.expiry_date) || data.expiry_date) : current[idx].expiry_date;
   const batchNum = data.batch_number || current[idx].batch_number || current[idx].batches?.[0]?.batch_number;
 
+  const sizeValue = data.product_size_value !== undefined 
+    ? (data.product_size_value === '' || data.product_size_value === null ? null : Number(data.product_size_value))
+    : current[idx].product_size_value;
+  const sizeUnit = data.product_size_unit !== undefined ? data.product_size_unit : current[idx].product_size_unit;
+  const packaging = data.unit !== undefined ? data.unit : current[idx].unit;
+  const packSize = data.pack_size !== undefined 
+    ? data.pack_size 
+    : (sizeValue ? `${sizeValue} ${sizeUnit || 'KG'}` : current[idx].pack_size);
+
   let updatedBatches = current[idx].batches ? [...current[idx].batches] : [];
   if (batchNum || dbExpiry) {
     if (updatedBatches.length > 0) {
@@ -628,7 +678,10 @@ export function updateDemoProductClient(id: string, data: any): any {
     mrp: data.mrp !== undefined ? Number(data.mrp) : current[idx].mrp,
     current_stock: initialStock,
     stock_quantity: initialStock,
-    unit: data.unit || current[idx].unit || 'KG',
+    unit: packaging,
+    pack_size: packSize,
+    product_size_value: sizeValue,
+    product_size_unit: sizeUnit,
     min_stock: data.min_stock !== undefined ? Number(data.min_stock) : current[idx].min_stock,
     updated_at: new Date().toISOString(),
   });
@@ -643,8 +696,8 @@ export function updateDemoProductClient(id: string, data: any): any {
   return updated;
 }
 
-
 export function deleteDemoProductClient(id: string): boolean {
+
   const current = getDemoProductsClient();
   const filtered = current.filter(p => p.id !== id);
   try {

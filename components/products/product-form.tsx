@@ -7,7 +7,9 @@ import {
   productSchema, 
   ProductInput, 
   formatDDMMYYYYtoDB, 
-  formatToDDMMYYYY 
+  formatToDDMMYYYY,
+  parseProductSize,
+  formatProductPackDisplay
 } from '@/lib/validations';
 import { createProductAction, updateProductAction, createBrandAction } from '@/actions/products';
 import { Button } from '@/components/ui/button';
@@ -23,7 +25,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { PRODUCT_UNITS, GST_RATES } from '@/lib/constants';
+import { PRODUCT_SIZE_UNITS, PACKAGING_TYPES, GST_RATES } from '@/lib/constants';
 import { MOCK_BRANDS } from '@/lib/mock-data';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
@@ -77,18 +79,21 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
   const [newBrandCompany, setNewBrandCompany] = useState('');
   const [isSavingBrand, setIsSavingBrand] = useState(false);
 
-  // Normalize unit value from initialData
-  const normalizeUnit = (u?: string) => {
-    if (!u) return 'KG';
-    const found = PRODUCT_UNITS.find(item => item.value.toLowerCase() === u.toLowerCase());
-    return found ? found.value : u;
-  };
+  // Parse existing product size and packaging safely
+  const parsedInitial = parseProductSize(initialData?.pack_size, initialData?.unit);
+  const initialSizeValue = initialData?.product_size_value !== undefined && initialData?.product_size_value !== null
+    ? (initialData.product_size_value === '' ? null : Number(initialData.product_size_value))
+    : parsedInitial.sizeValue;
+  const initialSizeUnit = initialData?.product_size_unit || parsedInitial.sizeUnit || 'KG';
+  const initialPackaging = initialData?.unit && PACKAGING_TYPES.some(p => p.value.toLowerCase() === String(initialData.unit).toLowerCase())
+    ? (PACKAGING_TYPES.find(p => p.value.toLowerCase() === String(initialData.unit).toLowerCase())?.value || 'Bag')
+    : (parsedInitial.packaging || 'Bag');
 
   const initialBatch = initialData?.batches?.[0];
   const initialBatchNumber = initialData?.batch_number || initialBatch?.batch_number || '';
   const rawInitialExpiry = initialData?.expiry_date || initialBatch?.expiry_date || initialBatch?.exp_date || '';
   const initialExpiryFormatted = formatToDDMMYYYY(rawInitialExpiry);
-  const initialStock = initialData?.current_stock ?? initialData?.stock_quantity ?? initialData?.opening_stock ?? initialBatch?.quantity_available ?? (mode === 'create' ? 50 : 0);
+  const initialStock = initialData?.current_stock ?? initialData?.stock_quantity ?? initialData?.opening_stock ?? initialBatch?.quantity_available ?? (mode === 'create' ? 10 : 0);
 
   // Form Setup
   const form = useForm<ProductInput>({
@@ -105,7 +110,10 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
       wholesale_price: initialData?.wholesale_price ?? initialData?.mrp ?? initialData?.selling_price ?? 0,
       hsn_code: initialData?.hsn_code || '',
       gst_rate: initialData?.gst_rate ?? 18,
-      unit: normalizeUnit(initialData?.unit),
+      unit: initialPackaging,
+      product_size_value: initialSizeValue,
+      product_size_unit: initialSizeUnit,
+      pack_size: initialData?.pack_size || (initialSizeValue ? `${initialSizeValue} ${initialSizeUnit}` : ''),
       min_stock: initialData?.min_stock ?? 5,
       opening_stock: Number(initialStock),
       batch_tracking: true,
@@ -117,7 +125,6 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
       formulation: initialData?.formulation || '',
       crop: initialData?.crop || '',
       target_pest: initialData?.target_pest || '',
-      pack_size: initialData?.pack_size || '',
       licence_number: initialData?.licence_number || '',
     },
   });
@@ -233,11 +240,21 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
     setIsSubmitting(true);
     try {
       const dbExpiry = formatDDMMYYYYtoDB(data.expiry_date) || data.expiry_date;
+      const sizeVal = data.product_size_value !== undefined && data.product_size_value !== null && data.product_size_value !== ('' as any)
+        ? Number(data.product_size_value)
+        : null;
+      const sizeUnit = data.product_size_unit || (sizeVal ? 'KG' : null);
+      const packSize = sizeVal ? `${sizeVal} ${sizeUnit}` : (data.pack_size || '');
+
       const formattedData: ProductInput = {
         ...data,
         expiry_date: dbExpiry,
         batch_tracking: true,
         expiry_tracking: true,
+        product_size_value: sizeVal,
+        product_size_unit: sizeUnit,
+        pack_size: packSize,
+        unit: data.unit || 'Bag',
         sku: data.sku || `SKU-${Date.now().toString().slice(-4)}`,
         barcode: data.barcode || '',
         description: data.description || '',
@@ -308,7 +325,7 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
                 {mode === 'create' ? 'Add New Product' : `Edit Product: ${initialData?.name}`}
               </h1>
               <p className="text-sm text-muted-foreground mt-0.5">
-                Simple shopkeeper form: Product → Price → Batch → Expiry → Quantity
+                Simple shopkeeper form: Product → Price → Batch → Expiry → Quantity (Pieces) & Product Size
               </p>
             </div>
           </div>
@@ -355,7 +372,7 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
               </Label>
               <Input
                 id="name"
-                placeholder="e.g. Test Urea, DAP 50kg (IFFCO), Confidor 100ml"
+                placeholder="e.g. Urea, DAP, Confidor, Cotton Seeds, Liquid Fertilizer"
                 className="h-11 text-base rounded-lg border-border bg-background"
                 {...form.register('name')}
               />
@@ -455,7 +472,7 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
               <div>
                 <CardTitle className="text-lg font-bold text-foreground">PRICING & TAX</CardTitle>
                 <CardDescription className="text-xs text-muted-foreground">
-                  Purchase price, selling price, MRP, and GST
+                  Purchase price, retail selling price per piece, MRP, and GST
                 </CardDescription>
               </div>
             </div>
@@ -547,7 +564,7 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
         </Card>
 
         {/* ═════════════════════════════════════════════════════════
-            SECTION 3: STOCK & BATCH
+            SECTION 3: STOCK & BATCH (Quantity in Pieces, Product Size, Packaging)
         ═════════════════════════════════════════════════════════ */}
         <Card className="border border-border bg-card shadow-sm rounded-xl overflow-hidden">
           <CardHeader className="bg-muted/30 border-b border-border pb-4">
@@ -558,7 +575,7 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
               <div>
                 <CardTitle className="text-lg font-bold text-foreground">STOCK & BATCH</CardTitle>
                 <CardDescription className="text-xs text-muted-foreground">
-                  Batch number, expiry date, quantity, and unit of measurement
+                  Batch details, stock quantity (pieces), packaging type, and product size contained in one piece
                 </CardDescription>
               </div>
             </div>
@@ -606,7 +623,7 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
               )}
             </div>
 
-            {/* Quantity + Unit (Combined Control) */}
+            {/* Quantity in Pieces */}
             <div className="space-y-2">
               <Label htmlFor="opening_stock" className="text-sm font-semibold text-foreground">
                 Quantity <span className="text-destructive font-bold">*</span>
@@ -615,22 +632,51 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
                 <Input
                   id="opening_stock"
                   type="number"
-                  step="any"
+                  step="1"
                   min="0"
-                  placeholder="50"
+                  placeholder="10"
                   className="h-11 border-0 focus-visible:ring-0 focus-visible:ring-offset-0 rounded-none text-base font-bold text-foreground px-3.5 flex-1"
                   {...form.register('opening_stock')}
                 />
+                <div className="px-4 py-2.5 bg-muted/40 border-l border-border text-sm font-bold text-muted-foreground flex items-center justify-center min-w-[80px]">
+                  Pieces
+                </div>
+              </div>
+              {form.formState.errors.opening_stock && (
+                <p className="text-xs text-destructive font-medium">{form.formState.errors.opening_stock.message}</p>
+              )}
+              <p className="text-[11px] text-muted-foreground">Number of sellable items/packages in stock</p>
+            </div>
+
+            {/* Product Size (Manual Number + Unit Dropdown) */}
+            <div className="space-y-2">
+              <Label htmlFor="product_size_value" className="text-sm font-semibold text-foreground">
+                Product Size
+              </Label>
+              <div className="flex rounded-lg border border-border bg-background focus-within:ring-2 focus-within:ring-primary focus-within:border-primary overflow-hidden">
+                <Input
+                  id="product_size_value"
+                  type="number"
+                  step="any"
+                  min="0"
+                  placeholder="e.g. 45"
+                  className="h-11 border-0 focus-visible:ring-0 focus-visible:ring-offset-0 rounded-none text-base font-bold text-foreground px-3.5 flex-1"
+                  value={form.watch('product_size_value') ?? ''}
+                  onChange={(e) => {
+                    const val = e.target.value === '' ? null : Number(e.target.value);
+                    form.setValue('product_size_value', val);
+                  }}
+                />
                 <div className="w-[150px] sm:w-[170px] border-l border-border bg-muted/30">
                   <Select
-                    value={form.watch('unit') || 'KG'}
-                    onValueChange={(val) => form.setValue('unit', val, { shouldValidate: true })}
+                    value={form.watch('product_size_unit') || 'KG'}
+                    onValueChange={(val) => form.setValue('product_size_unit', val)}
                   >
                     <SelectTrigger className="h-11 border-0 focus:ring-0 rounded-none bg-transparent font-bold text-foreground">
                       <SelectValue placeholder="Unit" />
                     </SelectTrigger>
                     <SelectContent className="max-h-64">
-                      {PRODUCT_UNITS.map((u) => (
+                      {PRODUCT_SIZE_UNITS.map((u) => (
                         <SelectItem key={u.value} value={u.value}>
                           {u.label}
                         </SelectItem>
@@ -639,9 +685,30 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
                   </Select>
                 </div>
               </div>
-              {form.formState.errors.opening_stock && (
-                <p className="text-xs text-destructive font-medium">{form.formState.errors.opening_stock.message}</p>
-              )}
+              <p className="text-[11px] text-muted-foreground">Weight or volume contained in one piece (e.g. 45 KG, 100 ML)</p>
+            </div>
+
+            {/* Packaging */}
+            <div className="space-y-2">
+              <Label htmlFor="unit" className="text-sm font-semibold text-foreground">
+                Packaging <span className="text-destructive font-bold">*</span>
+              </Label>
+              <Select
+                value={form.watch('unit') || 'Bag'}
+                onValueChange={(val) => form.setValue('unit', val, { shouldValidate: true })}
+              >
+                <SelectTrigger id="unit" className="h-11 rounded-lg border-border bg-background text-foreground font-semibold">
+                  <SelectValue placeholder="Select Packaging" />
+                </SelectTrigger>
+                <SelectContent className="max-h-64">
+                  {PACKAGING_TYPES.map((pkg) => (
+                    <SelectItem key={pkg.value} value={pkg.value}>
+                      {pkg.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-muted-foreground">Physical selling package (Bag, Bottle, Packet, etc.)</p>
             </div>
 
             {/* Minimum Stock Level */}
@@ -658,11 +725,11 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
                   className="h-11 border-0 focus-visible:ring-0 focus-visible:ring-offset-0 rounded-none text-base px-3.5 flex-1"
                   {...form.register('min_stock')}
                 />
-                <div className="px-3.5 py-2.5 bg-muted/40 border-l border-border text-xs font-bold text-muted-foreground flex items-center justify-center min-w-[70px]">
-                  {form.watch('unit') || 'KG'}
+                <div className="px-4 py-2.5 bg-muted/40 border-l border-border text-sm font-bold text-muted-foreground flex items-center justify-center min-w-[80px]">
+                  Pieces
                 </div>
               </div>
-              <p className="text-[11px] text-muted-foreground">Alerts when stock is at or below this amount</p>
+              <p className="text-[11px] text-muted-foreground">Alerts when stock is at or below this number of pieces</p>
             </div>
           </CardContent>
         </Card>

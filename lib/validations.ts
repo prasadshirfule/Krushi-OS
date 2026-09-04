@@ -105,6 +105,80 @@ export function formatToDDMMYYYY(val: string | Date | null | undefined): string 
   }
 }
 
+/**
+ * Parses numeric size, size unit, and packaging from pack_size and/or unit strings.
+ */
+export function parseProductSize(packSize?: string | null, unitStr?: string | null): {
+  sizeValue: number | null;
+  sizeUnit: string;
+  packaging: string;
+} {
+  let sizeValue: number | null = null;
+  let sizeUnit = 'KG';
+  let packaging = 'Bag';
+
+  const combined = `${packSize || ''} ${unitStr || ''}`.trim();
+  if (!combined) {
+    return { sizeValue: null, sizeUnit: 'KG', packaging: 'Bag' };
+  }
+
+  // Detect physical packaging
+  if (/bottle/i.test(combined)) packaging = 'Bottle';
+  else if (/packet|pkt/i.test(combined)) packaging = 'Packet';
+  else if (/bag/i.test(combined)) packaging = 'Bag';
+  else if (/box/i.test(combined)) packaging = 'Box';
+  else if (/container/i.test(combined)) packaging = 'Container';
+  else if (/can/i.test(combined)) packaging = 'Can';
+  else if (/drum/i.test(combined)) packaging = 'Drum';
+  else if (/piece|pc/i.test(combined)) packaging = 'Piece';
+  else if (unitStr && ['Bag', 'Bottle', 'Packet', 'Box', 'Container', 'Piece', 'Can', 'Drum'].includes(unitStr)) {
+    packaging = unitStr;
+  }
+
+  // Detect size value and unit (e.g. 45 KG, 100 ML, 475 G, 1 LTR, 45kg, 100ml, 475g, 1L)
+  const match = combined.match(/(\d+(?:\.\d+)?)\s*(kg|g|gm|gram|ml|ltr|litre|l|mg|q|quintal|tonne|t)\b/i);
+  if (match) {
+    sizeValue = parseFloat(match[1]);
+    const u = match[2].toUpperCase();
+    if (u === 'KG') sizeUnit = 'KG';
+    else if (u === 'G' || u === 'GM' || u === 'GRAM') sizeUnit = 'G';
+    else if (u === 'ML') sizeUnit = 'ML';
+    else if (u === 'LTR' || u === 'LITRE' || u === 'L') sizeUnit = 'LTR';
+    else if (u === 'MG') sizeUnit = 'MG';
+    else if (u === 'Q' || u === 'QUINTAL') sizeUnit = 'Q';
+    else if (u === 'TONNE' || u === 'T') sizeUnit = 'TONNE';
+  }
+
+  return { sizeValue, sizeUnit, packaging };
+}
+
+/**
+ * Formats a clean, readable pack descriptor for shopkeepers (e.g., "45 KG Bag", "100 ML Bottle").
+ */
+export function formatProductPackDisplay(prod: {
+  pack_size?: string | null;
+  unit?: string | null;
+  product_size_value?: number | null;
+  product_size_unit?: string | null;
+}): string {
+  let sizeStr = '';
+  if (prod.product_size_value) {
+    sizeStr = `${prod.product_size_value} ${prod.product_size_unit || 'KG'}`;
+  } else if (prod.pack_size) {
+    sizeStr = prod.pack_size;
+  }
+
+  const pkg = prod.unit || 'Piece';
+
+  if (sizeStr) {
+    if (pkg && !sizeStr.toLowerCase().includes(pkg.toLowerCase())) {
+      return `${sizeStr} ${pkg}`;
+    }
+    return sizeStr;
+  }
+  return pkg;
+}
+
 export const productSchema = z.object({
   name: z.string().min(2, 'Product name must be at least 2 characters').max(200),
   category_id: z.string().min(1, 'Category is required'),
@@ -117,7 +191,10 @@ export const productSchema = z.object({
   wholesale_price: z.coerce.number().min(0).optional().nullable(),
   gst_rate: z.coerce.number().min(0).max(100),
   hsn_code: z.string().optional().nullable(),
-  unit: z.string().min(1, 'Unit is required'),
+  unit: z.string().min(1, 'Packaging / Unit is required'),
+  product_size_value: z.coerce.number().min(0).optional().nullable(),
+  product_size_unit: z.string().optional().nullable(),
+  pack_size: z.string().optional().nullable(),
   min_stock: z.coerce.number().min(0).optional().nullable().default(5),
   max_stock: z.coerce.number().min(0).optional().nullable(),
   opening_stock: z.coerce.number({ invalid_type_error: 'Quantity is required' }).min(0.01, 'Quantity must be greater than 0'),
@@ -136,9 +213,9 @@ export const productSchema = z.object({
   formulation: z.string().optional().nullable(),
   crop: z.string().optional().nullable(),
   target_pest: z.string().optional().nullable(),
-  pack_size: z.string().optional().nullable(),
   licence_number: z.string().optional().nullable(),
 });
+
 
 
 export const batchSchema = z.object({
