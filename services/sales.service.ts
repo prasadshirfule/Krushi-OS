@@ -1,9 +1,151 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { SaleInput } from '@/lib/validations';
+import { MOCK_SALES, MOCK_CUSTOMERS } from '@/lib/mock-data';
+import { calculateItemTotal, calculateBillTotal } from '@/lib/calculations';
 
-export async function completeSale(shopId: string, data: SaleInput, userId: string) {
+/** Check if Supabase is running with placeholder credentials (demo mode). */
+export function isPlaceholderMode(): boolean {
+  return !process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('placeholder');
+}
+
+/** Global demo sales store to persist across server requests and HMR reloads */
+const globalSalesStore = globalThis as unknown as {
+  __KRUSHI_DEMO_SALES__?: any[];
+};
+
+function normalizeSale(sale: any) {
+  const items = sale.items || sale.sale_items || [];
+  const total = Number(sale.total_amount ?? sale.grand_total ?? sale.totalAmount ?? 0);
+  return {
+    ...sale,
+    grand_total: total,
+    total_amount: total,
+    totalAmount: total,
+    payableAmount: total,
+    items: items.map((it: any) => ({
+      ...it,
+      unit_price: Number(it.unit_price ?? it.unitPrice ?? it.selling_price ?? it.rate ?? 0),
+      selling_price: Number(it.selling_price ?? it.unit_price ?? it.unitPrice ?? it.rate ?? 0),
+      rate: Number(it.rate ?? it.unit_price ?? it.selling_price ?? 0),
+      discount_percent: Number(it.discount_percent ?? it.discountPercent ?? it.discount ?? 0),
+      gst_rate: Number(it.gst_rate ?? it.gstRate ?? it.gst ?? 0),
+      total_amount: Number(it.total_amount ?? it.totalAmount ?? it.total_price ?? ((it.quantity || 1) * (it.unit_price || 0))),
+      total_price: Number(it.total_price ?? it.total_amount ?? it.totalAmount ?? ((it.quantity || 1) * (it.unit_price || 0))),
+    })),
+    sale_items: items,
+    status: sale.status || (sale.payment_status === 'PAID' ? 'COMPLETED' : (sale.payment_status === 'UNPAID' ? 'PENDING' : 'COMPLETED')),
+    sale_date: sale.sale_date || sale.created_at,
+    created_at: sale.created_at || sale.sale_date,
+  };
+}
+
+export function getDemoSales(): any[] {
+  if (!globalSalesStore.__KRUSHI_DEMO_SALES__) {
+    globalSalesStore.__KRUSHI_DEMO_SALES__ = MOCK_SALES.map(normalizeSale);
+  }
+  return globalSalesStore.__KRUSHI_DEMO_SALES__!;
+}
+
+export async function completeSale(shopId: string, data: any, userId: string) {
+  if (isPlaceholderMode()) {
+    const store = getDemoSales();
+    const saleId = `sale-${Date.now()}`;
+    const invoiceNum = `KOS-${new Date().getFullYear()}-${String(store.length + 1).padStart(3, '0')}`;
+
+    // Resolve customer info
+    const customerId = data.customer_id;
+    let customerObj: any = null;
+    if (data.customer) {
+      customerObj = data.customer;
+    } else if (data.customer_name) {
+      customerObj = {
+        id: customerId || `cust-${Date.now()}`,
+        name: data.customer_name,
+        phone: data.customer_phone || '',
+      };
+    } else if (customerId && customerId !== 'walk-in') {
+      const found = MOCK_CUSTOMERS.find(c => c.id === customerId);
+      customerObj = found
+        ? { id: found.id, name: found.name, phone: found.phone }
+        : { id: customerId, name: 'Customer', phone: '' };
+    } else {
+      customerObj = { id: 'walk-in', name: 'Walk-in Customer', phone: '' };
+    }
+
+    const items = (data.items || []).map((it: any, idx: number) => {
+      const q = Math.max(1, Number(it.quantity) || 1);
+      const rate = Number(it.unit_price ?? it.selling_price ?? it.rate ?? 0);
+      const disc = Number(it.discount_percent ?? it.discount ?? 0);
+      const gst = Number(it.gst_rate ?? it.gst ?? 0);
+      const itemTotal = calculateItemTotal(q, rate, disc, gst);
+
+      return {
+        id: `si-${Date.now()}-${idx + 1}`,
+        sale_id: saleId,
+        product_id: it.product_id || it.id,
+        product_name: it.product_name || it.name || 'Product',
+        batch_id: it.batch_id || null,
+        batch_number: it.batch_number || null,
+        quantity: q,
+        unit_price: rate,
+        selling_price: rate,
+        rate: rate,
+        discount_percent: disc,
+        gst_rate: gst,
+        taxable_amount: itemTotal.taxableAmount,
+        cgst: itemTotal.cgst,
+        sgst: itemTotal.sgst,
+        total_tax: itemTotal.totalTax,
+        total_amount: itemTotal.total,
+        total_price: itemTotal.total,
+      };
+    });
+
+    const billTotals = data.totals || calculateBillTotal(items);
+    const payable = Number(billTotals.payableAmount ?? billTotals.grandTotal ?? 0);
+    const paymentMethod = data.payment_method || (data.payments?.[0]?.method) || 'Cash';
+    const isCredit = paymentMethod.toUpperCase() === 'CREDIT';
+
+    const newSale = {
+      id: saleId,
+      saleId: saleId,
+      invoice_number: invoiceNum,
+      invoiceNumber: invoiceNum,
+      shop_id: shopId,
+      customer_id: customerId || null,
+      customer: customerObj,
+      customer_name: customerObj?.name || 'Walk-in Customer',
+      items: items,
+      sale_items: items,
+      subtotal: Number(billTotals.subtotal || 0),
+      discount_amount: Number(billTotals.totalDiscount || 0),
+      tax_amount: Number(billTotals.totalTax || 0),
+      cgst_total: Number(billTotals.totalCGST || 0),
+      sgst_total: Number(billTotals.totalSGST || 0),
+      round_off: Number(billTotals.roundOff || 0),
+      total_amount: payable,
+      grand_total: payable,
+      totalAmount: payable,
+      payableAmount: payable,
+      paid_amount: isCredit ? 0 : payable,
+      profit_amount: Math.round(payable * 0.15),
+      payment_mode: paymentMethod,
+      payment_method: paymentMethod,
+      payments: data.payments || [{ method: paymentMethod, amount: payable }],
+      status: 'COMPLETED',
+      payment_status: isCredit ? 'UNPAID' : 'PAID',
+      notes: data.notes || null,
+      created_at: new Date().toISOString(),
+      sale_date: new Date().toISOString(),
+    };
+
+    // Prepend to demo store so it appears at top of sales history
+    store.unshift(newSale);
+    return newSale;
+  }
+
+  // Real Supabase mode
   const supabase = await createServerSupabaseClient();
-  
   const { data: sale, error } = await supabase.rpc('process_sale', {
     p_shop_id: shopId,
     p_user_id: userId,
@@ -22,7 +164,43 @@ export async function completeSale(shopId: string, data: SaleInput, userId: stri
   return sale;
 }
 
-export async function getSales(shopId: string, options: { search?: string, customerId?: string, status?: string, dateFrom?: string, dateTo?: string, page?: number, limit?: number } = {}) {
+export async function getSales(
+  shopId: string, 
+  options: { search?: string, customerId?: string, status?: string, dateFrom?: string, dateTo?: string, page?: number, limit?: number } = {}
+) {
+  if (isPlaceholderMode()) {
+    let list = [...getDemoSales()];
+
+    if (options.search) {
+      const q = options.search.toLowerCase();
+      list = list.filter(s => 
+        (s.invoice_number && s.invoice_number.toLowerCase().includes(q)) ||
+        (s.customer?.name && s.customer.name.toLowerCase().includes(q)) ||
+        (s.customer_name && s.customer_name.toLowerCase().includes(q))
+      );
+    }
+    if (options.customerId) {
+      list = list.filter(s => s.customer_id === options.customerId || s.customer?.id === options.customerId);
+    }
+    if (options.status) {
+      list = list.filter(s => s.status?.toLowerCase() === options.status?.toLowerCase());
+    }
+    if (options.dateFrom) {
+      list = list.filter(s => (s.sale_date || s.created_at) >= options.dateFrom!);
+    }
+    if (options.dateTo) {
+      list = list.filter(s => (s.sale_date || s.created_at) <= options.dateTo!);
+    }
+
+    const page = options.page || 1;
+    const limit = options.limit || 50;
+    const offset = (page - 1) * limit;
+    const paged = list.slice(offset, offset + limit);
+
+    return { sales: paged, total: list.length };
+  }
+
+  // Real Supabase mode
   try {
     const supabase = await createServerSupabaseClient();
     const page = options.page || 1;
@@ -56,6 +234,12 @@ export async function getSales(shopId: string, options: { search?: string, custo
 }
 
 export async function getSaleById(shopId: string, saleId: string) {
+  if (isPlaceholderMode()) {
+    const list = getDemoSales();
+    const found = list.find(s => s.id === saleId || s.invoice_number === saleId || s.invoiceNumber === saleId);
+    return found || null;
+  }
+
   try {
     const supabase = await createServerSupabaseClient();
     const { data, error } = await supabase
@@ -76,6 +260,12 @@ export async function getSaleById(shopId: string, saleId: string) {
 }
 
 export async function getSaleByInvoice(shopId: string, invoiceNumber: string) {
+  if (isPlaceholderMode()) {
+    const list = getDemoSales();
+    const found = list.find(s => s.invoice_number === invoiceNumber || s.invoiceNumber === invoiceNumber || s.id === invoiceNumber);
+    return found || null;
+  }
+
   try {
     const supabase = await createServerSupabaseClient();
     const { data, error } = await supabase
@@ -96,6 +286,16 @@ export async function getSaleByInvoice(shopId: string, invoiceNumber: string) {
 }
 
 export async function cancelSale(shopId: string, saleId: string, userId: string, reason: string) {
+  if (isPlaceholderMode()) {
+    const list = getDemoSales();
+    const found = list.find(s => s.id === saleId || s.invoice_number === saleId);
+    if (found) {
+      found.status = 'CANCELLED';
+      found.cancel_reason = reason;
+    }
+    return;
+  }
+
   const supabase = await createServerSupabaseClient();
   const { error } = await supabase.rpc('cancel_sale', {
     p_shop_id: shopId,
@@ -110,6 +310,15 @@ export async function cancelSale(shopId: string, saleId: string, userId: string,
 }
 
 export async function returnSale(shopId: string, saleId: string, items: { saleItemId: string, quantity: number, reason: string }[], userId: string) {
+  if (isPlaceholderMode()) {
+    const list = getDemoSales();
+    const found = list.find(s => s.id === saleId);
+    if (found) {
+      found.status = 'REFUNDED';
+    }
+    return { success: true };
+  }
+
   const supabase = await createServerSupabaseClient();
   const { error } = await supabase.rpc('process_sale_return', {
     p_shop_id: shopId,
@@ -125,6 +334,21 @@ export async function returnSale(shopId: string, saleId: string, items: { saleIt
 }
 
 export async function getTodaySales(shopId: string) {
+  if (isPlaceholderMode()) {
+    const list = getDemoSales();
+    const todayStr = new Date().toISOString().split('T')[0];
+    const todayList = list.filter(s => {
+      const d = (s.sale_date || s.created_at || '').split('T')[0];
+      return d === todayStr && s.status !== 'CANCELLED';
+    });
+
+    return {
+      count: todayList.length,
+      total: todayList.reduce((sum, s) => sum + Number(s.total_amount || s.grand_total || 0), 0),
+      profit: todayList.reduce((sum, s) => sum + Number(s.profit_amount || Math.round(Number(s.total_amount || 0) * 0.15)), 0)
+    };
+  }
+
   try {
     const supabase = await createServerSupabaseClient();
     const todayStr = new Date().toISOString().split('T')[0];
@@ -152,9 +376,26 @@ export async function getTodaySales(shopId: string) {
 }
 
 export async function getSalesChart(shopId: string, period: 'daily' | 'weekly' | 'monthly' = 'daily') {
+  if (isPlaceholderMode()) {
+    const list = getDemoSales();
+    const dateMap = new Map<string, { date: string, sales: number, profit: number, total: number }>();
+    for (const sale of list) {
+      if (sale.status === 'CANCELLED') continue;
+      const isoDate = (sale.sale_date || sale.created_at || '').split('T')[0];
+      if (!isoDate) continue;
+      const current = dateMap.get(isoDate) || { date: isoDate, sales: 0, profit: 0, total: 0 };
+      const amt = Number(sale.total_amount || sale.grand_total || 0);
+      const prf = Number(sale.profit_amount || Math.round(amt * 0.15));
+      current.sales += amt;
+      current.total += amt;
+      current.profit += prf;
+      dateMap.set(isoDate, current);
+    }
+    return Array.from(dateMap.values()).sort((a, b) => a.date.localeCompare(b.date));
+  }
+
   try {
     const supabase = await createServerSupabaseClient();
-    
     const daysAgo = 30;
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - daysAgo);

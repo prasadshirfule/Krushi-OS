@@ -12,29 +12,22 @@ function isPlaceholderMode(): boolean {
 
 export async function completeSaleAction(data: any): Promise<ActionResult<any>> {
   try {
-    if (isPlaceholderMode()) {
-      const saleId = `sale-${Date.now()}`;
-      return {
-        success: true,
-        data: {
-          id: saleId,
-          saleId: saleId,
-          invoice_number: `KOS-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
-        },
-      };
-    }
-
     const userData = await getAuthAndPermissions('sales.create');
     
-    const validated = saleSchema.safeParse(data);
-    if (!validated.success) {
-      return { success: false, error: validated.error.errors[0].message };
+    if (!isPlaceholderMode()) {
+      const validated = saleSchema.safeParse(data);
+      if (!validated.success) {
+        return { success: false, error: validated.error.errors[0].message };
+      }
     }
     
-    const result = await salesService.completeSale(userData.shop_id, validated.data as any, userData.id);
+    const result = await salesService.completeSale(userData.shop_id, data, userData.id);
     
     revalidatePath('/sales');
+    revalidatePath('/dashboard');
+    revalidatePath('/billing');
     revalidatePath('/inventory');
+    revalidatePath('/reports');
     return { success: true, data: result };
   } catch (error: any) {
     console.error('completeSaleAction error:', error);

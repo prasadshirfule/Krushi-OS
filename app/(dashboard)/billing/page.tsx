@@ -47,6 +47,18 @@ export default function BillingPage() {
     setCustomerSearch('');
   };
 
+  const handleCustomerSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && customerSearch.trim()) {
+      e.preventDefault();
+      const match = QUICK_CUSTOMERS.find(c => c.name.toLowerCase() === customerSearch.trim().toLowerCase());
+      if (match) {
+        selectCustomer(match.id, match.name);
+      } else {
+        selectCustomer(`cust-${Date.now()}`, customerSearch.trim());
+      }
+    }
+  };
+
   const clearCustomer = () => {
     setCustomerId('');
     setCustomerName('');
@@ -148,13 +160,25 @@ export default function BillingPage() {
             <Input
               value={customerSearch}
               onChange={e => setCustomerSearch(e.target.value)}
-              placeholder="Type customer name..."
+              onKeyDown={handleCustomerSearchKeyDown}
+              placeholder="Type customer name and press Enter..."
               className="text-base py-5 mb-4 bg-background border-border text-foreground placeholder:text-muted-foreground"
             />
 
             {/* Quick-select buttons */}
             <div className="flex flex-wrap gap-2 items-center">
               <span className="text-sm text-muted-foreground mr-1 font-medium">Recent:</span>
+              {customerSearch.trim() && !filteredQuickCustomers.some(c => c.name.toLowerCase() === customerSearch.trim().toLowerCase()) && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="rounded-full px-4 py-1.5 h-auto text-sm font-semibold border-primary/50 bg-primary/10 text-primary hover:bg-primary/20 transition-all"
+                  onClick={() => selectCustomer(`cust-${Date.now()}`, customerSearch.trim())}
+                >
+                  + Use &ldquo;{customerSearch.trim()}&rdquo;
+                </Button>
+              )}
               {filteredQuickCustomers.map(c => (
                 <Button
                   key={c.id}
@@ -186,7 +210,8 @@ export default function BillingPage() {
       <PaymentPanel
         cart={cart}
         totals={totals}
-        customerId={customerId}
+        customerId={customerId || (customerSearch.trim() ? `cust-${Date.now()}` : '')}
+        customerName={customerName || customerSearch.trim()}
         onComplete={handleSaleComplete}
       />
 

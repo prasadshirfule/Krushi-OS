@@ -168,6 +168,17 @@ export const MOCK_CUSTOMERS = [
     outstanding_balance: 0,
     crop_details: 'Gram, Wheat, Sugarcane',
     created_at: '2026-02-10T14:15:00Z'
+  },
+  {
+    id: 'cust-4',
+    name: 'Mopore',
+    phone: '9826198765',
+    village: 'Kolar Rural',
+    land_acres: 15,
+    credit_limit: 40000,
+    outstanding_balance: 0,
+    crop_details: 'Soybean, Gram',
+    created_at: '2026-02-20T09:00:00Z'
   }
 ];
 
@@ -202,7 +213,8 @@ export const MOCK_SALES = [
     paid_amount: 2780,
     payment_mode: 'Cash',
     payment_status: 'PAID',
-    created_at: new Date(Date.now() - 3600000 * 2).toISOString(),
+    created_at: new Date(Date.now() - 3600000 * 28).toISOString(),
+    sale_date: new Date(Date.now() - 3600000 * 28).toISOString(),
     sale_items: [
       { id: 'si-1', product_name: 'Confidor Insecticide 100ml', quantity: 2, unit_price: 550, total_price: 1100 },
       { id: 'si-2', product_name: 'DAP Fertilizer 50kg (IFFCO)', quantity: 1, unit_price: 1350, total_price: 1350 }
@@ -217,7 +229,8 @@ export const MOCK_SALES = [
     paid_amount: 0,
     payment_mode: 'Credit',
     payment_status: 'UNPAID',
-    created_at: new Date(Date.now() - 3600000 * 18).toISOString(),
+    created_at: new Date(Date.now() - 3600000 * 52).toISOString(),
+    sale_date: new Date(Date.now() - 3600000 * 52).toISOString(),
     sale_items: [
       { id: 'si-3', product_name: 'Syngenta Quantis Biostimulant 1L', quantity: 4, unit_price: 950, total_price: 3800 },
       { id: 'si-4', product_name: 'DAP Fertilizer 50kg (IFFCO)', quantity: 2, unit_price: 1350, total_price: 2700 }

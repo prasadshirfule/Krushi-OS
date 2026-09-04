@@ -13,6 +13,7 @@ interface PaymentPanelProps {
   cart: any[];
   totals: any;
   customerId?: string;
+  customerName?: string;
   onComplete: (saleId: string) => void;
 }
 
@@ -32,7 +33,7 @@ const METHOD_TO_ENUM: Record<string, 'CASH' | 'UPI' | 'CARD' | 'BANK_TRANSFER' |
   Credit: 'CREDIT',
 };
 
-export default function PaymentPanel({ cart, totals, customerId, onComplete }: PaymentPanelProps) {
+export default function PaymentPanel({ cart, totals, customerId, customerName, onComplete }: PaymentPanelProps) {
   const [paymentMethod, setPaymentMethod] = useState<string>(PAYMENT_METHODS[0]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [notes, setNotes] = useState('');
@@ -40,7 +41,11 @@ export default function PaymentPanel({ cart, totals, customerId, onComplete }: P
 
   const payableAmount = Number(totals?.payableAmount || 0);
   const isCredit = paymentMethod === 'Credit';
-  const hasCustomer = Boolean(customerId && customerId !== 'walk-in');
+  const effectiveCustomerName = customerName?.trim() || '';
+  const hasCustomer = Boolean(
+    (customerId && customerId !== 'walk-in') || 
+    (effectiveCustomerName && effectiveCustomerName.toLowerCase() !== 'walk-in')
+  );
   const creditError = isCredit && !hasCustomer;
 
   const isSaleDisabled =
@@ -116,8 +121,16 @@ export default function PaymentPanel({ cart, totals, customerId, onComplete }: P
         },
       ];
 
+      const customerDisplayName = effectiveCustomerName || (hasCustomer ? 'Customer' : 'Walk-in Customer');
+
       const saleData = {
-        customer_id: hasCustomer ? customerId : null,
+        customer_id: hasCustomer ? (customerId || `cust-${Date.now()}`) : null,
+        customer_name: customerDisplayName,
+        customer: {
+          id: customerId || (hasCustomer ? `cust-${Date.now()}` : 'walk-in'),
+          name: customerDisplayName,
+          phone: '',
+        },
         items: formattedItems,
         payments: formattedPayments,
         notes: notes.trim() || null,
