@@ -14,6 +14,7 @@ interface PaymentPanelProps {
   totals: any;
   customerId?: string;
   customerName?: string;
+  customerPhone?: string;
   onComplete: (saleId: string) => void;
 }
 
@@ -33,7 +34,7 @@ const METHOD_TO_ENUM: Record<string, 'CASH' | 'UPI' | 'CARD' | 'BANK_TRANSFER' |
   Credit: 'CREDIT',
 };
 
-export default function PaymentPanel({ cart, totals, customerId, customerName, onComplete }: PaymentPanelProps) {
+export default function PaymentPanel({ cart, totals, customerId, customerName, customerPhone, onComplete }: PaymentPanelProps) {
   const [paymentMethod, setPaymentMethod] = useState<string>(PAYMENT_METHODS[0]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [notes, setNotes] = useState('');
@@ -126,10 +127,11 @@ export default function PaymentPanel({ cart, totals, customerId, customerName, o
       const saleData = {
         customer_id: hasCustomer ? (customerId || `cust-${Date.now()}`) : null,
         customer_name: customerDisplayName,
+        customer_phone: customerPhone || '',
         customer: {
           id: customerId || (hasCustomer ? `cust-${Date.now()}` : 'walk-in'),
           name: customerDisplayName,
-          phone: '',
+          phone: customerPhone || '',
         },
         items: formattedItems,
         payments: formattedPayments,

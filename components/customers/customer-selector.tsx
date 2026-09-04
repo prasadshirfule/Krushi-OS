@@ -20,11 +20,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { CustomerFormDialog } from "./customer-form-dialog";
-
-const customers = [
-  { value: "1", label: "Ramesh Patel (9876543210)" },
-  { value: "2", label: "Suresh Kumar (8765432109)" },
-];
+import { getCustomersAction } from "@/actions/customers";
 
 interface CustomerSelectorProps {
   value?: string;
@@ -36,6 +32,31 @@ export function CustomerSelector({ value, onChange, className }: CustomerSelecto
   const [open, setOpen] = React.useState(false);
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [selectedValue, setSelectedValue] = React.useState(value || "");
+  const [customerOptions, setCustomerOptions] = React.useState<Array<{ value: string; label: string }>>([]);
+
+  const loadCustomers = React.useCallback(async () => {
+    try {
+      const res = await getCustomersAction({ limit: 100 });
+      if (res.success && res.data?.customers) {
+        setCustomerOptions(
+          res.data.customers.map((c: any) => ({
+            value: String(c.id),
+            label: `${c.name}${c.phone || c.mobile ? ` (${c.phone || c.mobile})` : ""}${c.village ? ` - ${c.village}` : ""}`,
+          }))
+        );
+      }
+    } catch (err) {
+      console.error("Failed to load customers in selector:", err);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    loadCustomers();
+  }, [loadCustomers]);
+
+  React.useEffect(() => {
+    setSelectedValue(value || "");
+  }, [value]);
 
   const handleSelect = (currentValue: string) => {
     const newValue = currentValue === selectedValue ? "" : currentValue;
@@ -43,6 +64,21 @@ export function CustomerSelector({ value, onChange, className }: CustomerSelecto
     if (onChange) onChange(newValue);
     setOpen(false);
   };
+
+  const handleCustomerCreated = (newCust?: any) => {
+    if (newCust) {
+      const opt = {
+        value: String(newCust.id),
+        label: `${newCust.name}${newCust.phone || newCust.mobile ? ` (${newCust.phone || newCust.mobile})` : ""}${newCust.village ? ` - ${newCust.village}` : ""}`,
+      };
+      setCustomerOptions(prev => [opt, ...prev.filter(o => o.value !== opt.value)]);
+      handleSelect(opt.value);
+    }
+    loadCustomers();
+    setDialogOpen(false);
+  };
+
+  const selectedLabel = customerOptions.find((c) => c.value === selectedValue)?.label || "Select customer...";
 
   return (
     <>
@@ -52,11 +88,9 @@ export function CustomerSelector({ value, onChange, className }: CustomerSelecto
             variant="outline"
             role="combobox"
             aria-expanded={open}
-            className={cn("w-[300px] justify-between", className)}
+            className={cn("w-[300px] justify-between text-left font-normal", className)}
           >
-            {selectedValue
-              ? customers.find((c) => c.value === selectedValue)?.label
-              : "Select customer..."}
+            <span className="truncate">{selectedLabel}</span>
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
@@ -66,11 +100,11 @@ export function CustomerSelector({ value, onChange, className }: CustomerSelecto
             <CommandList>
               <CommandEmpty>No customer found.</CommandEmpty>
               <CommandGroup>
-                {customers.map((c) => (
+                {customerOptions.map((c) => (
                   <CommandItem
                     key={c.value}
-                    value={c.value}
-                    onSelect={handleSelect}
+                    value={c.label}
+                    onSelect={() => handleSelect(c.value)}
                   >
                     <Check
                       className={cn(
@@ -78,7 +112,7 @@ export function CustomerSelector({ value, onChange, className }: CustomerSelecto
                         selectedValue === c.value ? "opacity-100" : "opacity-0"
                       )}
                     />
-                    {c.label}
+                    <span className="truncate">{c.label}</span>
                   </CommandItem>
                 ))}
               </CommandGroup>
@@ -100,7 +134,8 @@ export function CustomerSelector({ value, onChange, className }: CustomerSelecto
       </Popover>
       <CustomerFormDialog 
         open={dialogOpen} 
-        onOpenChange={setDialogOpen} 
+        onOpenChange={setDialogOpen}
+        onSuccess={handleCustomerCreated}
       />
     </>
   );

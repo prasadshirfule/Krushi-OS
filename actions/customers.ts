@@ -7,7 +7,7 @@ import * as customersService from '@/services/customers.service';
 import * as paymentsService from '@/services/payments.service';
 import { ActionResult } from './types';
 
-export async function getCustomersAction(params: any): Promise<ActionResult<any>> {
+export async function getCustomersAction(params: any = {}): Promise<ActionResult<any>> {
   try {
     const userData = await getAuthAndPermissions('customers.view');
     const result = await customersService.getCustomers(userData.shop_id, params);
@@ -32,10 +32,12 @@ export async function createCustomerAction(data: any): Promise<ActionResult<any>
     const userData = await getAuthAndPermissions('customers.create');
     const validated = customerSchema.safeParse(data);
     if (!validated.success) {
-      return { success: false, error: validated.error.errors[0].message };
+      return { success: false, error: validated.error.errors[0]?.message || 'Invalid customer data' };
     }
     const result = await customersService.createCustomer(userData.shop_id, validated.data);
     revalidatePath('/customers');
+    revalidatePath('/billing');
+    revalidatePath('/credit');
     return { success: true, data: result };
   } catch (error: any) {
     return { success: false, error: error.message || 'An unexpected error occurred' };
@@ -45,9 +47,28 @@ export async function createCustomerAction(data: any): Promise<ActionResult<any>
 export async function updateCustomerAction(id: string, data: any): Promise<ActionResult<any>> {
   try {
     const userData = await getAuthAndPermissions('customers.edit');
-    const result = await customersService.updateCustomer(userData.shop_id, id, data);
+    const validated = customerSchema.partial().safeParse(data);
+    if (!validated.success) {
+      return { success: false, error: validated.error.errors[0]?.message || 'Invalid customer data' };
+    }
+    const result = await customersService.updateCustomer(userData.shop_id, id, validated.data);
     revalidatePath('/customers');
     revalidatePath(`/customers/${id}`);
+    revalidatePath('/billing');
+    revalidatePath('/credit');
+    return { success: true, data: result };
+  } catch (error: any) {
+    return { success: false, error: error.message || 'An unexpected error occurred' };
+  }
+}
+
+export async function deleteCustomerAction(id: string): Promise<ActionResult<any>> {
+  try {
+    const userData = await getAuthAndPermissions('customers.edit');
+    const result = await customersService.deleteCustomer(userData.shop_id, id);
+    revalidatePath('/customers');
+    revalidatePath('/billing');
+    revalidatePath('/credit');
     return { success: true, data: result };
   } catch (error: any) {
     return { success: false, error: error.message || 'An unexpected error occurred' };
@@ -74,7 +95,7 @@ export async function getCustomerLedgerAction(customerId: string, params: any): 
   }
 }
 
-export async function collectPaymentAction(data: { customerId: string, amount: number, paymentMethod: string, notes?: string }): Promise<ActionResult<any>> {
+export async function collectPaymentAction(data: { customerId: string; amount: number; paymentMethod: string; notes?: string }): Promise<ActionResult<any>> {
   try {
     const userData = await getAuthAndPermissions('customers.edit');
     const result = await paymentsService.recordCustomerPayment(
@@ -84,6 +105,8 @@ export async function collectPaymentAction(data: { customerId: string, amount: n
     );
     revalidatePath(`/customers/${data.customerId}`);
     revalidatePath('/customers');
+    revalidatePath('/billing');
+    revalidatePath('/credit');
     return { success: true, data: result };
   } catch (error: any) {
     return { success: false, error: error.message || 'An unexpected error occurred' };

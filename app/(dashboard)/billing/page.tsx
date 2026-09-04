@@ -9,26 +9,68 @@ import { CustomerFormDialog } from '@/components/customers/customer-form-dialog'
 import { BillingCartItem } from '@/types/sales';
 import { generateId } from '@/lib/utils';
 import { calculateBillTotal } from '@/lib/calculations';
-import { MOCK_CUSTOMERS } from '@/lib/mock-data';
-import { User, X, UserPlus, Wifi } from 'lucide-react';
+import { getCustomersAction } from '@/actions/customers';
+import { User, X, UserPlus, Wifi, Phone, MapPin, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
-/* Quick-select customers for the billing page */
-const QUICK_CUSTOMERS = [
-  ...MOCK_CUSTOMERS.map(c => ({ id: c.id, name: c.name, phone: c.phone })),
-  { id: 'walk-in', name: 'Walk-in', phone: '' },
-];
+interface CustomerOption {
+  id: string;
+  name: string;
+  phone: string;
+  village?: string;
+}
+
+const WALK_IN_CUSTOMER: CustomerOption = { id: 'walk-in', name: 'Walk-in', phone: '' };
 
 export default function BillingPage() {
   /* ─── State ─── */
   const [cart, setCart] = useState<BillingCartItem[]>([]);
+  const [customerList, setCustomerList] = useState<CustomerOption[]>([]);
+  const [recentCustomerIds, setRecentCustomerIds] = useState<string[]>([]);
   const [customerId, setCustomerId] = useState('');
   const [customerName, setCustomerName] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
+  const [customerVillage, setCustomerVillage] = useState('');
   const [customerSearch, setCustomerSearch] = useState('');
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
   const [lastSaleId, setLastSaleId] = useState<string | null>(null);
   const [showNewCustomerDialog, setShowNewCustomerDialog] = useState(false);
+
+  /* ─── Fetch customers dynamically ─── */
+  const loadCustomers = useCallback(async () => {
+    try {
+      const res = await getCustomersAction({ limit: 100 });
+      if (res.success && res.data?.customers) {
+        const mapped: CustomerOption[] = res.data.customers.map((c: any) => ({
+          id: String(c.id),
+          name: c.name,
+          phone: c.phone || c.mobile || '',
+          village: c.village || '',
+        }));
+        setCustomerList(mapped);
+
+        // Initialize recent IDs if empty
+        setRecentCustomerIds(prev => {
+          if (prev.length > 0) return prev;
+          try {
+            const saved = localStorage.getItem('krushi_recent_customer_ids');
+            if (saved) {
+              const parsed = JSON.parse(saved);
+              if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+            }
+          } catch {}
+          return mapped.slice(0, 3).map(c => c.id);
+        });
+      }
+    } catch (err) {
+      console.error('Failed to load customers for billing:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadCustomers();
+  }, [loadCustomers]);
 
   /* ─── Derived ─── */
   const totals = calculateBillTotal(cart);
@@ -36,25 +78,74 @@ export default function BillingPage() {
   const dateStr = now.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
   const timeStr = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
 
-  const filteredQuickCustomers = customerSearch.trim()
-    ? QUICK_CUSTOMERS.filter(c => c.name.toLowerCase().includes(customerSearch.toLowerCase()))
-    : QUICK_CUSTOMERS;
+  // Filtered search results when typing
+  const searchTrimmed = customerSearch.trim().toLowerCase();
+  const searchResults = searchTrimmed
+    ? customerList.filter(
+        c =>
+          c.name.toLowerCase().includes(searchTrimmed) ||
+          (c.phone && c.phone.includes(searchTrimmed)) ||
+          (c.village && c.village.toLowerCase().includes(searchTrimmed))
+      )
+    : [];
+
+  // Resolve recent customer objects
+  const recentCustomers: CustomerOption[] = [
+    ...recentCustomerIds
+      .map(id => customerList.find(c => c.id === id))
+      .filter((c): c is CustomerOption => Boolean(c)),
+    WALK_IN_CUSTOMER,
+  ];
 
   /* ─── Handlers ─── */
-  const selectCustomer = (id: string, name: string) => {
-    setCustomerId(id);
-    setCustomerName(name);
+  const selectCustomer = (cust: CustomerOption) => {
+    setCustomerId(cust.id);
+    setCustomerName(cust.name);
+    setCustomerPhone(cust.phone || '');
+    setCustomerVillage(cust.village || '');
     setCustomerSearch('');
+
+    if (cust.id !== 'walk-in') {
+      setRecentCustomerIds(prev => {
+        const next = [cust.id, ...prev.filter(id => id !== cust.id)].slice(0, 6);
+        try {
+          localStorage.setItem('krushi_recent_customer_ids', JSON.stringify(next));
+        } catch {}
+        return next;
+      });
+    }
+  };
+
+  const handleCustomerCreated = (newCust: any) => {
+    if (newCust) {
+      const item: CustomerOption = {
+        id: String(newCust.id),
+        name: newCust.name,
+        phone: newCust.phone || newCust.mobile || '',
+        village: newCust.village || '',
+      };
+      setCustomerList(prev => [item, ...prev.filter(c => c.id !== item.id)]);
+      selectCustomer(item);
+    }
+    loadCustomers();
+    setShowNewCustomerDialog(false);
   };
 
   const handleCustomerSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && customerSearch.trim()) {
       e.preventDefault();
-      const match = QUICK_CUSTOMERS.find(c => c.name.toLowerCase() === customerSearch.trim().toLowerCase());
-      if (match) {
-        selectCustomer(match.id, match.name);
+      const exact = customerList.find(c => c.name.toLowerCase() === searchTrimmed || c.phone === customerSearch.trim());
+      if (exact) {
+        selectCustomer(exact);
+      } else if (searchResults.length > 0) {
+        selectCustomer(searchResults[0]);
       } else {
-        selectCustomer(`cust-${Date.now()}`, customerSearch.trim());
+        // Quick select as ad-hoc customer
+        selectCustomer({
+          id: `cust-${Date.now()}`,
+          name: customerSearch.trim(),
+          phone: '',
+        });
       }
     }
   };
@@ -62,6 +153,8 @@ export default function BillingPage() {
   const clearCustomer = () => {
     setCustomerId('');
     setCustomerName('');
+    setCustomerPhone('');
+    setCustomerVillage('');
     setCustomerSearch('');
   };
 
@@ -77,6 +170,8 @@ export default function BillingPage() {
     setCart([]);
     setCustomerId('');
     setCustomerName('');
+    setCustomerPhone('');
+    setCustomerVillage('');
   };
 
   const handleAddToCart = (item: any) => {
@@ -119,7 +214,10 @@ export default function BillingPage() {
             <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center">
               <User className="h-5 w-5 text-primary" />
             </div>
-            <h2 className="text-lg font-semibold text-foreground">Customer Name</h2>
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">Customer / Farmer</h2>
+              <p className="text-xs text-muted-foreground">Select registered farmer or walk-in customer</p>
+            </div>
           </div>
           {!customerName && (
             <Button
@@ -133,15 +231,32 @@ export default function BillingPage() {
           )}
         </div>
 
-        {/* Selected customer — prominent dark theme display */}
+        {/* Selected customer — prominent display */}
         {customerName ? (
           <div className="flex items-center gap-3">
             <div className="flex-1 bg-primary/10 border-2 border-primary/40 rounded-xl px-5 py-3.5">
-              <p className="text-2xl md:text-3xl font-bold text-primary tracking-tight">{customerName}</p>
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <p className="text-2xl md:text-3xl font-bold text-primary tracking-tight">{customerName}</p>
+                {customerId === 'walk-in' && (
+                  <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-muted text-muted-foreground">
+                    Cash Customer
+                  </span>
+                )}
+              </div>
               {customerId !== 'walk-in' && (
-                <p className="text-sm text-muted-foreground mt-0.5 font-medium">
-                  {QUICK_CUSTOMERS.find(c => c.id === customerId)?.phone || 'Registered Customer'}
-                </p>
+                <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1 font-medium flex-wrap">
+                  {customerPhone && (
+                    <span className="flex items-center gap-1">
+                      <Phone className="h-3.5 w-3.5 text-primary/70" /> {customerPhone}
+                    </span>
+                  )}
+                  {customerVillage && (
+                    <span className="flex items-center gap-1">
+                      <MapPin className="h-3.5 w-3.5 text-primary/70" /> {customerVillage}
+                    </span>
+                  )}
+                  <span className="text-xs text-primary font-semibold">Registered Farmer</span>
+                </div>
               )}
             </div>
             <Button
@@ -157,40 +272,79 @@ export default function BillingPage() {
         ) : (
           <>
             {/* Customer search input */}
-            <Input
-              value={customerSearch}
-              onChange={e => setCustomerSearch(e.target.value)}
-              onKeyDown={handleCustomerSearchKeyDown}
-              placeholder="Type customer name and press Enter..."
-              className="text-base py-5 mb-4 bg-background border-border text-foreground placeholder:text-muted-foreground"
-            />
-
-            {/* Quick-select buttons */}
-            <div className="flex flex-wrap gap-2 items-center">
-              <span className="text-sm text-muted-foreground mr-1 font-medium">Recent:</span>
-              {customerSearch.trim() && !filteredQuickCustomers.some(c => c.name.toLowerCase() === customerSearch.trim().toLowerCase()) && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="rounded-full px-4 py-1.5 h-auto text-sm font-semibold border-primary/50 bg-primary/10 text-primary hover:bg-primary/20 transition-all"
-                  onClick={() => selectCustomer(`cust-${Date.now()}`, customerSearch.trim())}
-                >
-                  + Use &ldquo;{customerSearch.trim()}&rdquo;
-                </Button>
-              )}
-              {filteredQuickCustomers.map(c => (
-                <Button
-                  key={c.id}
-                  variant="outline"
-                  size="sm"
-                  className="rounded-full px-4 py-1.5 h-auto text-sm font-medium border-border bg-background/50 hover:bg-primary/10 hover:text-primary hover:border-primary/50 transition-all text-foreground"
-                  onClick={() => selectCustomer(c.id, c.name)}
-                >
-                  {c.name}
-                </Button>
-              ))}
+            <div className="relative mb-4">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+              <Input
+                value={customerSearch}
+                onChange={e => setCustomerSearch(e.target.value)}
+                onKeyDown={handleCustomerSearchKeyDown}
+                placeholder="Search customer by name or phone (e.g. Ramesh, 9876...)"
+                className="text-base py-5 pl-10 bg-background border-border text-foreground placeholder:text-muted-foreground"
+              />
             </div>
+
+            {/* If searching: show live search results */}
+            {customerSearch.trim() ? (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs text-muted-foreground px-1">
+                  <span>Matching Customers ({searchResults.length}):</span>
+                  <span>Press Enter to select first match</span>
+                </div>
+                <div className="flex flex-wrap gap-2 items-center">
+                  {!searchResults.some(c => c.name.toLowerCase() === searchTrimmed) && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="rounded-full px-4 py-1.5 h-auto text-sm font-semibold border-primary/50 bg-primary/10 text-primary hover:bg-primary/20 transition-all"
+                      onClick={() =>
+                        selectCustomer({
+                          id: `cust-${Date.now()}`,
+                          name: customerSearch.trim(),
+                          phone: '',
+                        })
+                      }
+                    >
+                      + Use &ldquo;{customerSearch.trim()}&rdquo;
+                    </Button>
+                  )}
+                  {searchResults.map(c => (
+                    <Button
+                      key={c.id}
+                      variant="outline"
+                      size="sm"
+                      className="rounded-full px-4 py-1.5 h-auto text-sm font-medium border-primary/40 bg-primary/5 hover:bg-primary/15 hover:text-primary transition-all text-foreground flex items-center gap-1.5"
+                      onClick={() => selectCustomer(c)}
+                    >
+                      <span className="font-semibold text-primary">{c.name}</span>
+                      {c.phone && <span className="text-xs text-muted-foreground font-normal">({c.phone})</span>}
+                      {c.village && <span className="text-xs text-muted-foreground font-normal">• {c.village}</span>}
+                    </Button>
+                  ))}
+                  {searchResults.length === 0 && (
+                    <span className="text-sm text-muted-foreground italic py-1">
+                      No registered customer matches &ldquo;{customerSearch}&rdquo;.
+                    </span>
+                  )}
+                </div>
+              </div>
+            ) : (
+              /* If not searching: show Recent & Quick select buttons */
+              <div className="flex flex-wrap gap-2 items-center">
+                <span className="text-sm text-muted-foreground mr-1 font-medium">Recent:</span>
+                {recentCustomers.map(c => (
+                  <Button
+                    key={c.id}
+                    variant="outline"
+                    size="sm"
+                    className="rounded-full px-4 py-1.5 h-auto text-sm font-medium border-border bg-background/50 hover:bg-primary/10 hover:text-primary hover:border-primary/50 transition-all text-foreground"
+                    onClick={() => selectCustomer(c)}
+                  >
+                    {c.name}
+                  </Button>
+                ))}
+              </div>
+            )}
           </>
         )}
       </section>
@@ -212,6 +366,7 @@ export default function BillingPage() {
         totals={totals}
         customerId={customerId || (customerSearch.trim() ? `cust-${Date.now()}` : '')}
         customerName={customerName || customerSearch.trim()}
+        customerPhone={customerPhone}
         onComplete={handleSaleComplete}
       />
 
@@ -234,6 +389,7 @@ export default function BillingPage() {
       <CustomerFormDialog
         open={showNewCustomerDialog}
         onOpenChange={setShowNewCustomerDialog}
+        onSuccess={handleCustomerCreated}
       />
     </div>
   );

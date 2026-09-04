@@ -7,6 +7,8 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 
+export const dynamic = 'force-dynamic';
+
 export const metadata = {
   title: 'Customers | KRUSHI OS',
 };

@@ -168,17 +168,6 @@ export const MOCK_CUSTOMERS = [
     outstanding_balance: 0,
     crop_details: 'Gram, Wheat, Sugarcane',
     created_at: '2026-02-10T14:15:00Z'
-  },
-  {
-    id: 'cust-4',
-    name: 'Mopore',
-    phone: '9826198765',
-    village: 'Kolar Rural',
-    land_acres: 15,
-    credit_limit: 40000,
-    outstanding_balance: 0,
-    crop_details: 'Soybean, Gram',
-    created_at: '2026-02-20T09:00:00Z'
   }
 ];
 

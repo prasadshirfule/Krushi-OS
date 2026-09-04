@@ -1,12 +1,15 @@
 "use client";
 
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { Loader2 } from "lucide-react";
 import {
   Form,
   FormControl,
@@ -15,37 +18,83 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import { createCustomerAction, updateCustomerAction } from "@/actions/customers";
 
-const customerSchema = z.object({
+const customerFormSchema = z.object({
   name: z.string().min(1, "Name is required"),
   mobile: z.string().optional(),
   village: z.string().optional(),
   address: z.string().optional(),
-  farmSize: z.string().optional(),
+  farm_size: z.string().optional(),
   crops: z.string().optional(),
   notes: z.string().optional(),
 });
 
-type CustomerFormValues = z.infer<typeof customerSchema>;
+type CustomerFormValues = z.infer<typeof customerFormSchema>;
 
-export function CustomerForm({ onSuccess }: { onSuccess?: () => void }) {
+export interface CustomerFormProps {
+  initialData?: any;
+  onSuccess?: (customer?: any) => void;
+  onCancel?: () => void;
+}
+
+export function CustomerForm({ initialData, onSuccess, onCancel }: CustomerFormProps) {
+  const router = useRouter();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const form = useForm<CustomerFormValues>({
-    resolver: zodResolver(customerSchema),
+    resolver: zodResolver(customerFormSchema),
     defaultValues: {
-      name: "",
-      mobile: "",
-      village: "",
-      address: "",
-      farmSize: "",
-      crops: "",
-      notes: "",
+      name: initialData?.name || "",
+      mobile: initialData?.mobile || initialData?.phone || "",
+      village: initialData?.village || "",
+      address: initialData?.address || "",
+      farm_size: initialData?.farm_size || initialData?.farmSize || (initialData?.land_acres ? `${initialData.land_acres} Acres` : ""),
+      crops: initialData?.crops || initialData?.crop_details || "",
+      notes: initialData?.notes || "",
     },
   });
 
-  function onSubmit(data: CustomerFormValues) {
-    console.log(data);
-    toast.success("Customer saved successfully");
-    if (onSuccess) onSuccess();
+  async function onSubmit(data: CustomerFormValues) {
+    setIsSubmitting(true);
+    try {
+      let result;
+      if (initialData?.id) {
+        result = await updateCustomerAction(initialData.id, {
+          name: data.name.trim(),
+          mobile: data.mobile?.trim() || null,
+          village: data.village?.trim() || null,
+          address: data.address?.trim() || null,
+          farm_size: data.farm_size?.trim() || null,
+          crops: data.crops?.trim() || null,
+          notes: data.notes?.trim() || null,
+        });
+      } else {
+        result = await createCustomerAction({
+          name: data.name.trim(),
+          mobile: data.mobile?.trim() || null,
+          village: data.village?.trim() || null,
+          address: data.address?.trim() || null,
+          farm_size: data.farm_size?.trim() || null,
+          crops: data.crops?.trim() || null,
+          notes: data.notes?.trim() || null,
+        });
+      }
+
+      if (result.success) {
+        toast.success(initialData?.id ? "Customer updated successfully" : "Customer created successfully");
+        router.refresh();
+        if (onSuccess) {
+          onSuccess(result.data);
+        }
+      } else {
+        toast.error(result.error || "Failed to save customer");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "An unexpected error occurred");
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -56,9 +105,9 @@ export function CustomerForm({ onSuccess }: { onSuccess?: () => void }) {
           name="name"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Name *</FormLabel>
+              <FormLabel>Farmer / Customer Name *</FormLabel>
               <FormControl>
-                <Input placeholder="Enter customer name" {...field} />
+                <Input placeholder="e.g. Ramesh Patel" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -70,9 +119,9 @@ export function CustomerForm({ onSuccess }: { onSuccess?: () => void }) {
             name="mobile"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Mobile</FormLabel>
+                <FormLabel>Mobile Number</FormLabel>
                 <FormControl>
-                  <Input placeholder="Mobile number" {...field} />
+                  <Input placeholder="10-digit mobile" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -83,9 +132,9 @@ export function CustomerForm({ onSuccess }: { onSuccess?: () => void }) {
             name="village"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Village</FormLabel>
+                <FormLabel>Village / Area</FormLabel>
                 <FormControl>
-                  <Input placeholder="Village name" {...field} />
+                  <Input placeholder="e.g. Pipariya" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -97,9 +146,9 @@ export function CustomerForm({ onSuccess }: { onSuccess?: () => void }) {
           name="address"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Address</FormLabel>
+              <FormLabel>Full Address</FormLabel>
               <FormControl>
-                <Textarea placeholder="Full address" {...field} />
+                <Textarea placeholder="Address details" className="resize-none h-20" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -108,7 +157,7 @@ export function CustomerForm({ onSuccess }: { onSuccess?: () => void }) {
         <div className="grid grid-cols-2 gap-4">
           <FormField
             control={form.control}
-            name="farmSize"
+            name="farm_size"
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Farm Size</FormLabel>
@@ -124,9 +173,9 @@ export function CustomerForm({ onSuccess }: { onSuccess?: () => void }) {
             name="crops"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Crops</FormLabel>
+                <FormLabel>Major Crops</FormLabel>
                 <FormControl>
-                  <Input placeholder="e.g., Wheat, Cotton" {...field} />
+                  <Input placeholder="e.g., Wheat, Soybean" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -140,13 +189,30 @@ export function CustomerForm({ onSuccess }: { onSuccess?: () => void }) {
             <FormItem>
               <FormLabel>Notes</FormLabel>
               <FormControl>
-                <Textarea placeholder="Any additional notes" {...field} />
+                <Textarea placeholder="Credit terms or other details" className="resize-none h-16" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
-        <Button type="submit" className="w-full">Save Customer</Button>
+        <div className="flex items-center justify-end gap-2 pt-2">
+          {onCancel && (
+            <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
+              Cancel
+            </Button>
+          )}
+          <Button type="submit" disabled={isSubmitting} className="min-w-[130px]">
+            {isSubmitting ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...
+              </>
+            ) : initialData?.id ? (
+              "Update Customer"
+            ) : (
+              "Save Customer"
+            )}
+          </Button>
+        </div>
       </form>
     </Form>
   );

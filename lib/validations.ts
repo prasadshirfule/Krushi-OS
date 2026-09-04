@@ -72,13 +72,17 @@ export const batchSchema = z.object({
 });
 
 export const customerSchema = z.object({
-  name: z.string().min(2),
-  mobile: z.string().regex(phoneRegex, 'Invalid Indian mobile number format').optional().nullable(),
-  village: z.string().optional().nullable(),
-  address: z.string().optional().nullable(),
-  farm_size: z.string().optional().nullable(),
-  crops: z.string().optional().nullable(),
-  notes: z.string().optional().nullable(),
+  name: z.string().min(1, 'Customer name is required'),
+  mobile: z.string().regex(phoneRegex, 'Invalid Indian mobile number format').optional().nullable().or(z.literal('')),
+  phone: z.string().regex(phoneRegex, 'Invalid Indian mobile number format').optional().nullable().or(z.literal('')),
+  village: z.string().optional().nullable().or(z.literal('')),
+  address: z.string().optional().nullable().or(z.literal('')),
+  farm_size: z.string().optional().nullable().or(z.literal('')),
+  farmSize: z.string().optional().nullable().or(z.literal('')),
+  crops: z.string().optional().nullable().or(z.literal('')),
+  notes: z.string().optional().nullable().or(z.literal('')),
+  credit_limit: z.number().optional().nullable(),
+  outstanding: z.number().optional().nullable(),
 });
 
 export const supplierSchema = z.object({

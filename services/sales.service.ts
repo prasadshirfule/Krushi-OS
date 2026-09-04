@@ -2,6 +2,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { SaleInput } from '@/lib/validations';
 import { MOCK_SALES, MOCK_CUSTOMERS } from '@/lib/mock-data';
 import { calculateItemTotal, calculateBillTotal } from '@/lib/calculations';
+import { getDemoCustomers } from '@/services/customers.service';
 
 /** Check if Supabase is running with placeholder credentials (demo mode). */
 export function isPlaceholderMode(): boolean {
@@ -64,10 +65,11 @@ export async function completeSale(shopId: string, data: any, userId: string) {
         phone: data.customer_phone || '',
       };
     } else if (customerId && customerId !== 'walk-in') {
-      const found = MOCK_CUSTOMERS.find(c => c.id === customerId);
+      const demoCusts = getDemoCustomers();
+      const found = demoCusts.find(c => c.id === customerId) || MOCK_CUSTOMERS.find(c => c.id === customerId);
       customerObj = found
-        ? { id: found.id, name: found.name, phone: found.phone }
-        : { id: customerId, name: 'Customer', phone: '' };
+        ? { id: found.id, name: found.name, phone: found.phone || found.mobile || '' }
+        : { id: customerId, name: data.customer_name || 'Customer', phone: '' };
     } else {
       customerObj = { id: 'walk-in', name: 'Walk-in Customer', phone: '' };
     }
@@ -169,7 +171,20 @@ export async function getSales(
   options: { search?: string, customerId?: string, status?: string, dateFrom?: string, dateTo?: string, page?: number, limit?: number } = {}
 ) {
   if (isPlaceholderMode()) {
-    let list = [...getDemoSales()];
+    const demoCusts = getDemoCustomers();
+    let list = getDemoSales().map(s => {
+      if (s.customer_id && s.customer_id !== 'walk-in') {
+        const found = demoCusts.find(c => c.id === s.customer_id);
+        if (found) {
+          return {
+            ...s,
+            customer: { id: found.id, name: found.name, phone: found.phone || found.mobile },
+            customer_name: found.name,
+          };
+        }
+      }
+      return s;
+    });
 
     if (options.search) {
       const q = options.search.toLowerCase();
