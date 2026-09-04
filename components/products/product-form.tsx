@@ -11,7 +11,7 @@ import {
   parseProductSize,
   formatProductPackDisplay
 } from '@/lib/validations';
-import { createProductAction, updateProductAction, createBrandAction } from '@/actions/products';
+import { createProductAction, updateProductAction, createBrandAction, createCategoryAction } from '@/actions/products';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -25,8 +25,8 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { PRODUCT_SIZE_UNITS, PACKAGING_TYPES, GST_RATES } from '@/lib/constants';
-import { MOCK_BRANDS } from '@/lib/mock-data';
+import { PRODUCT_SIZE_UNITS, GST_RATES } from '@/lib/constants';
+import { MOCK_BRANDS, MOCK_CATEGORIES } from '@/lib/mock-data';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { 
@@ -38,7 +38,8 @@ import {
   Plus, 
   Building2, 
   Check, 
-  Calendar
+  Calendar,
+  Grid3X3
 } from 'lucide-react';
 
 import { 
@@ -46,6 +47,7 @@ import {
   saveDemoProductClient, 
   updateDemoProductClient,
   getDemoCategoriesClient,
+  saveDemoCategoryClient,
   getDemoBrandsClient,
   saveDemoBrandClient
 } from '@/lib/client-demo-store';
@@ -61,10 +63,18 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Available categories
-  const availableCategories = (categories && categories.length > 0)
-    ? categories
-    : (isClientDemoMode() ? getDemoCategoriesClient() : []);
+  // Categories state
+  const [categoriesList, setCategoriesList] = useState<any[]>(() => {
+    if (categories && categories.length > 0) return categories;
+    if (isClientDemoMode()) return getDemoCategoriesClient();
+    return MOCK_CATEGORIES;
+  });
+
+  // Modal state for Add New Category
+  const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [newCategoryDescription, setNewCategoryDescription] = useState('');
+  const [isSavingCategory, setIsSavingCategory] = useState(false);
 
   // Brands / Manufacturers state
   const [brandsList, setBrandsList] = useState<any[]>(() => {
@@ -79,15 +89,12 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
   const [newBrandCompany, setNewBrandCompany] = useState('');
   const [isSavingBrand, setIsSavingBrand] = useState(false);
 
-  // Parse existing product size and packaging safely
+  // Parse existing product size safely
   const parsedInitial = parseProductSize(initialData?.pack_size, initialData?.unit);
   const initialSizeValue = initialData?.product_size_value !== undefined && initialData?.product_size_value !== null
     ? (initialData.product_size_value === '' ? null : Number(initialData.product_size_value))
     : parsedInitial.sizeValue;
   const initialSizeUnit = initialData?.product_size_unit || parsedInitial.sizeUnit || 'KG';
-  const initialPackaging = initialData?.unit && PACKAGING_TYPES.some(p => p.value.toLowerCase() === String(initialData.unit).toLowerCase())
-    ? (PACKAGING_TYPES.find(p => p.value.toLowerCase() === String(initialData.unit).toLowerCase())?.value || 'Bag')
-    : (parsedInitial.packaging || 'Bag');
 
   const initialBatch = initialData?.batches?.[0];
   const initialBatchNumber = initialData?.batch_number || initialBatch?.batch_number || '';
@@ -100,7 +107,7 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
     resolver: zodResolver(productSchema),
     defaultValues: {
       name: initialData?.name || '',
-      category_id: initialData?.category_id || (availableCategories[0]?.id || ''),
+      category_id: initialData?.category_id || (categoriesList[0]?.id || ''),
       brand_id: initialData?.brand_id || '',
       sku: initialData?.sku || '',
       barcode: initialData?.barcode || '',
@@ -110,7 +117,7 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
       wholesale_price: initialData?.wholesale_price ?? initialData?.mrp ?? initialData?.selling_price ?? 0,
       hsn_code: initialData?.hsn_code || '',
       gst_rate: initialData?.gst_rate ?? 18,
-      unit: initialPackaging,
+      unit: initialData?.unit || 'Piece',
       product_size_value: initialSizeValue,
       product_size_unit: initialSizeUnit,
       pack_size: initialData?.pack_size || (initialSizeValue ? `${initialSizeValue} ${initialSizeUnit}` : ''),
@@ -151,14 +158,29 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
     form.setValue('expiry_date', formatted, { shouldValidate: true });
   };
 
-  // Sync demo brands on mount and listen to events
+  // Sync demo categories and brands on mount and listen to events
   useEffect(() => {
     if (isClientDemoMode()) {
-      const demoList = getDemoBrandsClient();
-      if (demoList && demoList.length > 0) {
-        setBrandsList(demoList);
+      const demoCats = getDemoCategoriesClient();
+      if (demoCats && demoCats.length > 0) {
+        setCategoriesList(demoCats);
+      }
+      const demoBrands = getDemoBrandsClient();
+      if (demoBrands && demoBrands.length > 0) {
+        setBrandsList(demoBrands);
       }
     }
+
+    const handleCategoriesUpdated = (e: any) => {
+      if (isClientDemoMode()) {
+        setCategoriesList(getDemoCategoriesClient());
+      } else if (e.detail) {
+        setCategoriesList(prev => {
+          if (prev.some(c => c.id === e.detail.id)) return prev;
+          return [...prev, e.detail].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        });
+      }
+    };
 
     const handleBrandsUpdated = (e: any) => {
       if (isClientDemoMode()) {
@@ -171,9 +193,73 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
       }
     };
 
+    window.addEventListener('krushi-categories-updated', handleCategoriesUpdated);
     window.addEventListener('krushi-brands-updated', handleBrandsUpdated);
-    return () => window.removeEventListener('krushi-brands-updated', handleBrandsUpdated);
+    return () => {
+      window.removeEventListener('krushi-categories-updated', handleCategoriesUpdated);
+      window.removeEventListener('krushi-brands-updated', handleBrandsUpdated);
+    };
   }, []);
+
+  // Handle Add New Category
+  const handleCreateCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = newCategoryName.trim();
+    if (!trimmed) {
+      toast.error('Please enter a category name');
+      return;
+    }
+
+    setIsSavingCategory(true);
+    try {
+      let createdCat: any = null;
+
+      if (isClientDemoMode()) {
+        createdCat = saveDemoCategoryClient({
+          name: trimmed,
+          description: newCategoryDescription.trim(),
+        });
+        try {
+          await createCategoryAction({
+            name: trimmed,
+            description: newCategoryDescription.trim(),
+          });
+        } catch (err) {
+          console.warn('Server category fallback in demo mode:', err);
+        }
+      } else {
+        const res = await createCategoryAction({
+          name: trimmed,
+          description: newCategoryDescription.trim(),
+        });
+        if (res.success) {
+          createdCat = res.data;
+        } else {
+          throw new Error(res.error || 'Failed to create category');
+        }
+      }
+
+      if (!createdCat) {
+        createdCat = { id: `cat-${Date.now()}`, name: trimmed, description: newCategoryDescription.trim() };
+      }
+
+      setCategoriesList(prev => {
+        if (prev.some(c => c.id === createdCat.id)) return prev;
+        return [...prev, createdCat].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+      });
+
+      form.setValue('category_id', createdCat.id, { shouldValidate: true });
+      toast.success(`Category "${trimmed}" added and selected`);
+      setNewCategoryName('');
+      setNewCategoryDescription('');
+      setIsAddCategoryOpen(false);
+    } catch (err: any) {
+      console.error('Failed to create category:', err);
+      toast.error(err.message || 'Failed to add category');
+    } finally {
+      setIsSavingCategory(false);
+    }
+  };
 
   // Handle Add New Manufacturer
   const handleCreateBrand = async (e: React.FormEvent) => {
@@ -254,7 +340,7 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
         product_size_value: sizeVal,
         product_size_unit: sizeUnit,
         pack_size: packSize,
-        unit: data.unit || 'Bag',
+        unit: data.unit || initialData?.unit || 'Piece',
         sku: data.sku || `SKU-${Date.now().toString().slice(-4)}`,
         barcode: data.barcode || '',
         description: data.description || '',
@@ -381,22 +467,49 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
               )}
             </div>
 
-            {/* Category */}
+            {/* Category with Quick Add */}
             <div className="space-y-2">
-              <Label htmlFor="category_id" className="text-sm font-semibold text-foreground">
-                Category <span className="text-destructive font-bold">*</span>
-              </Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="category_id" className="text-sm font-semibold text-foreground">
+                  Category <span className="text-destructive font-bold">*</span>
+                </Label>
+                <button
+                  type="button"
+                  onClick={() => setIsAddCategoryOpen(true)}
+                  className="text-xs text-primary font-bold hover:underline flex items-center gap-1 cursor-pointer"
+                >
+                  <Plus className="h-3.5 w-3.5 stroke-[3]" /> Add New Category
+                </button>
+              </div>
               <Select
                 value={form.watch('category_id')}
-                onValueChange={(val) => form.setValue('category_id', val, { shouldValidate: true })}
+                onValueChange={(val) => {
+                  if (val === '__add_new__') {
+                    setIsAddCategoryOpen(true);
+                  } else {
+                    form.setValue('category_id', val, { shouldValidate: true });
+                  }
+                }}
               >
                 <SelectTrigger id="category_id" className="h-11 rounded-lg border-border bg-background text-foreground">
                   <SelectValue placeholder="Select Category" />
                 </SelectTrigger>
-                <SelectContent>
-                  {availableCategories.map((c) => (
+                <SelectContent className="max-h-72">
+                  {categoriesList.map((c) => (
                     <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                   ))}
+                  <div className="px-2 py-1.5 border-t border-border mt-1 bg-muted/20">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIsAddCategoryOpen(true);
+                      }}
+                      className="w-full text-left text-xs font-bold text-primary hover:underline flex items-center gap-1.5 py-1 cursor-pointer"
+                    >
+                      <Plus className="h-3.5 w-3.5 stroke-[3]" /> + Add New Category
+                    </button>
+                  </div>
                 </SelectContent>
               </Select>
               {form.formState.errors.category_id && (
@@ -688,35 +801,12 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
               <p className="text-[11px] text-muted-foreground">Weight or volume contained in one piece (e.g. 45 KG, 100 ML)</p>
             </div>
 
-            {/* Packaging */}
-            <div className="space-y-2">
-              <Label htmlFor="unit" className="text-sm font-semibold text-foreground">
-                Packaging <span className="text-destructive font-bold">*</span>
-              </Label>
-              <Select
-                value={form.watch('unit') || 'Bag'}
-                onValueChange={(val) => form.setValue('unit', val, { shouldValidate: true })}
-              >
-                <SelectTrigger id="unit" className="h-11 rounded-lg border-border bg-background text-foreground font-semibold">
-                  <SelectValue placeholder="Select Packaging" />
-                </SelectTrigger>
-                <SelectContent className="max-h-64">
-                  {PACKAGING_TYPES.map((pkg) => (
-                    <SelectItem key={pkg.value} value={pkg.value}>
-                      {pkg.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-[11px] text-muted-foreground">Physical selling package (Bag, Bottle, Packet, etc.)</p>
-            </div>
-
             {/* Minimum Stock Level */}
-            <div className="space-y-2">
+            <div className="space-y-2 sm:col-span-2">
               <Label htmlFor="min_stock" className="text-sm font-semibold text-foreground">
                 Minimum Stock Level
               </Label>
-              <div className="flex rounded-lg border border-border bg-background focus-within:ring-2 focus-within:ring-primary overflow-hidden">
+              <div className="flex max-w-sm rounded-lg border border-border bg-background focus-within:ring-2 focus-within:ring-primary overflow-hidden">
                 <Input
                   id="min_stock"
                   type="number"
@@ -761,6 +851,82 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
           </Button>
         </div>
       </form>
+
+      {/* ═════════════════════════════════════════════════════════
+          MODAL: ADD NEW CATEGORY
+      ═════════════════════════════════════════════════════════ */}
+      <Dialog open={isAddCategoryOpen} onOpenChange={setIsAddCategoryOpen}>
+        <DialogContent className="sm:max-w-md border-border bg-card text-card-foreground">
+          <form onSubmit={handleCreateCategory}>
+            <DialogHeader className="space-y-1">
+              <div className="flex items-center gap-2">
+                <div className="h-8 w-8 rounded-full bg-primary/10 text-primary flex items-center justify-center">
+                  <Grid3X3 className="h-4 w-4" />
+                </div>
+                <DialogTitle className="text-lg font-bold">Add New Category</DialogTitle>
+              </div>
+              <DialogDescription className="text-xs text-muted-foreground">
+                Add a product category (e.g. Plant Growth Regulators, Bio-Fertilizers).
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="new_cat_name" className="text-sm font-semibold">
+                  Category Name <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="new_cat_name"
+                  placeholder="e.g. Plant Growth Regulators"
+                  value={newCategoryName}
+                  onChange={(e) => setNewCategoryName(e.target.value)}
+                  className="h-10 text-sm"
+                  autoFocus
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="new_cat_desc" className="text-sm font-semibold">
+                  Description (Optional)
+                </Label>
+                <Input
+                  id="new_cat_desc"
+                  placeholder="e.g. Products used to regulate plant growth"
+                  value={newCategoryDescription}
+                  onChange={(e) => setNewCategoryDescription(e.target.value)}
+                  className="h-10 text-sm"
+                />
+              </div>
+            </div>
+
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setIsAddCategoryOpen(false);
+                  setNewCategoryName('');
+                  setNewCategoryDescription('');
+                }}
+                disabled={isSavingCategory}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={isSavingCategory || !newCategoryName.trim()}
+                className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold"
+              >
+                {isSavingCategory ? (
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</>
+                ) : (
+                  'Add Category'
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* ═════════════════════════════════════════════════════════
           MODAL: ADD NEW MANUFACTURER / BRAND

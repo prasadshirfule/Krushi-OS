@@ -100,7 +100,7 @@ export function generateInvoicePDF(sale: SaleWithItems, settings: any) {
       index + 1,
       displayName,
       hsn,
-      `${qty} ${product.unit || item.unit || 'pcs'}`,
+      `${qty} pcs`,
       rate.toFixed(2),
       `${disc}%`,
       total.toFixed(2)

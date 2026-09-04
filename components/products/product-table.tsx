@@ -41,7 +41,7 @@ export function getProductColumns(onDelete?: (product: any) => void): ColumnDef<
               </Link>
               {packDisplay && (
                 <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/25">
-                  {packDisplay}
+                  Size: {packDisplay}
                 </span>
               )}
             </div>

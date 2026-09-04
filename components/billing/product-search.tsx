@@ -363,16 +363,14 @@ export default function ProductSearch({ onAddToCart }: ProductSearchProps) {
                     {product.name}
                   </h3>
 
-                  {/* Packaging & Product Size */}
-                  {formatProductPackDisplay(product) ? (
+                  {/* Product Size */}
+                  {formatProductPackDisplay(product) && (
                     <div className="mb-2">
                       <span className="inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/25">
                         {formatProductPackDisplay(product)}
                       </span>
                     </div>
-                  ) : product.unit ? (
-                    <p className="text-xs text-muted-foreground mb-2">{product.unit}</p>
-                  ) : null}
+                  )}
                 </div>
 
                 {/* Price and Add Button */}

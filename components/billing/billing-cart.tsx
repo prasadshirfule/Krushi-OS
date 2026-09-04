@@ -232,7 +232,7 @@ export default function BillingCart({ items, onChange, onClear, totals: propTota
                             </Button>
                           </div>
                           <span className="text-[11px] font-medium text-muted-foreground">
-                            {item.unit ? `${item.unit}` : 'Pieces'}
+                            Pieces
                           </span>
                         </div>
                       </td>

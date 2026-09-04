@@ -153,7 +153,8 @@ export function parseProductSize(packSize?: string | null, unitStr?: string | nu
 }
 
 /**
- * Formats a clean, readable pack descriptor for shopkeepers (e.g., "45 KG Bag", "100 ML Bottle").
+ * Formats a clean, readable Product Size descriptor for shopkeepers (e.g., "45 KG", "100 ML").
+ * Does NOT append packaging type (Bag, Bottle, etc.).
  */
 export function formatProductPackDisplay(prod: {
   pack_size?: string | null;
@@ -161,22 +162,23 @@ export function formatProductPackDisplay(prod: {
   product_size_value?: number | null;
   product_size_unit?: string | null;
 }): string {
-  let sizeStr = '';
   if (prod.product_size_value) {
-    sizeStr = `${prod.product_size_value} ${prod.product_size_unit || 'KG'}`;
-  } else if (prod.pack_size) {
-    sizeStr = prod.pack_size;
+    return `${prod.product_size_value} ${prod.product_size_unit || 'KG'}`;
   }
-
-  const pkg = prod.unit || 'Piece';
-
-  if (sizeStr) {
-    if (pkg && !sizeStr.toLowerCase().includes(pkg.toLowerCase())) {
-      return `${sizeStr} ${pkg}`;
+  if (prod.pack_size) {
+    const parsed = parseProductSize(prod.pack_size, prod.unit);
+    if (parsed.sizeValue && parsed.sizeUnit) {
+      return `${parsed.sizeValue} ${parsed.sizeUnit}`;
     }
-    return sizeStr;
+    return prod.pack_size;
   }
-  return pkg;
+  if (prod.unit) {
+    const parsed = parseProductSize(null, prod.unit);
+    if (parsed.sizeValue && parsed.sizeUnit) {
+      return `${parsed.sizeValue} ${parsed.sizeUnit}`;
+    }
+  }
+  return '';
 }
 
 export const productSchema = z.object({
@@ -191,7 +193,7 @@ export const productSchema = z.object({
   wholesale_price: z.coerce.number().min(0).optional().nullable(),
   gst_rate: z.coerce.number().min(0).max(100),
   hsn_code: z.string().optional().nullable(),
-  unit: z.string().min(1, 'Packaging / Unit is required'),
+  unit: z.string().optional().default('Piece'),
   product_size_value: z.coerce.number().min(0).optional().nullable(),
   product_size_unit: z.string().optional().nullable(),
   pack_size: z.string().optional().nullable(),

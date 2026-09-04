@@ -9,24 +9,62 @@ import { Textarea } from '@/components/ui/textarea';
 import { DataTable } from '@/components/ui/data-table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { createCategoryAction } from '@/actions/products';
+import { isClientDemoMode, getDemoCategoriesClient, saveDemoCategoryClient } from '@/lib/client-demo-store';
 import { toast } from 'sonner';
 import { Plus, Grid3X3 } from 'lucide-react';
 import { EmptyState } from '@/components/ui/empty-state';
 
-export function CategoryManager({ categories }: { categories: any[] }) {
+export function CategoryManager({ categories: initialCategories }: { categories: any[] }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
+  const [categoriesList, setCategoriesList] = useState<any[]>(() => {
+    if (isClientDemoMode()) return getDemoCategoriesClient();
+    return initialCategories;
+  });
+
+  // Listen to live category updates
+  React.useEffect(() => {
+    if (isClientDemoMode()) {
+      setCategoriesList(getDemoCategoriesClient());
+    }
+
+    const handleUpdated = () => {
+      if (isClientDemoMode()) {
+        setCategoriesList(getDemoCategoriesClient());
+      }
+    };
+
+    window.addEventListener('krushi-categories-updated', handleUpdated);
+    return () => window.removeEventListener('krushi-categories-updated', handleUpdated);
+  }, []);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
+    const trimmed = name.trim();
+    if (!trimmed) return;
 
     setLoading(true);
     try {
-      const res = await createCategoryAction({ name, description });
+      if (isClientDemoMode()) {
+        const newCat = saveDemoCategoryClient({ name: trimmed, description: description.trim() });
+        setCategoriesList(getDemoCategoriesClient());
+        try {
+          await createCategoryAction({ name: trimmed, description: description.trim() });
+        } catch (err) {
+          console.warn('Server category creation fallback in demo mode:', err);
+        }
+        toast.success('Category created successfully!');
+        setName('');
+        setDescription('');
+        setOpen(false);
+        router.refresh();
+        return;
+      }
+
+      const res = await createCategoryAction({ name: trimmed, description: description.trim() });
       if (res.success) {
         toast.success('Category created successfully!');
         setName('');
@@ -96,7 +134,7 @@ export function CategoryManager({ categories }: { categories: any[] }) {
         </Dialog>
       </div>
 
-      {categories.length === 0 ? (
+      {categoriesList.length === 0 ? (
         <EmptyState
           icon={<Grid3X3 className="h-10 w-10 text-muted-foreground/50" />}
           title="No categories created yet"
@@ -115,7 +153,7 @@ export function CategoryManager({ categories }: { categories: any[] }) {
               cell: ({ row }: any) => <span className="font-semibold text-primary">{row.original.count ?? 0} items</span>
             },
           ]}
-          data={categories}
+          data={categoriesList}
           searchKey="name"
           searchPlaceholder="Search categories..."
         />

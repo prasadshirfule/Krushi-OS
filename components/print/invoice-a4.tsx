@@ -111,7 +111,7 @@ export function InvoiceA4({ sale, shopSettings }: InvoiceA4Props) {
                     {batchNum && <div className="text-[10px] text-gray-500">Batch: {batchNum}</div>}
                   </td>
                   <td className="border border-gray-300 p-2 text-center text-xs">{hsn}</td>
-                  <td className="border border-gray-300 p-2 text-right text-xs">{qty} {product.unit || item.unit || 'pcs'}</td>
+                  <td className="border border-gray-300 p-2 text-right text-xs">{qty} pcs</td>
                   <td className="border border-gray-300 p-2 text-right text-xs">{formatCurrency(rate)}</td>
                   <td className="border border-gray-300 p-2 text-right text-xs">{disc}%</td>
                   <td className="border border-gray-300 p-2 text-right text-xs font-medium">{formatCurrency(total)}</td>

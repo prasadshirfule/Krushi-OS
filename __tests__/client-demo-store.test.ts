@@ -16,6 +16,8 @@ import {
   getDemoProductByIdClient,
   getDemoBrandsClient,
   saveDemoBrandClient,
+  getDemoCategoriesClient,
+  saveDemoCategoryClient,
 } from '@/lib/client-demo-store';
 import { 
   productSchema, 
@@ -495,11 +497,11 @@ async function runTests() {
     product_size_unit: 'KG',
   });
   const ureaDisplay = formatProductPackDisplay(prodUrea);
-  console.log('Product 1: Urea -> Stock:', prodUrea.current_stock, 'Pieces | Pack:', ureaDisplay);
+  console.log('Product 1: Urea -> Stock:', prodUrea.current_stock, 'Pieces | Size:', ureaDisplay);
   if (prodUrea.current_stock !== 10) throw new Error(`Expected Urea stock 10, got ${prodUrea.current_stock}`);
-  if (ureaDisplay !== '45 KG Bag') throw new Error(`Expected "45 KG Bag", got "${ureaDisplay}"`);
+  if (ureaDisplay !== '45 KG') throw new Error(`Expected "45 KG", got "${ureaDisplay}"`);
 
-  // PRODUCT 2: Confidor (20 Pieces, 100 ML Bottle)
+  // PRODUCT 2: Confidor (20 Pieces, 100 ML)
   const prodConfidor = saveDemoProductClient({
     name: 'Confidor',
     category_id: 'cat-2',
@@ -509,16 +511,15 @@ async function runTests() {
     batch_number: 'CONF-2026-01',
     expiry_date: '04/09/2027',
     opening_stock: 20,
-    unit: 'Bottle',
     product_size_value: 100,
     product_size_unit: 'ML',
   });
   const confidorDisplay = formatProductPackDisplay(prodConfidor);
-  console.log('Product 2: Confidor -> Stock:', prodConfidor.current_stock, 'Pieces | Pack:', confidorDisplay);
+  console.log('Product 2: Confidor -> Stock:', prodConfidor.current_stock, 'Pieces | Size:', confidorDisplay);
   if (prodConfidor.current_stock !== 20) throw new Error(`Expected Confidor stock 20, got ${prodConfidor.current_stock}`);
-  if (confidorDisplay !== '100 ML Bottle') throw new Error(`Expected "100 ML Bottle", got "${confidorDisplay}"`);
+  if (confidorDisplay !== '100 ML') throw new Error(`Expected "100 ML", got "${confidorDisplay}"`);
 
-  // PRODUCT 3: Cotton Seeds (50 Pieces, 475 G Packet)
+  // PRODUCT 3: Cotton Seeds (50 Pieces, 475 G)
   const prodCotton = saveDemoProductClient({
     name: 'Cotton Seeds',
     category_id: 'cat-3',
@@ -528,16 +529,15 @@ async function runTests() {
     batch_number: 'SEED-2026-01',
     expiry_date: '04/09/2027',
     opening_stock: 50,
-    unit: 'Packet',
     product_size_value: 475,
     product_size_unit: 'G',
   });
   const cottonDisplay = formatProductPackDisplay(prodCotton);
-  console.log('Product 3: Cotton Seeds -> Stock:', prodCotton.current_stock, 'Pieces | Pack:', cottonDisplay);
+  console.log('Product 3: Cotton Seeds -> Stock:', prodCotton.current_stock, 'Pieces | Size:', cottonDisplay);
   if (prodCotton.current_stock !== 50) throw new Error(`Expected Cotton Seeds stock 50, got ${prodCotton.current_stock}`);
-  if (cottonDisplay !== '475 G Packet') throw new Error(`Expected "475 G Packet", got "${cottonDisplay}"`);
+  if (cottonDisplay !== '475 G') throw new Error(`Expected "475 G", got "${cottonDisplay}"`);
 
-  // PRODUCT 4: Liquid Fertilizer (15 Pieces, 1 LTR Bottle)
+  // PRODUCT 4: Liquid Fertilizer (15 Pieces, 1 LTR)
   const prodLiquid = saveDemoProductClient({
     name: 'Liquid Fertilizer',
     category_id: 'cat-1',
@@ -547,16 +547,15 @@ async function runTests() {
     batch_number: 'LIQ-2026-01',
     expiry_date: '04/09/2027',
     opening_stock: 15,
-    unit: 'Bottle',
     product_size_value: 1,
     product_size_unit: 'LTR',
   });
   const liquidDisplay = formatProductPackDisplay(prodLiquid);
-  console.log('Product 4: Liquid Fertilizer -> Stock:', prodLiquid.current_stock, 'Pieces | Pack:', liquidDisplay);
+  console.log('Product 4: Liquid Fertilizer -> Stock:', prodLiquid.current_stock, 'Pieces | Size:', liquidDisplay);
   if (prodLiquid.current_stock !== 15) throw new Error(`Expected Liquid Fertilizer stock 15, got ${prodLiquid.current_stock}`);
-  if (liquidDisplay !== '1 LTR Bottle') throw new Error(`Expected "1 LTR Bottle", got "${liquidDisplay}"`);
+  if (liquidDisplay !== '1 LTR') throw new Error(`Expected "1 LTR", got "${liquidDisplay}"`);
 
-  console.log('\n--- TEST 19: BILLING CALCULATION & STOCK DEDUCTION (Urea 45 KG Bag) ---');
+  console.log('\n--- TEST 19: BILLING CALCULATION & STOCK DEDUCTION (Urea 45 KG) ---');
   // Add 2 bags of Urea at ₹1,350 each
   const billingCalculation = calculateItemTotal(2, prodUrea.selling_price, 0, prodUrea.gst_rate || 0, true);
   console.log('Billing Calculation for 2 bags of Urea at ₹1,350:');
@@ -591,11 +590,50 @@ async function runTests() {
     throw new Error(`Expected stock 8 Pieces (10 - 2), got ${ureaAfterSale?.current_stock}`);
   }
 
+  console.log('\n--- TEST 20: ADD NEW CATEGORY ("Plant Growth Regulators") FLOW ---');
+  // Step 1: Create category via demo store
+  const newCat = saveDemoCategoryClient({
+    name: 'Plant Growth Regulators',
+    description: 'Products used to regulate plant growth',
+  });
+  console.log('Created Category ID:', newCat.id, 'Name:', newCat.name);
+  if (newCat.name !== 'Plant Growth Regulators') throw new Error('Category name mismatch');
+
+  // Step 2: Verify category is available in getDemoCategoriesClient()
+  const allCats = getDemoCategoriesClient();
+  const foundCat = allCats.find(c => c.name === 'Plant Growth Regulators');
+  console.log('Found category in all categories list:', foundCat?.name);
+  if (!foundCat) throw new Error('Category not found in categories list');
+
+  // Step 3: Create product using new category
+  const pgrProduct = saveDemoProductClient({
+    name: 'Bio-Zyme PGR',
+    category_id: newCat.id,
+    purchase_price: 350,
+    selling_price: 450,
+    opening_stock: 30,
+    product_size_value: 500,
+    product_size_unit: 'ML',
+    batch_number: 'PGR-2026-01',
+    expiry_date: '10/12/2027',
+  });
+  console.log('Created PGR Product:', pgrProduct.name, 'Category ID:', pgrProduct.category_id, 'Category Name:', pgrProduct.category?.name);
+  if (pgrProduct.category_id !== newCat.id) throw new Error('Product category ID mismatch');
+  if (pgrProduct.category?.name !== 'Plant Growth Regulators') throw new Error('Product category name mismatch');
+
+  // Step 4: Search product in billing by category filter
+  const categorySearchResults = searchDemoProductsClient('', newCat.id);
+  console.log('Billing category search returned matches:', categorySearchResults.length);
+  if (categorySearchResults.length === 0 || categorySearchResults[0].name !== 'Bio-Zyme PGR') {
+    throw new Error('Billing category filter did not find PGR product');
+  }
+
   // Clean up test products
   deleteDemoProductClient(prodUrea.id);
   deleteDemoProductClient(prodConfidor.id);
   deleteDemoProductClient(prodCotton.id);
   deleteDemoProductClient(prodLiquid.id);
+  deleteDemoProductClient(pgrProduct.id);
 
   console.log('\n========================================');
   console.log('🎉 ALL INTEGRATION, PERSISTENCE & CONSISTENCY TESTS PASSED!');

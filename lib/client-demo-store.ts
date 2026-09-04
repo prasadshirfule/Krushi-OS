@@ -440,11 +440,15 @@ export function getDemoCategoriesClient(): any[] {
 
 export function saveDemoCategoryClient(data: { name: string; description?: string }): any {
   const current = getDemoCategoriesClient();
+  const trimmed = data.name.trim();
+  const existing = current.find(c => c.name.toLowerCase() === trimmed.toLowerCase());
+  if (existing) return existing;
+
   const id = `cat-${Date.now()}`;
   const newCat = {
     id,
-    name: data.name,
-    description: data.description || '',
+    name: trimmed,
+    description: data.description?.trim() || '',
     count: 0,
   };
   const updated = [...current, newCat];
