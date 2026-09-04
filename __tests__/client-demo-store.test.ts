@@ -14,6 +14,8 @@ import {
   deleteDemoProductClient,
   searchDemoProductsClient,
   getDemoProductByIdClient,
+  getDemoBrandsClient,
+  saveDemoBrandClient,
 } from '@/lib/client-demo-store';
 
 // Set up mock window and localStorage for Node test environment
@@ -279,6 +281,46 @@ async function runTests() {
   const foundBill = allSales.find(s => s.id === billWithProduct.id);
   if (!foundBill) throw new Error('Bill not found in sales history');
   console.log('Bill verified in sales history with items:', foundBill.items.length);
+
+  console.log('\n--- TEST 13: Initial Demo Brands / Manufacturers ---');
+  const brands = getDemoBrandsClient();
+  console.log('Initial brands count:', brands.length);
+  console.log('Sample brands:', brands.slice(0, 5).map(b => b.name).join(', '));
+  if (brands.length < 10) throw new Error(`Expected at least 10 demo brands, got ${brands.length}`);
+  if (!brands.some(b => b.name === 'IFFCO')) throw new Error('Missing IFFCO in demo brands');
+  if (!brands.some(b => b.name === 'Bayer CropScience')) throw new Error('Missing Bayer in demo brands');
+
+  console.log('\n--- TEST 14: Add New Manufacturer ("Krushi Chemicals") & Link Product ---');
+  const newBrand = saveDemoBrandClient({
+    name: 'Krushi Chemicals',
+    manufacturer: 'Krushi Agro Chemicals Pvt Ltd',
+  });
+  console.log('Created Brand ID:', newBrand.id);
+  console.log('Created Brand Name:', newBrand.name);
+  if (newBrand.name !== 'Krushi Chemicals') throw new Error('Brand name mismatch');
+
+  // Verify persistence in getDemoBrandsClient
+  const brandsAfterAdd = getDemoBrandsClient();
+  const foundBrand = brandsAfterAdd.find(b => b.name === 'Krushi Chemicals');
+  if (!foundBrand) throw new Error('Krushi Chemicals not found in brands list');
+  console.log('Brand verified in brands list:', foundBrand.name);
+
+  // Create product using the new brand
+  const prodWithBrand = saveDemoProductClient({
+    name: 'Krushi Bio Booster 1L',
+    category_id: 'cat-2',
+    brand_id: foundBrand.id,
+    brand: foundBrand,
+    selling_price: 650,
+    purchase_price: 500,
+    unit: 'Bottle',
+    gst_rate: 18,
+  });
+  console.log('Product created with brand:', prodWithBrand.name, 'Brand ID:', prodWithBrand.brand_id);
+  if (prodWithBrand.brand_id !== foundBrand.id) throw new Error('Brand ID not assigned to product');
+
+  // Clean up test product
+  deleteDemoProductClient(prodWithBrand.id);
 
   console.log('\n========================================');
   console.log('🎉 ALL INTEGRATION, PERSISTENCE & CONSISTENCY TESTS PASSED!');

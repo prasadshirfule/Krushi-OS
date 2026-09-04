@@ -1,10 +1,11 @@
-import { MOCK_CUSTOMERS, MOCK_SALES, MOCK_PRODUCTS, MOCK_CATEGORIES } from '@/lib/mock-data';
+import { MOCK_CUSTOMERS, MOCK_SALES, MOCK_PRODUCTS, MOCK_CATEGORIES, MOCK_BRANDS } from '@/lib/mock-data';
 import { calculateItemTotal, calculateBillTotal } from '@/lib/calculations';
 
 export const KRUSHI_DEMO_CUSTOMERS_KEY = 'krushi_demo_customers';
 export const KRUSHI_DEMO_SALES_KEY = 'krushi_demo_sales';
 export const KRUSHI_DEMO_PRODUCTS_KEY = 'krushi_demo_products';
 export const KRUSHI_DEMO_CATEGORIES_KEY = 'krushi_demo_categories';
+export const KRUSHI_DEMO_BRANDS_KEY = 'krushi_demo_brands';
 
 /** Check if running in browser and with demo / placeholder credentials */
 export function isClientDemoMode(): boolean {
@@ -635,5 +636,58 @@ export function searchDemoProductsClient(queryText: string, categoryId?: string,
     (p.barcode && p.barcode.includes(q)) ||
     (p.category?.name && p.category.name.toLowerCase().includes(q))
   ).slice(0, limit);
+}
+
+/* ═════════════════════════════════════════════════════════
+   BRAND / MANUFACTURER OPERATIONS (Client Demo Store)
+═════════════════════════════════════════════════════════ */
+
+export function getDemoBrandsClient(): any[] {
+  if (typeof window === 'undefined') return MOCK_BRANDS;
+  try {
+    const raw = localStorage.getItem(KRUSHI_DEMO_BRANDS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed.sort((a: any, b: any) => (a.name || '').localeCompare(b.name || ''));
+      }
+    }
+  } catch (err) {
+    console.error('Error reading demo brands from localStorage:', err);
+  }
+
+  const initial = [...MOCK_BRANDS];
+  try {
+    localStorage.setItem(KRUSHI_DEMO_BRANDS_KEY, JSON.stringify(initial));
+  } catch {}
+  return initial.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export function saveDemoBrandClient(data: { name: string; manufacturer?: string }): any {
+  const current = getDemoBrandsClient();
+  const trimmedName = data.name.trim();
+
+  // Return existing if duplicate name
+  const existing = current.find(b => b.name.toLowerCase() === trimmedName.toLowerCase());
+  if (existing) return existing;
+
+  const id = `b-${Date.now()}`;
+  const newBrand = {
+    id,
+    name: trimmedName,
+    manufacturer: data.manufacturer?.trim() || trimmedName,
+    shop_id: 'demo-shop-1',
+    is_active: true,
+    created_at: new Date().toISOString(),
+  };
+
+  const updated = [...current, newBrand];
+  try {
+    localStorage.setItem(KRUSHI_DEMO_BRANDS_KEY, JSON.stringify(updated));
+    window.dispatchEvent(new CustomEvent('krushi-brands-updated', { detail: newBrand }));
+  } catch (err) {
+    console.error('Error saving demo brand to localStorage:', err);
+  }
+  return newBrand;
 }
 

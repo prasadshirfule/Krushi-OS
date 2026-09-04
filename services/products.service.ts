@@ -1,7 +1,9 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { CreateProductInput, UpdateProductInput, ProductWithRelations, ProductListResponse } from '@/types/products';
-import { MOCK_CATEGORIES, MOCK_PRODUCTS } from '@/lib/mock-data';
+import { MOCK_CATEGORIES, MOCK_PRODUCTS, MOCK_BRANDS } from '@/lib/mock-data';
 import { getStoredDemoProducts, saveStoredDemoProducts } from '@/lib/demo-storage';
+
+const demoBrands: Array<{ id: string; name: string; manufacturer?: string | null; shop_id: string; is_active: boolean; created_at: string }> = [];
 
 /** Check if Supabase is running with placeholder credentials (demo mode). */
 export function isPlaceholderMode(): boolean {
@@ -525,6 +527,11 @@ export async function updateCategory(shopId: string, id: string, data: { name: s
 }
 
 export async function getBrands(shopId: string) {
+  if (isPlaceholderMode()) {
+    const all = [...MOCK_BRANDS, ...demoBrands];
+    return all.sort((a, b) => a.name.localeCompare(b.name));
+  }
+
   try {
     const supabase = await createServerSupabaseClient();
     const { data, error } = await supabase
@@ -545,6 +552,24 @@ export async function getBrands(shopId: string) {
 }
 
 export async function createBrand(shopId: string, data: { name: string; manufacturer?: string | null }) {
+  if (isPlaceholderMode()) {
+    const all = [...MOCK_BRANDS, ...demoBrands];
+    const existing = all.find(b => b.name.toLowerCase() === data.name.trim().toLowerCase());
+    if (existing) {
+      return existing;
+    }
+    const newBrand = {
+      id: `b-demo-${Date.now()}`,
+      name: data.name.trim(),
+      manufacturer: data.manufacturer?.trim() || null,
+      shop_id: shopId,
+      is_active: true,
+      created_at: new Date().toISOString(),
+    };
+    demoBrands.push(newBrand);
+    return newBrand;
+  }
+
   const supabase = await createServerSupabaseClient();
   const { data: brand, error } = await supabase
     .from('brands')

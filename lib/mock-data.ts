@@ -25,11 +25,21 @@ export const MOCK_CATEGORIES = [
 ];
 
 export const MOCK_BRANDS = [
-  { id: 'b-1', name: 'Bayer CropScience', manufacturer: 'Bayer India' },
-  { id: 'b-2', name: 'Syngenta', manufacturer: 'Syngenta Agro' },
-  { id: 'b-3', name: 'UPL Limited', manufacturer: 'UPL' },
-  { id: 'b-4', name: 'IFFCO', manufacturer: 'IFFCO Ltd' },
-  { id: 'b-5', name: 'Mahyco', manufacturer: 'Maharashtra Hybrid Seeds' },
+  { id: 'b-1', name: 'IFFCO', manufacturer: 'Indian Farmers Fertiliser Cooperative' },
+  { id: 'b-2', name: 'Bayer CropScience', manufacturer: 'Bayer India' },
+  { id: 'b-3', name: 'Syngenta', manufacturer: 'Syngenta Agro' },
+  { id: 'b-4', name: 'UPL Limited', manufacturer: 'UPL' },
+  { id: 'b-5', name: 'Coromandel', manufacturer: 'Coromandel International' },
+  { id: 'b-6', name: 'BASF', manufacturer: 'BASF India' },
+  { id: 'b-7', name: 'FMC', manufacturer: 'FMC India' },
+  { id: 'b-8', name: 'Rallis India', manufacturer: 'Tata Rallis' },
+  { id: 'b-9', name: 'Dhanuka', manufacturer: 'Dhanuka Agritech' },
+  { id: 'b-10', name: 'PI Industries', manufacturer: 'PI Industries Ltd' },
+  { id: 'b-11', name: 'Adama', manufacturer: 'Adama India' },
+  { id: 'b-12', name: 'Sumitomo Chemical', manufacturer: 'Sumitomo Chemical India' },
+  { id: 'b-13', name: 'Mahyco', manufacturer: 'Maharashtra Hybrid Seeds' },
+  { id: 'b-14', name: 'Kaveri Seeds', manufacturer: 'Kaveri Seed Company' },
+  { id: 'b-15', name: 'Nuziveedu Seeds', manufacturer: 'Nuziveedu Seeds Ltd' },
 ];
 
 export const MOCK_PRODUCTS: MockProduct[] = [
