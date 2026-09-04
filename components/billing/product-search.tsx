@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { searchProductsAction, getCategoriesAction } from '@/actions/products';
 import { getBatchesAction } from '@/actions/inventory';
 import { Input } from '@/components/ui/input';
@@ -9,6 +9,12 @@ import { Search, Plus, Package, AlertTriangle, Barcode, X, Sparkles, Check } fro
 import { formatCurrency } from '@/lib/utils';
 import { useDebounce } from '@/hooks/use-debounce';
 import { MOCK_PRODUCTS, MOCK_CATEGORIES } from '@/lib/mock-data';
+import { 
+  isClientDemoMode, 
+  getDemoProductsClient, 
+  searchDemoProductsClient,
+  getDemoCategoriesClient 
+} from '@/lib/client-demo-store';
 
 interface ProductSearchProps {
   onAddToCart: (item: any) => void;
@@ -18,7 +24,7 @@ export default function ProductSearch({ onAddToCart }: ProductSearchProps) {
   const [query, setQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [categories, setCategories] = useState<Array<{ id: string; name: string }>>(MOCK_CATEGORIES);
-  const [allProducts, setAllProducts] = useState<any[]>(MOCK_PRODUCTS);
+  const [allProducts, setAllProducts] = useState<any[]>([]);
   const [searchResults, setSearchResults] = useState<any[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [addedProductId, setAddedProductId] = useState<string | null>(null);
@@ -38,56 +44,95 @@ export default function ProductSearch({ onAddToCart }: ProductSearchProps) {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Fetch categories on mount
-  useEffect(() => {
-    const fetchCats = async () => {
-      try {
-        const res = await getCategoriesAction();
-        if (res.success && Array.isArray(res.data) && res.data.length > 0) {
-          setCategories(res.data);
-        }
-      } catch (err) {
-        console.warn('Using fallback categories:', err);
+  // Load products (demo store or real Supabase)
+  const loadProducts = useCallback(async () => {
+    if (isClientDemoMode()) {
+      const demoList = getDemoProductsClient();
+      setAllProducts(demoList);
+      return;
+    }
+
+    try {
+      const res = await searchProductsAction('');
+      if (res.success && Array.isArray(res.data) && res.data.length > 0) {
+        setAllProducts(res.data);
       }
-    };
-    fetchCats();
+    } catch (err) {
+      console.warn('Failed to fetch products for billing:', err);
+    }
   }, []);
 
-  // Fetch initial products or search results
+  // Load categories (demo store or real Supabase)
+  const loadCategories = useCallback(async () => {
+    if (isClientDemoMode()) {
+      setCategories(getDemoCategoriesClient());
+      return;
+    }
+
+    try {
+      const res = await getCategoriesAction();
+      if (res.success && Array.isArray(res.data) && res.data.length > 0) {
+        setCategories(res.data);
+      }
+    } catch (err) {
+      console.warn('Using fallback categories:', err);
+    }
+  }, []);
+
+  // Initialize and listen for live product and category updates
+  useEffect(() => {
+    loadProducts();
+    loadCategories();
+
+    const handleProductsUpdated = () => {
+      loadProducts();
+      // If active search in demo mode, update search results too
+      if (isClientDemoMode() && query.trim()) {
+        setSearchResults(searchDemoProductsClient(query.trim()));
+      }
+    };
+    const handleCategoriesUpdated = () => {
+      loadCategories();
+    };
+
+    window.addEventListener('krushi-products-updated', handleProductsUpdated);
+    window.addEventListener('krushi-categories-updated', handleCategoriesUpdated);
+    return () => {
+      window.removeEventListener('krushi-products-updated', handleProductsUpdated);
+      window.removeEventListener('krushi-categories-updated', handleCategoriesUpdated);
+    };
+  }, [loadProducts, loadCategories, query]);
+
+  // Fetch search results when debounced query changes
   useEffect(() => {
     let isCurrent = true;
     const fetchProducts = async () => {
-      if (!debouncedQuery.trim()) {
+      const trimmed = debouncedQuery.trim();
+      if (!trimmed) {
         setSearchResults(null);
         return;
       }
 
       setLoading(true);
       try {
-        const res = await searchProductsAction(debouncedQuery.trim());
+        if (isClientDemoMode()) {
+          const results = searchDemoProductsClient(trimmed);
+          if (isCurrent) setSearchResults(results);
+          return;
+        }
+
+        const res = await searchProductsAction(trimmed);
         if (isCurrent) {
-          if (res.success && Array.isArray(res.data) && res.data.length > 0) {
+          if (res.success && Array.isArray(res.data)) {
             setSearchResults(res.data);
           } else {
-            // Fallback search in mock data
-            const q = debouncedQuery.toLowerCase();
-            const fallback = MOCK_PRODUCTS.filter(p =>
-              p.name.toLowerCase().includes(q) ||
-              (p.barcode && p.barcode.includes(q)) ||
-              (p.category?.name && p.category.name.toLowerCase().includes(q))
-            );
-            setSearchResults(fallback);
+            setSearchResults([]);
           }
         }
       } catch (error) {
-        console.warn('Search action failed, using local mock data:', error);
+        console.warn('Search action failed:', error);
         if (isCurrent) {
-          const q = debouncedQuery.toLowerCase();
-          const fallback = MOCK_PRODUCTS.filter(p =>
-            p.name.toLowerCase().includes(q) ||
-            (p.barcode && p.barcode.includes(q))
-          );
-          setSearchResults(fallback);
+          setSearchResults([]);
         }
       } finally {
         if (isCurrent) setLoading(false);
@@ -133,7 +178,7 @@ export default function ProductSearch({ onAddToCart }: ProductSearchProps) {
         const exp = b.expiry_date || b.exp_date;
         return qty > 0 && (!exp || new Date(exp) > new Date());
       }) || product.batches[0];
-    } else {
+    } else if (!isClientDemoMode()) {
       try {
         const batchesRes = await getBatchesAction(product.id);
         if (batchesRes.success && Array.isArray(batchesRes.data) && batchesRes.data.length > 0) {

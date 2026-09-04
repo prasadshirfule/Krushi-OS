@@ -18,6 +18,13 @@ import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { Loader2, Save, ArrowLeft } from 'lucide-react';
 
+import { 
+  isClientDemoMode, 
+  saveDemoProductClient, 
+  updateDemoProductClient,
+  getDemoCategoriesClient 
+} from '@/lib/client-demo-store';
+
 interface ProductFormProps {
   mode: 'create' | 'edit';
   initialData?: any;
@@ -29,11 +36,15 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const availableCategories = (categories && categories.length > 0)
+    ? categories
+    : (isClientDemoMode() ? getDemoCategoriesClient() : []);
+
   const form = useForm<ProductInput>({
     resolver: zodResolver(productSchema),
     defaultValues: {
       name: initialData?.name || '',
-      category_id: initialData?.category_id || (categories[0]?.id || ''),
+      category_id: initialData?.category_id || (availableCategories[0]?.id || ''),
       brand_id: initialData?.brand_id || '',
       sku: initialData?.sku || '',
       barcode: initialData?.barcode || '',
@@ -62,6 +73,28 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
   const onSubmit = async (data: ProductInput) => {
     setIsSubmitting(true);
     try {
+      if (isClientDemoMode()) {
+        if (mode === 'create') {
+          saveDemoProductClient(data);
+        } else {
+          updateDemoProductClient(initialData.id, data);
+        }
+        try {
+          if (mode === 'create') {
+            await createProductAction(data);
+          } else {
+            await updateProductAction(initialData.id, data);
+          }
+        } catch (e) {
+          console.warn('Server action fallback in demo mode:', e);
+        }
+
+        toast.success(`Product ${mode === 'create' ? 'created' : 'updated'} successfully!`);
+        router.push('/products');
+        router.refresh();
+        return;
+      }
+
       let result;
       if (mode === 'create') {
         result = await createProductAction(data);

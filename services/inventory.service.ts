@@ -1,7 +1,53 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { BatchInput, StockAdjustmentInput } from '@/lib/validations';
+import { isPlaceholderMode, getDemoProducts } from '@/services/products.service';
 
 export async function getInventoryOverview(shopId: string, options: { search?: string, categoryId?: string, expiryStatus?: string, page?: number, limit?: number } = {}) {
+  if (isPlaceholderMode()) {
+    const products = getDemoProducts().filter(p => p.is_active !== false);
+    let filtered = products;
+
+    if (options.categoryId) {
+      filtered = filtered.filter(p => p.category_id === options.categoryId || p.category?.id === options.categoryId);
+    }
+    if (options.search) {
+      const q = options.search.toLowerCase();
+      filtered = filtered.filter(p => p.name.toLowerCase().includes(q) || (p.sku && p.sku.toLowerCase().includes(q)));
+    }
+
+    const items = filtered.map((p: any) => {
+      const currentStock = Number(p.current_stock || 0);
+      const purchasePrice = Number(p.purchase_price || 0);
+      const minStock = Number(p.min_stock || 0);
+      const value = currentStock * purchasePrice;
+      const isLowStock = currentStock <= minStock;
+
+      return {
+        ...p,
+        sku: p.sku || 'N/A',
+        total_stock: currentStock,
+        min_stock: minStock,
+        unit: p.unit || 'Piece',
+        inventory_value: value,
+        is_low_stock: isLowStock,
+        status: isLowStock ? (currentStock === 0 ? 'Out of Stock' : 'Low Stock') : 'In Stock'
+      };
+    });
+
+    const totalValue = items.reduce((sum, item) => sum + item.inventory_value, 0);
+    const lowStockCount = items.filter(item => item.is_low_stock).length;
+
+    return {
+      items,
+      total: items.length,
+      summary: {
+        totalValue,
+        totalItems: items.length,
+        lowStockCount
+      }
+    };
+  }
+
   try {
     const supabase = await createServerSupabaseClient();
     const limit = options.limit || 50;
@@ -62,6 +108,11 @@ export async function getInventoryOverview(shopId: string, options: { search?: s
 }
 
 export async function getLowStockProducts(shopId: string) {
+  if (isPlaceholderMode()) {
+    const products = getDemoProducts().filter(p => p.is_active !== false);
+    return products.filter((p: any) => Number(p.current_stock || 0) <= Number(p.min_stock || 5));
+  }
+
   try {
     const supabase = await createServerSupabaseClient();
     const { data, error } = await supabase
@@ -79,6 +130,12 @@ export async function getLowStockProducts(shopId: string) {
 }
 
 export async function getBatchesForProduct(shopId: string, productId: string) {
+  if (isPlaceholderMode()) {
+    const products = getDemoProducts();
+    const found = products.find(p => p.id === productId);
+    return found?.batches || [];
+  }
+
   try {
     const supabase = await createServerSupabaseClient();
     const { data, error } = await supabase

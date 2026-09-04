@@ -1,10 +1,63 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { CreateProductInput, UpdateProductInput, ProductWithRelations, ProductListResponse } from '@/types/products';
-import { MOCK_CATEGORIES } from '@/lib/mock-data';
+import { MOCK_CATEGORIES, MOCK_PRODUCTS } from '@/lib/mock-data';
+import { getStoredDemoProducts, saveStoredDemoProducts } from '@/lib/demo-storage';
 
 /** Check if Supabase is running with placeholder credentials (demo mode). */
-function isPlaceholderMode(): boolean {
+export function isPlaceholderMode(): boolean {
   return !process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('placeholder');
+}
+
+/** Normalize product object consistently */
+export function normalizeProduct(p: any): ProductWithRelations {
+  const sellingPrice = Number(p.selling_price ?? p.price ?? 0);
+  const purchasePrice = Number(p.purchase_price ?? 0);
+  const mrp = Number(p.mrp ?? sellingPrice);
+  const stock = Number(p.current_stock ?? p.stock_quantity ?? p.stock ?? 0);
+  const minStock = Number(p.min_stock ?? 5);
+
+  let category = p.category;
+  if (typeof category === 'string') {
+    category = { id: p.category_id || 'cat-1', name: category };
+  } else if (!category && p.category_id) {
+    category = { id: p.category_id, name: 'General' };
+  }
+
+  let brand = p.brand;
+  if (typeof brand === 'string') {
+    brand = { id: p.brand_id || 'brand-1', name: brand };
+  }
+
+  return {
+    ...p,
+    id: String(p.id),
+    name: p.name,
+    category_id: p.category_id || category?.id || 'cat-1',
+    category: category || { id: 'cat-1', name: 'General' },
+    brand_id: p.brand_id || brand?.id || null,
+    brand: brand || null,
+    sku: p.sku || '',
+    barcode: p.barcode || '',
+    description: p.description || '',
+    unit: p.unit || 'Piece',
+    hsn_code: p.hsn_code || '',
+    gst_rate: Number(p.gst_rate ?? 0),
+    purchase_price: purchasePrice,
+    selling_price: sellingPrice,
+    wholesale_price: Number(p.wholesale_price ?? sellingPrice),
+    mrp: mrp,
+    current_stock: stock,
+    stock_quantity: stock,
+    min_stock: minStock,
+    is_active: p.is_active !== false,
+    batches: p.batches || [],
+    created_at: p.created_at || new Date().toISOString(),
+    updated_at: p.updated_at || new Date().toISOString(),
+  };
+}
+
+export function getDemoProducts(): ProductWithRelations[] {
+  return getStoredDemoProducts(normalizeProduct);
 }
 
 /**
@@ -18,6 +71,50 @@ export async function getProducts(
   shopId: string, 
   options: { search?: string; category?: string; page?: number; limit?: number; sortBy?: string; sortOrder?: 'asc' | 'desc' } = {}
 ): Promise<ProductListResponse> {
+  if (isPlaceholderMode()) {
+    const all = getDemoProducts();
+    let filtered = all.filter(p => p.is_active !== false);
+
+    if (options.search) {
+      const q = options.search.replace(/[,().\\]/g, '').trim().toLowerCase();
+      if (q) {
+        filtered = filtered.filter(p =>
+          (p.name && p.name.toLowerCase().includes(q)) ||
+          (p.sku && p.sku.toLowerCase().includes(q)) ||
+          (p.barcode && p.barcode.includes(q)) ||
+          (p.category?.name && p.category.name.toLowerCase().includes(q))
+        );
+      }
+    }
+
+    if (options.category && options.category !== 'all') {
+      filtered = filtered.filter(p => p.category_id === options.category || p.category?.id === options.category);
+    }
+
+    if (options.sortBy) {
+      const field = options.sortBy;
+      const asc = options.sortOrder === 'asc';
+      filtered.sort((a: any, b: any) => {
+        const valA = a[field] ?? '';
+        const valB = b[field] ?? '';
+        if (valA < valB) return asc ? -1 : 1;
+        if (valA > valB) return asc ? 1 : -1;
+        return 0;
+      });
+    }
+
+    const page = options.page || 1;
+    const limit = options.limit || 50;
+    const offset = (page - 1) * limit;
+    const paginated = filtered.slice(offset, offset + limit);
+
+    return {
+      products: paginated,
+      total: filtered.length,
+      pages: Math.ceil(filtered.length / limit)
+    };
+  }
+
   try {
     const supabase = await createServerSupabaseClient();
     const page = options.page || 1;
@@ -55,6 +152,12 @@ export async function getProducts(
 }
 
 export async function getProductById(shopId: string, productId: string): Promise<ProductWithRelations | null> {
+  if (isPlaceholderMode()) {
+    const list = getDemoProducts();
+    const found = list.find(p => p.id === productId);
+    return found ? normalizeProduct(found) : null;
+  }
+
   try {
     const supabase = await createServerSupabaseClient();
     const { data, error } = await supabase
@@ -76,6 +179,61 @@ export async function getProductById(shopId: string, productId: string): Promise
 }
 
 export async function createProduct(shopId: string, data: CreateProductInput, userId?: string) {
+  if (isPlaceholderMode()) {
+    const all = getStoredDemoProducts(normalizeProduct);
+    const productId = `prod-${Date.now()}`;
+    const batchId = `batch-${Date.now()}`;
+
+    // Find category info
+    const allCats = [...MOCK_CATEGORIES, ...demoCategories];
+    const cat = allCats.find(c => c.id === data.category_id) || { id: data.category_id || 'cat-1', name: 'General' };
+
+    const batch = {
+      id: batchId,
+      product_id: productId,
+      batch_number: data.batch_number || `BAT-${Date.now().toString().slice(-4)}`,
+      mfg_date: data.mfd_date || new Date().toISOString().split('T')[0],
+      expiry_date: data.expiry_date || null,
+      purchase_price: Number(data.purchase_price || 0),
+      selling_price: Number(data.selling_price || 0),
+      mrp: Number(data.selling_price || 0),
+      quantity_available: Number(data.opening_stock || 0),
+      is_active: true,
+      shop_id: shopId,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    const newProd: ProductWithRelations = normalizeProduct({
+      id: productId,
+      name: data.name,
+      category_id: cat.id,
+      category: { id: cat.id, name: cat.name },
+      brand_id: data.brand_id || null,
+      sku: data.sku || `SKU-${Date.now().toString().slice(-4)}`,
+      barcode: data.barcode || '',
+      description: data.description || '',
+      unit: data.unit || 'Piece',
+      hsn_code: data.hsn_code || '',
+      gst_rate: Number(data.gst_rate || 0),
+      purchase_price: Number(data.purchase_price || 0),
+      selling_price: Number(data.selling_price || 0),
+      wholesale_price: Number(data.wholesale_price || data.selling_price || 0),
+      mrp: Number(data.selling_price || 0),
+      current_stock: Number(data.opening_stock || 0),
+      stock_quantity: Number(data.opening_stock || 0),
+      min_stock: Number(data.min_stock || 5),
+      is_active: true,
+      batches: [batch],
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+
+    all.unshift(newProd);
+    saveStoredDemoProducts(all);
+    return { product: newProd, batch };
+  }
+
   const supabase = await createServerSupabaseClient();
 
   const rpcParams = {
@@ -121,6 +279,30 @@ export async function createProduct(shopId: string, data: CreateProductInput, us
 }
 
 export async function updateProduct(shopId: string, productId: string, data: UpdateProductInput) {
+  if (isPlaceholderMode()) {
+    const all = getStoredDemoProducts(normalizeProduct);
+    const idx = all.findIndex(p => p.id === productId);
+    if (idx === -1) {
+      throw new Error(`Product not found with id ${productId}`);
+    }
+    const current = all[idx];
+    let category = current.category;
+    if (data.category_id && data.category_id !== current.category_id) {
+      const allCats = [...MOCK_CATEGORIES, ...demoCategories];
+      const foundCat = allCats.find(c => c.id === data.category_id);
+      if (foundCat) category = { id: foundCat.id, name: foundCat.name };
+    }
+    const updated = normalizeProduct({
+      ...current,
+      ...data,
+      category,
+      updated_at: new Date().toISOString(),
+    });
+    all[idx] = updated;
+    saveStoredDemoProducts(all);
+    return updated;
+  }
+
   const supabase = await createServerSupabaseClient();
 
   // Explicit typed allowlist pick of product metadata fields
@@ -173,6 +355,16 @@ export async function updateProduct(shopId: string, productId: string, data: Upd
 }
 
 export async function deleteProduct(shopId: string, productId: string): Promise<void> {
+  if (isPlaceholderMode()) {
+    const all = getStoredDemoProducts(normalizeProduct);
+    const idx = all.findIndex(p => p.id === productId);
+    if (idx !== -1) {
+      all[idx].is_active = false;
+      saveStoredDemoProducts(all);
+    }
+    return;
+  }
+
   const supabase = await createServerSupabaseClient();
   const { error } = await supabase
     .from('products')
@@ -187,6 +379,12 @@ export async function deleteProduct(shopId: string, productId: string): Promise<
 }
 
 export async function getProductByBarcode(shopId: string, barcode: string): Promise<ProductWithRelations | null> {
+  if (isPlaceholderMode()) {
+    const all = getDemoProducts();
+    const found = all.find(p => p.is_active !== false && p.barcode === barcode);
+    return found ? normalizeProduct(found) : null;
+  }
+
   try {
     const supabase = await createServerSupabaseClient();
     const { data, error } = await supabase
@@ -209,6 +407,22 @@ export async function getProductByBarcode(shopId: string, barcode: string): Prom
 }
 
 export async function searchProducts(shopId: string, queryText: string, limit = 20): Promise<ProductWithRelations[]> {
+  if (isPlaceholderMode()) {
+    const cleanQuery = queryText.replace(/[,().\\]/g, '').trim().toLowerCase();
+    if (!cleanQuery) return [];
+    const all = getDemoProducts();
+    const matches = all.filter(p =>
+      p.is_active !== false &&
+      (
+        (p.name && p.name.toLowerCase().includes(cleanQuery)) ||
+        (p.sku && p.sku.toLowerCase().includes(cleanQuery)) ||
+        (p.barcode && p.barcode.includes(cleanQuery)) ||
+        (p.category?.name && p.category.name.toLowerCase().includes(cleanQuery))
+      )
+    );
+    return matches.slice(0, limit);
+  }
+
   try {
     const supabase = await createServerSupabaseClient();
     const cleanQuery = queryText.replace(/[,().\\]/g, '').trim();

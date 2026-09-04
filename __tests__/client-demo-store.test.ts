@@ -7,7 +7,13 @@ import {
   saveDemoSaleClient,
   getDemoSalesSummaryClient,
   KRUSHI_DEMO_CUSTOMERS_KEY,
-  KRUSHI_DEMO_SALES_KEY
+  KRUSHI_DEMO_SALES_KEY,
+  getDemoProductsClient,
+  saveDemoProductClient,
+  updateDemoProductClient,
+  deleteDemoProductClient,
+  searchDemoProductsClient,
+  getDemoProductByIdClient,
 } from '@/lib/client-demo-store';
 
 // Set up mock window and localStorage for Node test environment
@@ -177,8 +183,105 @@ async function runTests() {
   }
   console.log('Remaining customers after deletion:', remainingCusts.length);
 
+  console.log('\n--- TEST 7: Initial Demo Products ---');
+  const prods = getDemoProductsClient();
+  console.log('Initial products count:', prods.length);
+  if (prods.length !== 5) throw new Error(`Expected 5 demo products, got ${prods.length}`);
+
+  console.log('\n--- TEST 8: Search Products (Billing & Products Consistency) ---');
+  const dapResults = searchDemoProductsClient('DAP');
+  console.log('Search "DAP" results:', dapResults.map(p => p.name));
+  if (dapResults.length === 0 || !dapResults.some(p => p.name.includes('DAP'))) {
+    throw new Error('Search for DAP failed');
+  }
+
+  console.log('\n--- TEST 9: Create Product ("Test Urea", ₹500) ---');
+  const newProduct = saveDemoProductClient({
+    name: 'Test Urea',
+    selling_price: 500,
+    purchase_price: 450,
+    opening_stock: 50,
+    unit: 'Bag',
+    gst_rate: 5,
+    category_id: 'cat-2',
+  });
+  console.log('Created product ID:', newProduct.id);
+  console.log('Created product Name:', newProduct.name);
+  console.log('Created product Price:', newProduct.selling_price);
+
+  if (newProduct.name !== 'Test Urea') throw new Error('Product name mismatch');
+  if (newProduct.selling_price !== 500) throw new Error('Product price mismatch');
+
+  // Verify in Products list
+  const prodsAfterCreate = getDemoProductsClient();
+  if (prodsAfterCreate.length !== 6) throw new Error(`Expected 6 products, got ${prodsAfterCreate.length}`);
+  if (prodsAfterCreate[0].name !== 'Test Urea') throw new Error('New product should be at top');
+
+  // Verify in Billing search
+  const billingSearch = searchDemoProductsClient('Test Urea');
+  if (billingSearch.length === 0 || billingSearch[0].name !== 'Test Urea') {
+    throw new Error('Billing search could not find newly created product');
+  }
+  console.log('Billing search found:', billingSearch[0].name, '₹' + billingSearch[0].selling_price);
+
+  console.log('\n--- TEST 10: Update Product Price ("Test Urea" -> ₹280) ---');
+  const updatedProduct = updateDemoProductClient(newProduct.id, {
+    selling_price: 280,
+  });
+  console.log('Updated product Price:', updatedProduct.selling_price);
+  if (updatedProduct.selling_price !== 280) throw new Error('Product update price mismatch');
+
+  // Verify updated in Products list
+  const prodsAfterUpdate = getDemoProductsClient();
+  const foundUpdated = prodsAfterUpdate.find(p => p.id === newProduct.id);
+  if (foundUpdated.selling_price !== 280) throw new Error('Products list has stale price');
+
+  // Verify updated in Billing search
+  const billingSearchUpdated = searchDemoProductsClient('Test Urea');
+  if (billingSearchUpdated[0].selling_price !== 280) throw new Error('Billing search has stale price');
+  console.log('Billing search reflected updated price: ₹' + billingSearchUpdated[0].selling_price);
+
+  console.log('\n--- TEST 11: Delete Product ("Test Urea") ---');
+  deleteDemoProductClient(newProduct.id);
+
+  // Verify removed from Products list
+  const prodsAfterDelete = getDemoProductsClient();
+  if (prodsAfterDelete.some(p => p.id === newProduct.id)) {
+    throw new Error('Product was not removed from products list');
+  }
+  if (prodsAfterDelete.length !== 5) throw new Error(`Expected 5 products after delete, got ${prodsAfterDelete.length}`);
+
+  // Verify removed from Billing search
+  const billingSearchDeleted = searchDemoProductsClient('Test Urea');
+  if (billingSearchDeleted.length !== 0) throw new Error('Deleted product still visible in Billing search');
+  console.log('Billing search after deletion returned 0 matches as expected');
+
+  console.log('\n--- TEST 12: Complete Bill with Demo Product & Verify Sales History ---');
+  const billWithProduct = saveDemoSaleClient({
+    customer_id: 'walk-in',
+    customer_name: 'Farmer Shinde',
+    payment_method: 'Cash',
+    items: [
+      {
+        product_id: prods[0].id,
+        product_name: prods[0].name,
+        quantity: 2,
+        unit_price: prods[0].selling_price,
+        discount_percent: 0,
+        gst_rate: prods[0].gst_rate || 5,
+      }
+    ]
+  });
+  console.log('Bill created with product:', billWithProduct.invoice_number, billWithProduct.items[0].product_name);
+  if (!billWithProduct.invoice_number) throw new Error('Invoice number missing');
+
+  const allSales = getDemoSalesClient();
+  const foundBill = allSales.find(s => s.id === billWithProduct.id);
+  if (!foundBill) throw new Error('Bill not found in sales history');
+  console.log('Bill verified in sales history with items:', foundBill.items.length);
+
   console.log('\n========================================');
-  console.log('🎉 ALL INTEGRATION & PERSISTENCE TESTS PASSED!');
+  console.log('🎉 ALL INTEGRATION, PERSISTENCE & CONSISTENCY TESTS PASSED!');
   console.log('========================================');
 }
 

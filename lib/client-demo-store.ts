@@ -1,8 +1,10 @@
-import { MOCK_CUSTOMERS, MOCK_SALES } from '@/lib/mock-data';
+import { MOCK_CUSTOMERS, MOCK_SALES, MOCK_PRODUCTS, MOCK_CATEGORIES } from '@/lib/mock-data';
 import { calculateItemTotal, calculateBillTotal } from '@/lib/calculations';
 
 export const KRUSHI_DEMO_CUSTOMERS_KEY = 'krushi_demo_customers';
 export const KRUSHI_DEMO_SALES_KEY = 'krushi_demo_sales';
+export const KRUSHI_DEMO_PRODUCTS_KEY = 'krushi_demo_products';
+export const KRUSHI_DEMO_CATEGORIES_KEY = 'krushi_demo_categories';
 
 /** Check if running in browser and with demo / placeholder credentials */
 export function isClientDemoMode(): boolean {
@@ -389,3 +391,249 @@ export function getDemoSalesSummaryClient() {
     sales,
   };
 }
+
+/* ═════════════════════════════════════════════════════════
+   CATEGORY OPERATIONS (Client Demo Store)
+═════════════════════════════════════════════════════════ */
+
+export function getDemoCategoriesClient(): any[] {
+  if (typeof window === 'undefined') return MOCK_CATEGORIES;
+  try {
+    const raw = localStorage.getItem(KRUSHI_DEMO_CATEGORIES_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    }
+  } catch (err) {
+    console.error('Error reading demo categories from localStorage:', err);
+  }
+
+  const initial = MOCK_CATEGORIES;
+  try {
+    localStorage.setItem(KRUSHI_DEMO_CATEGORIES_KEY, JSON.stringify(initial));
+  } catch {}
+  return initial;
+}
+
+export function saveDemoCategoryClient(data: { name: string; description?: string }): any {
+  const current = getDemoCategoriesClient();
+  const id = `cat-${Date.now()}`;
+  const newCat = {
+    id,
+    name: data.name,
+    description: data.description || '',
+    count: 0,
+  };
+  const updated = [...current, newCat];
+  try {
+    localStorage.setItem(KRUSHI_DEMO_CATEGORIES_KEY, JSON.stringify(updated));
+    window.dispatchEvent(new CustomEvent('krushi-categories-updated', { detail: newCat }));
+  } catch (err) {
+    console.error('Error saving demo category to localStorage:', err);
+  }
+  return newCat;
+}
+
+/* ═════════════════════════════════════════════════════════
+   PRODUCT OPERATIONS (Client Demo Store)
+═════════════════════════════════════════════════════════ */
+
+export function normalizeDemoProduct(p: any) {
+  const sellingPrice = Number(p.selling_price ?? p.price ?? 0);
+  const purchasePrice = Number(p.purchase_price ?? 0);
+  const mrp = Number(p.mrp ?? sellingPrice);
+  const stock = Number(p.current_stock ?? p.stock_quantity ?? p.stock ?? 0);
+  const minStock = Number(p.min_stock ?? 5);
+
+  let category = p.category;
+  if (typeof category === 'string') {
+    category = { id: p.category_id || 'cat-1', name: category };
+  } else if (!category && p.category_id) {
+    const allCats = getDemoCategoriesClient();
+    const found = allCats.find(c => c.id === p.category_id);
+    category = found || { id: p.category_id, name: 'General' };
+  }
+
+  let brand = p.brand;
+  if (typeof brand === 'string') {
+    brand = { id: p.brand_id || 'brand-1', name: brand };
+  }
+
+  return {
+    ...p,
+    id: String(p.id),
+    name: p.name,
+    category_id: p.category_id || category?.id || 'cat-1',
+    category: category || { id: 'cat-1', name: 'General' },
+    brand_id: p.brand_id || brand?.id || null,
+    brand: brand || null,
+    sku: p.sku || '',
+    barcode: p.barcode || '',
+    description: p.description || '',
+    unit: p.unit || 'Piece',
+    hsn_code: p.hsn_code || '',
+    gst_rate: Number(p.gst_rate ?? 0),
+    purchase_price: purchasePrice,
+    selling_price: sellingPrice,
+    wholesale_price: Number(p.wholesale_price ?? sellingPrice),
+    mrp: mrp,
+    current_stock: stock,
+    stock_quantity: stock,
+    min_stock: minStock,
+    is_active: p.is_active !== false,
+    batches: p.batches || [],
+    created_at: p.created_at || new Date().toISOString(),
+    updated_at: p.updated_at || new Date().toISOString(),
+  };
+}
+
+export function getDemoProductsClient(): any[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(KRUSHI_DEMO_PRODUCTS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed.map(normalizeDemoProduct);
+      }
+    }
+  } catch (err) {
+    console.error('Error reading demo products from localStorage:', err);
+  }
+
+  // Initialize from MOCK_PRODUCTS
+  const initial = MOCK_PRODUCTS.map(normalizeDemoProduct);
+  try {
+    localStorage.setItem(KRUSHI_DEMO_PRODUCTS_KEY, JSON.stringify(initial));
+  } catch {}
+  return initial;
+}
+
+export function saveDemoProductClient(data: any): any {
+  const current = getDemoProductsClient();
+  const id = `p-${Date.now()}`;
+  const categories = getDemoCategoriesClient();
+  const foundCat = categories.find(c => c.id === data.category_id);
+
+  const initialStock = Number(data.opening_stock ?? data.current_stock ?? 0);
+  const sellingPrice = Number(data.selling_price ?? 0);
+  const purchasePrice = Number(data.purchase_price ?? 0);
+
+  const batches = data.batch_number ? [
+    {
+      id: `batch-${Date.now()}`,
+      batch_number: data.batch_number,
+      expiry_date: data.expiry_date || null,
+      quantity_available: initialStock,
+      selling_price: sellingPrice,
+      purchase_price: purchasePrice,
+    }
+  ] : (data.batches || []);
+
+  const newProd = normalizeDemoProduct({
+    id,
+    name: data.name.trim(),
+    category_id: data.category_id || foundCat?.id || 'cat-1',
+    category: foundCat || { id: data.category_id || 'cat-1', name: 'General' },
+    brand_id: data.brand_id || null,
+    brand: data.brand || null,
+    sku: data.sku || `SKU-${Date.now().toString().slice(-4)}`,
+    barcode: data.barcode || '',
+    description: data.description || '',
+    unit: data.unit || 'Piece',
+    hsn_code: data.hsn_code || '',
+    gst_rate: Number(data.gst_rate ?? 0),
+    purchase_price: purchasePrice,
+    selling_price: sellingPrice,
+    wholesale_price: Number(data.wholesale_price ?? sellingPrice),
+    mrp: Number(data.mrp ?? sellingPrice),
+    current_stock: initialStock,
+    stock_quantity: initialStock,
+    min_stock: Number(data.min_stock ?? 5),
+    is_active: true,
+    batches: batches,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  });
+
+  const updated = [newProd, ...current];
+  try {
+    localStorage.setItem(KRUSHI_DEMO_PRODUCTS_KEY, JSON.stringify(updated));
+    window.dispatchEvent(new CustomEvent('krushi-products-updated', { detail: newProd }));
+  } catch (err) {
+    console.error('Error saving demo product to localStorage:', err);
+  }
+  return newProd;
+}
+
+export function updateDemoProductClient(id: string, data: any): any {
+  const current = getDemoProductsClient();
+  const idx = current.findIndex(p => p.id === id);
+  if (idx === -1) return null;
+
+  const categories = getDemoCategoriesClient();
+  const catId = data.category_id !== undefined ? data.category_id : current[idx].category_id;
+  const foundCat = categories.find(c => c.id === catId);
+
+  const updated = normalizeDemoProduct({
+    ...current[idx],
+    ...data,
+    category_id: catId,
+    category: foundCat || current[idx].category,
+    selling_price: data.selling_price !== undefined ? Number(data.selling_price) : current[idx].selling_price,
+    purchase_price: data.purchase_price !== undefined ? Number(data.purchase_price) : current[idx].purchase_price,
+    current_stock: data.current_stock !== undefined ? Number(data.current_stock) : current[idx].current_stock,
+    updated_at: new Date().toISOString(),
+  });
+
+  current[idx] = updated;
+  try {
+    localStorage.setItem(KRUSHI_DEMO_PRODUCTS_KEY, JSON.stringify(current));
+    window.dispatchEvent(new CustomEvent('krushi-products-updated', { detail: updated }));
+  } catch (err) {
+    console.error('Error updating demo product in localStorage:', err);
+  }
+  return updated;
+}
+
+export function deleteDemoProductClient(id: string): boolean {
+  const current = getDemoProductsClient();
+  const filtered = current.filter(p => p.id !== id);
+  try {
+    localStorage.setItem(KRUSHI_DEMO_PRODUCTS_KEY, JSON.stringify(filtered));
+    window.dispatchEvent(new CustomEvent('krushi-products-updated', { detail: { id, deleted: true } }));
+    return true;
+  } catch (err) {
+    console.error('Error deleting demo product in localStorage:', err);
+    return false;
+  }
+}
+
+export function getDemoProductByIdClient(id: string): any | null {
+  const current = getDemoProductsClient();
+  return current.find(p => p.id === id) || null;
+}
+
+export function searchDemoProductsClient(queryText: string, categoryId?: string, limit = 20): any[] {
+  const current = getDemoProductsClient().filter(p => p.is_active !== false);
+  let filtered = current;
+
+  if (categoryId && categoryId !== 'all') {
+    filtered = filtered.filter(p => p.category_id === categoryId || p.category?.id === categoryId);
+  }
+
+  const q = (queryText || '').trim().toLowerCase();
+  if (!q) {
+    return filtered.slice(0, limit);
+  }
+
+  return filtered.filter(p =>
+    (p.name && p.name.toLowerCase().includes(q)) ||
+    (p.sku && p.sku.toLowerCase().includes(q)) ||
+    (p.barcode && p.barcode.includes(q)) ||
+    (p.category?.name && p.category.name.toLowerCase().includes(q))
+  ).slice(0, limit);
+}
+

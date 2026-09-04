@@ -52,14 +52,24 @@ export interface Brand extends BaseEntity {
 export interface Product extends BaseEntity {
   name: string;
   category_id: ID;
-  brand_id?: ID;
+  brand_id?: ID | null;
   shop_id: ID;
-  hsn_code?: string;
+  hsn_code?: string | null;
   unit: string;
-  description?: string;
+  description?: string | null;
+  sku?: string | null;
+  barcode?: string | null;
+  image_url?: string | null;
+  purchase_price?: number;
+  selling_price?: number;
+  wholesale_price?: number;
   gst_rate: number;
+  min_stock?: number;
+  max_stock?: number;
+  current_stock?: number;
+  stock_quantity?: number;
+  min_stock_alert?: number;
   is_active: boolean;
-  min_stock_alert: number;
 }
 
 export interface ProductBatch extends BaseEntity {
