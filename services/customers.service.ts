@@ -23,6 +23,7 @@ export function normalizeCustomer(c: any) {
     name: c.name,
     phone,
     mobile,
+    aadhaar: c.aadhaar || '',
     village: c.village || '',
     address: c.address || '',
     farm_size: farmSize,
@@ -56,6 +57,7 @@ export async function getCustomers(shopId: string, options: { search?: string; p
         (c.name && c.name.toLowerCase().includes(q)) ||
         (c.phone && c.phone.includes(q)) ||
         (c.mobile && c.mobile.includes(q)) ||
+        (c.aadhaar && c.aadhaar.includes(q)) ||
         (c.village && c.village.toLowerCase().includes(q))
       );
     }
@@ -115,6 +117,8 @@ export async function getCustomerById(shopId: string, customerId: string) {
 }
 
 export async function createCustomer(shopId: string, data: CustomerInput) {
+  const openingBalance = Number((data as any).previous_udhari || 0);
+
   if (isPlaceholderMode()) {
     const store = getStoredDemoCustomers(normalizeCustomer);
     const id = `cust-${Date.now()}`;
@@ -124,6 +128,7 @@ export async function createCustomer(shopId: string, data: CustomerInput) {
       name: data.name,
       phone: data.mobile || data.phone || '',
       mobile: data.mobile || data.phone || '',
+      aadhaar: (data as any).aadhaar || '',
       village: data.village || '',
       address: data.address || '',
       farm_size: data.farm_size || data.farmSize || '',
@@ -131,8 +136,8 @@ export async function createCustomer(shopId: string, data: CustomerInput) {
       crops: data.crops || '',
       notes: data.notes || '',
       credit_limit: data.credit_limit || 50000,
-      outstanding: 0,
-      outstanding_balance: 0,
+      outstanding: openingBalance,
+      outstanding_balance: openingBalance,
       total_purchases: 0,
       is_active: true,
       created_at: new Date().toISOString(),
@@ -145,16 +150,20 @@ export async function createCustomer(shopId: string, data: CustomerInput) {
   }
 
   const supabase = await createServerSupabaseClient();
-  const insertData = {
+  const insertData: any = {
     shop_id: shopId,
     name: data.name,
     mobile: data.mobile || data.phone || null,
+    aadhaar: (data as any).aadhaar || null,
     village: data.village || null,
     address: data.address || null,
     farm_size: data.farm_size || data.farmSize || null,
     crops: data.crops || null,
     notes: data.notes || null,
   };
+  if (openingBalance > 0) {
+    insertData.outstanding = openingBalance;
+  }
   const { data: customer, error } = await supabase.from('customers').insert(insertData).select().single();
   if (error) {
     console.error("Error creating customer:", error);
@@ -310,6 +319,7 @@ export async function searchCustomers(shopId: string, queryText: string, limit =
         (c.name && c.name.toLowerCase().includes(q)) ||
         (c.phone && c.phone.includes(q)) ||
         (c.mobile && c.mobile.includes(q)) ||
+        (c.aadhaar && c.aadhaar.includes(q)) ||
         (c.village && c.village.toLowerCase().includes(q))
       )
       .slice(0, limit);

@@ -32,6 +32,7 @@ export function normalizeDemoCustomer(c: any) {
     name: c.name,
     phone,
     mobile,
+    aadhaar: c.aadhaar || '',
     village: c.village || '',
     address: c.address || '',
     farm_size: farmSize,
@@ -124,20 +125,43 @@ export function saveDemoCustomerClient(data: {
   name: string;
   mobile?: string | null;
   phone?: string | null;
+  aadhaar?: string | null;
   village?: string | null;
   address?: string | null;
   farm_size?: string | null;
   crops?: string | null;
   notes?: string | null;
+  previous_udhari?: number | null;
 }): any {
   const current = getDemoCustomersClient();
+
+  // Check for duplicate mobile number
+  if (data.mobile) {
+    const mobileStr = data.mobile.trim();
+    const existingMobile = current.find(c => c.mobile === mobileStr || c.phone === mobileStr);
+    if (existingMobile) {
+      throw new Error(`A customer with mobile number ${mobileStr} already exists: ${existingMobile.name}`);
+    }
+  }
+
+  // Check for duplicate aadhaar number
+  if (data.aadhaar) {
+    const aadhaarStr = data.aadhaar.trim();
+    const existingAadhaar = current.find(c => c.aadhaar === aadhaarStr);
+    if (existingAadhaar) {
+      throw new Error(`A customer with Aadhaar number already exists: ${existingAadhaar.name}`);
+    }
+  }
+
   const id = `cust-${Date.now()}`;
+  const openingBalance = Number(data.previous_udhari || 0);
   const newCust = normalizeDemoCustomer({
     id,
     shop_id: 'demo-shop-1',
     name: data.name,
     phone: data.mobile || data.phone || '',
     mobile: data.mobile || data.phone || '',
+    aadhaar: data.aadhaar || '',
     village: data.village || '',
     address: data.address || '',
     farm_size: data.farm_size || '',
@@ -145,8 +169,8 @@ export function saveDemoCustomerClient(data: {
     crops: data.crops || '',
     notes: data.notes || '',
     credit_limit: 50000,
-    outstanding: 0,
-    outstanding_balance: 0,
+    outstanding: openingBalance,
+    outstanding_balance: openingBalance,
     total_purchases: 0,
     is_active: true,
     created_at: new Date().toISOString(),

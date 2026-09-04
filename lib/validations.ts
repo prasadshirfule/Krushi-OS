@@ -233,7 +233,8 @@ export const batchSchema = z.object({
 
 export const customerSchema = z.object({
   name: z.string().min(1, 'Customer name is required'),
-  mobile: z.string().regex(phoneRegex, 'Invalid Indian mobile number format').optional().nullable().or(z.literal('')),
+  mobile: z.string().min(1, 'Mobile number is required').regex(/^\d{10}$/, 'Mobile number must be exactly 10 digits'),
+  aadhaar: z.string().min(1, 'Aadhaar number is required').regex(/^\d{12}$/, 'Aadhaar number must be exactly 12 digits'),
   phone: z.string().regex(phoneRegex, 'Invalid Indian mobile number format').optional().nullable().or(z.literal('')),
   village: z.string().optional().nullable().or(z.literal('')),
   address: z.string().optional().nullable().or(z.literal('')),
@@ -243,6 +244,7 @@ export const customerSchema = z.object({
   notes: z.string().optional().nullable().or(z.literal('')),
   credit_limit: z.number().optional().nullable(),
   outstanding: z.number().optional().nullable(),
+  previous_udhari: z.number().min(0, 'Previous Udhari cannot be negative').optional().nullable(),
 });
 
 export const supplierSchema = z.object({

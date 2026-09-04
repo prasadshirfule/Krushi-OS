@@ -12,6 +12,7 @@ import {
   isClientDemoMode, 
   getDemoCustomerByIdClient 
 } from '@/lib/client-demo-store';
+import { maskAadhaar } from '@/components/customers/customer-form';
 
 interface CustomerDetailClientProps {
   initialCustomer: any | null;
@@ -57,6 +58,7 @@ export function CustomerDetailClient({ initialCustomer, customerId }: CustomerDe
           <div className="space-y-2.5 text-sm text-card-foreground">
             <p><span className="text-muted-foreground font-medium">Name:</span> {customer.name}</p>
             <p><span className="text-muted-foreground font-medium">Mobile:</span> {customer.mobile || customer.phone || 'N/A'}</p>
+            {customer.aadhaar && <p><span className="text-muted-foreground font-medium">Aadhaar:</span> {maskAadhaar(customer.aadhaar)}</p>}
             <p><span className="text-muted-foreground font-medium">Village:</span> {customer.village || 'N/A'}</p>
             {customer.address && <p><span className="text-muted-foreground font-medium">Address:</span> {customer.address}</p>}
             <p><span className="text-muted-foreground font-medium">Farm Size:</span> {customer.farm_size || customer.farmSize || 'N/A'}</p>

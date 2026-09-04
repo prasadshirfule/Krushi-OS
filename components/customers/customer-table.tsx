@@ -10,6 +10,7 @@ import { formatCurrency } from '@/lib/utils';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Users, Edit, Trash2, BookOpen } from 'lucide-react';
 import { CustomerFormDialog } from './customer-form-dialog';
+import { maskAadhaar } from './customer-form';
 import { deleteCustomerAction } from '@/actions/customers';
 import { toast } from 'sonner';
 
@@ -85,6 +86,14 @@ export function CustomerTable({ initialData = [] }: { initialData?: any[] }) {
       accessorKey: 'mobile', 
       header: 'Mobile', 
       cell: ({ row }: any) => row.original.mobile || row.original.phone || 'N/A' 
+    },
+    { 
+      accessorKey: 'aadhaar', 
+      header: 'Aadhaar', 
+      cell: ({ row }: any) => {
+        const aadhaar = row.original.aadhaar;
+        return aadhaar ? maskAadhaar(aadhaar) : '-';
+      }
     },
     { 
       accessorKey: 'village', 

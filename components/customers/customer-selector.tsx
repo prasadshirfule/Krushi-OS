@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/popover";
 import { CustomerFormDialog } from "./customer-form-dialog";
 import { getCustomersAction } from "@/actions/customers";
+import { isClientDemoMode, getDemoCustomersClient } from "@/lib/client-demo-store";
 
 interface CustomerSelectorProps {
   value?: string;
@@ -34,16 +35,31 @@ export function CustomerSelector({ value, onChange, className }: CustomerSelecto
   const [selectedValue, setSelectedValue] = React.useState(value || "");
   const [customerOptions, setCustomerOptions] = React.useState<Array<{ value: string; label: string }>>([]);
 
+  const formatLabel = (c: any) => {
+    return `${c.name}${c.phone || c.mobile ? ` (${c.phone || c.mobile})` : ""}${c.village ? ` - ${c.village}` : ""}`;
+  };
+
   const loadCustomers = React.useCallback(async () => {
     try {
-      const res = await getCustomersAction({ limit: 100 });
-      if (res.success && res.data?.customers) {
+      if (isClientDemoMode()) {
+        // In demo mode, read directly from client demo store
+        const customers = getDemoCustomersClient();
         setCustomerOptions(
-          res.data.customers.map((c: any) => ({
+          customers.map((c: any) => ({
             value: String(c.id),
-            label: `${c.name}${c.phone || c.mobile ? ` (${c.phone || c.mobile})` : ""}${c.village ? ` - ${c.village}` : ""}`,
+            label: formatLabel(c),
           }))
         );
+      } else {
+        const res = await getCustomersAction({ limit: 100 });
+        if (res.success && res.data?.customers) {
+          setCustomerOptions(
+            res.data.customers.map((c: any) => ({
+              value: String(c.id),
+              label: formatLabel(c),
+            }))
+          );
+        }
       }
     } catch (err) {
       console.error("Failed to load customers in selector:", err);
@@ -52,6 +68,17 @@ export function CustomerSelector({ value, onChange, className }: CustomerSelecto
 
   React.useEffect(() => {
     loadCustomers();
+  }, [loadCustomers]);
+
+  // Listen for demo store updates so newly created customers appear immediately
+  React.useEffect(() => {
+    if (isClientDemoMode()) {
+      const handleUpdate = () => {
+        loadCustomers();
+      };
+      window.addEventListener('krushi-customers-updated', handleUpdate);
+      return () => window.removeEventListener('krushi-customers-updated', handleUpdate);
+    }
   }, [loadCustomers]);
 
   React.useEffect(() => {
@@ -69,7 +96,7 @@ export function CustomerSelector({ value, onChange, className }: CustomerSelecto
     if (newCust) {
       const opt = {
         value: String(newCust.id),
-        label: `${newCust.name}${newCust.phone || newCust.mobile ? ` (${newCust.phone || newCust.mobile})` : ""}${newCust.village ? ` - ${newCust.village}` : ""}`,
+        label: formatLabel(newCust),
       };
       setCustomerOptions(prev => [opt, ...prev.filter(o => o.value !== opt.value)]);
       handleSelect(opt.value);
