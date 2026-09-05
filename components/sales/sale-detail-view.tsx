@@ -146,7 +146,7 @@ export function SaleDetailView({ initialSale, saleId, sale: directSale }: SaleDe
       </div>
 
       {/* ─── A4 PHYSICAL INVOICE (SCREEN PREVIEW & PRINT) ─── */}
-      <div className="max-w-[290mm] mx-auto flex justify-center overflow-x-auto p-2 print:m-0 print:p-0 print:w-full">
+      <div className="max-w-[210mm] mx-auto flex justify-center print:m-0 print:p-0 print:w-full">
         <ReferenceTaxInvoice sale={activeSale} />
       </div>
 
