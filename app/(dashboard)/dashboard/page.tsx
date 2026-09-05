@@ -1,29 +1,22 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { getDashboardStats } from '@/services/dashboard.service';
-import StatsCards from '@/components/dashboard/stats-cards';
-import SalesChart from '@/components/dashboard/sales-chart';
-import RecentSales from '@/components/dashboard/recent-sales';
-import AlertsPanel from '@/components/dashboard/alerts-panel';
-import TopProducts from '@/components/dashboard/top-products';
-import ActivityFeed from '@/components/dashboard/activity-feed';
+import DashboardClientWrapper from '@/components/dashboard/dashboard-client-wrapper';
 import { redirect } from 'next/navigation';
-import { cookies } from 'next/headers';
-import { Card, CardContent } from '@/components/ui/card';
+import { getISTDateString } from '@/services/dashboard-data.service';
 
 export const metadata = {
   title: 'Dashboard | KRUSHI OS',
 };
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
 
 export default async function DashboardPage() {
   const supabase = await createServerSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  const cookieStore = await cookies();
   const isPlaceholder = !process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('placeholder');
-
-  const effectiveUser = user || { id: 'demo-admin-id', email: 'admin@krushios.com' };
 
   let shopId = 'demo-shop-1';
   if (user && !isPlaceholder) {
@@ -40,19 +33,22 @@ export default async function DashboardPage() {
   }
 
   try {
+    const todayStr = getISTDateString();
     const targetDate = new Date();
-    targetDate.setDate(targetDate.getDate() + 90);
+    targetDate.setDate(targetDate.getDate() + 30);
+    const maxDateStr = getISTDateString(targetDate);
 
-    const [stats, expRes, lowRes, actRes] = await Promise.all([
+    const [stats, expRes, lowRes, actRes] = await Promise.allSettled([
       getDashboardStats(shopId),
       supabase
         .from('product_batches')
         .select('*, product:products(*)')
         .eq('shop_id', shopId)
         .gt('quantity_available', 0)
-        .lte('expiry_date', targetDate.toISOString().split('T')[0])
+        .gte('expiry_date', todayStr)
+        .lte('expiry_date', maxDateStr)
         .order('expiry_date', { ascending: true })
-        .limit(5),
+        .limit(10),
       supabase
         .from('products')
         .select('*')
@@ -68,49 +64,51 @@ export default async function DashboardPage() {
         .limit(20)
     ]);
 
-    const expiringBatches = expRes?.data || [];
-    const lowStockProducts = ((lowRes?.data || []) as any[]).filter((p: any) => Number(p.current_stock || 0) <= Number(p.min_stock || 5)).slice(0, 5);
-    const activities = actRes?.data || [];
+    const dashboardStats = stats.status === 'fulfilled' ? stats.value : {
+      todaySales: { count: 0, total: 0, profit: 0 },
+      totalBills: 0,
+      totalOutstanding: 0,
+      totalPayable: 0,
+      lowStockCount: 0,
+      expiringCount: 0,
+      recentSales: [],
+      topProducts: [],
+      salesChart: [],
+    };
+
+    const expiringBatches = (expRes.status === 'fulfilled' && expRes.value.data) ? expRes.value.data : [];
+    const lowStockProducts = (lowRes.status === 'fulfilled' && lowRes.value.data)
+      ? ((lowRes.value.data as any[]).filter((p: any) => Number(p.current_stock || 0) <= Number(p.min_stock || 5)).slice(0, 10))
+      : [];
+    const activities = (actRes.status === 'fulfilled' && actRes.value.data) ? actRes.value.data : [];
 
     return (
-      <div className="flex flex-col gap-6 p-6">
-        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-        
-        <StatsCards stats={stats as any} />
-        
-        <div className="grid grid-cols-1 lg:grid-cols-7 gap-6">
-          <div className="lg:col-span-4">
-            <SalesChart data={stats.salesChart as any} />
-          </div>
-          <div className="lg:col-span-3">
-            <TopProducts products={stats.topProducts as any} />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-7 gap-6">
-          <div className="lg:col-span-4">
-            <RecentSales sales={stats.recentSales as any} />
-          </div>
-          <div className="lg:col-span-3">
-            <AlertsPanel 
-              lowStockProducts={lowStockProducts || []} 
-              expiringBatches={expiringBatches || []} 
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1">
-          <ActivityFeed activities={activities || []} />
-        </div>
-      </div>
+      <DashboardClientWrapper
+        initialStats={dashboardStats}
+        initialLowStock={lowStockProducts}
+        initialExpiring={expiringBatches}
+        initialActivities={activities}
+      />
     );
   } catch (error) {
     console.error("Failed to load dashboard stats", error);
     return (
-      <div className="p-6">
-        <h1 className="text-3xl font-bold tracking-tight text-red-600 mb-4">Error loading dashboard</h1>
-        <p className="text-muted-foreground">Please try again later or contact support if the issue persists.</p>
-      </div>
+      <DashboardClientWrapper
+        initialStats={{
+          todaySales: { count: 0, total: 0, profit: 0 },
+          totalBills: 0,
+          totalOutstanding: 0,
+          totalPayable: 0,
+          lowStockCount: 0,
+          expiringCount: 0,
+          recentSales: [],
+          topProducts: [],
+          salesChart: [],
+        }}
+        initialLowStock={[]}
+        initialExpiring={[]}
+        initialActivities={[]}
+      />
     );
   }
 }

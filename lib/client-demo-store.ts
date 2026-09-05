@@ -1,6 +1,18 @@
 import { MOCK_CUSTOMERS, MOCK_SALES, MOCK_PRODUCTS, MOCK_CATEGORIES, MOCK_BRANDS } from '@/lib/mock-data';
 import { calculateItemTotal, calculateBillTotal } from '@/lib/calculations';
 import { formatDDMMYYYYtoDB, parseProductSize, formatProductPackDisplay } from '@/lib/validations';
+import {
+  calculateTodaySales,
+  calculateTotalBills,
+  calculateTotalOutstanding,
+  calculateLowStock,
+  calculateExpiringBatches,
+  calculateTopSellingProducts,
+  calculateSalesChart,
+  calculateRecentSales,
+  calculateRecentActivities,
+  isTodayIST,
+} from '@/services/dashboard-data.service';
 
 
 export const KRUSHI_DEMO_CUSTOMERS_KEY = 'krushi_demo_customers';
@@ -672,9 +684,103 @@ export function saveDemoSaleClient(data: any): any {
   return newSale;
 }
 
-export function getDemoSaleByIdClient(idOrInvoice: string): any | null {
-  const sales = getDemoSalesClient();
-  return sales.find(s => s.id === idOrInvoice || s.invoice_number === idOrInvoice || s.invoiceNumber === idOrInvoice) || null;
+export function cancelDemoSaleClient(saleId: string, reason: string = 'User cancellation'): boolean {
+  const current = getDemoSalesClient();
+  const idx = current.findIndex(s => s.id === saleId || s.invoice_number === saleId || s.invoiceNumber === saleId);
+  if (idx === -1) return false;
+
+  const sale = current[idx];
+  if (sale.status === 'CANCELLED') return true;
+
+  sale.status = 'CANCELLED';
+  sale.cancel_reason = reason;
+  sale.updated_at = new Date().toISOString();
+  current[idx] = sale;
+
+  try {
+    localStorage.setItem(KRUSHI_DEMO_SALES_KEY, JSON.stringify(current));
+    window.dispatchEvent(new CustomEvent('krushi-sales-updated', { detail: sale }));
+
+    // Revert product inventory stock
+    const products = getDemoProductsClient();
+    let productsChanged = false;
+    for (const it of (sale.items || sale.sale_items || [])) {
+      const pIdx = products.findIndex(p => p.id === (it.product_id || it.id));
+      if (pIdx !== -1) {
+        const curStock = Number(products[pIdx].current_stock ?? products[pIdx].stock_quantity ?? 0);
+        const qty = Number(it.quantity) || 1;
+        products[pIdx].current_stock = curStock + qty;
+        products[pIdx].stock_quantity = curStock + qty;
+        productsChanged = true;
+      }
+    }
+    if (productsChanged) {
+      localStorage.setItem(KRUSHI_DEMO_PRODUCTS_KEY, JSON.stringify(products));
+      window.dispatchEvent(new CustomEvent('krushi-products-updated'));
+    }
+
+    // If it was credit, reverse customer outstanding and add credit ledger entry
+    const isCredit = (sale.payment_mode === 'Credit' || sale.payment_method === 'Credit' || (sale.payment_status && sale.payment_status !== 'PAID'));
+    if (isCredit && sale.customer_id && sale.customer_id !== 'walk-in') {
+      const paid = Number(sale.paid_amount || 0);
+      const total = Number(sale.total_amount ?? sale.grand_total ?? 0);
+      const udhariAmount = Math.max(0, total - paid);
+      if (udhariAmount > 0) {
+        updateDemoCustomerOutstanding(sale.customer_id, -udhariAmount);
+        addDemoLedgerEntry({
+          customer_id: sale.customer_id,
+          type: 'CREDIT',
+          amount: udhariAmount,
+          description: `Sale Cancelled (${sale.invoice_number || sale.id})`,
+          reference: `CANCEL-${sale.invoice_number || sale.id}`,
+        });
+      }
+    }
+    return true;
+  } catch (err) {
+    console.error('Error cancelling demo sale:', err);
+    return false;
+  }
+}
+
+export function returnDemoSaleClient(saleId: string, itemsToReturn: { saleItemId: string, quantity: number, reason: string }[]): boolean {
+  const current = getDemoSalesClient();
+  const idx = current.findIndex(s => s.id === saleId || s.invoice_number === saleId || s.invoiceNumber === saleId);
+  if (idx === -1) return false;
+
+  const sale = current[idx];
+  sale.status = 'REFUNDED';
+  sale.updated_at = new Date().toISOString();
+  current[idx] = sale;
+
+  try {
+    localStorage.setItem(KRUSHI_DEMO_SALES_KEY, JSON.stringify(current));
+    window.dispatchEvent(new CustomEvent('krushi-sales-updated', { detail: sale }));
+
+    // Restock returned items
+    const products = getDemoProductsClient();
+    let productsChanged = false;
+    for (const ret of itemsToReturn) {
+      const saleItem = (sale.items || sale.sale_items || []).find((it: any) => it.id === ret.saleItemId);
+      if (saleItem) {
+        const pIdx = products.findIndex(p => p.id === (saleItem.product_id || saleItem.id));
+        if (pIdx !== -1) {
+          const curStock = Number(products[pIdx].current_stock ?? products[pIdx].stock_quantity ?? 0);
+          products[pIdx].current_stock = curStock + ret.quantity;
+          products[pIdx].stock_quantity = curStock + ret.quantity;
+          productsChanged = true;
+        }
+      }
+    }
+    if (productsChanged) {
+      localStorage.setItem(KRUSHI_DEMO_PRODUCTS_KEY, JSON.stringify(products));
+      window.dispatchEvent(new CustomEvent('krushi-products-updated'));
+    }
+    return true;
+  } catch (err) {
+    console.error('Error returning demo sale:', err);
+    return false;
+  }
 }
 
 export function getDemoSalesSummaryClient() {
@@ -1076,5 +1182,48 @@ export function saveDemoBrandClient(data: { name: string; manufacturer?: string 
     console.error('Error saving demo brand to localStorage:', err);
   }
   return newBrand;
+}
+
+/* ═════════════════════════════════════════════════════════
+   DASHBOARD OPERATIONS (Client Demo Store)
+═════════════════════════════════════════════════════════ */
+
+export function getDemoDashboardDataClient() {
+  const sales = getDemoSalesClient();
+  const products = getDemoProductsClient();
+  const customers = getDemoCustomersClient();
+
+  const todaySalesStats = calculateTodaySales(sales, products);
+  const totalBills = calculateTotalBills(sales);
+  const totalOutstanding = calculateTotalOutstanding(customers);
+  const lowStock = calculateLowStock(products);
+  const expiring = calculateExpiringBatches(products, 30);
+  const topProducts = calculateTopSellingProducts(sales, 5);
+  const salesChart = calculateSalesChart(sales, 90);
+  const recentSales = calculateRecentSales(sales, 10);
+  const activities = calculateRecentActivities(sales, customers, products, 15);
+
+  return {
+    stats: {
+      todaySales: {
+        total: todaySalesStats.total,
+        total_sales: todaySalesStats.total,
+        amount: todaySalesStats.total,
+        profit: todaySalesStats.profit,
+        count: todaySalesStats.count,
+      },
+      totalBills,
+      totalOutstanding,
+      totalPayable: 0,
+      lowStockCount: lowStock.count,
+      expiringCount: expiring.count,
+      recentSales,
+      topProducts,
+      salesChart,
+    },
+    lowStockProducts: lowStock.products,
+    expiringBatches: expiring.batches,
+    activities,
+  };
 }
 

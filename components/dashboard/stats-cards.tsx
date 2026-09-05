@@ -13,6 +13,7 @@ export interface DashboardStats {
     profit?: number;
     count?: number;
   };
+  totalBills?: number;
   totalOutstanding: number;
   totalPayable: number;
   lowStockCount: number;
@@ -27,6 +28,7 @@ export default function StatsCards({ stats }: StatsCardsProps) {
   const salesAmount = Number(stats?.todaySales?.total ?? stats?.todaySales?.amount ?? stats?.todaySales?.total_sales ?? 0);
   const salesProfit = Number(stats?.todaySales?.profit ?? 0);
   const salesCount = Number(stats?.todaySales?.count ?? 0);
+  const totalBills = Number(stats?.totalBills ?? stats?.todaySales?.count ?? 0);
   const totalOutstanding = Number(stats?.totalOutstanding ?? 0);
 
   return (
@@ -59,7 +61,7 @@ export default function StatsCards({ stats }: StatsCardsProps) {
           <Receipt className="h-4 w-4 text-purple-600" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{salesCount}</div>
+          <div className="text-2xl font-bold">{totalBills}</div>
           <p className="text-xs text-muted-foreground">Invoices generated</p>
         </CardContent>
       </Card>

@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { returnSaleAction } from '@/actions/sales';
 import { formatCurrency } from '@/lib/utils';
 import { toast } from 'sonner';
+import { isClientDemoMode, returnDemoSaleClient } from '@/lib/client-demo-store';
 
 interface SaleReturnDialogProps {
   sale: any;
@@ -56,13 +57,22 @@ export default function SaleReturnDialog({ sale, onClose, onSuccess }: SaleRetur
           reason: reason
         }));
 
-      const result = await returnSaleAction(sale.id, itemsToReturn);
-
-      if (result.success) {
+      if (isClientDemoMode()) {
+        returnDemoSaleClient(sale.id, itemsToReturn);
+        try {
+          returnSaleAction(sale.id, itemsToReturn).catch(() => {});
+        } catch {}
         toast.success('Return processed successfully');
         onSuccess();
       } else {
-        toast.error(result.error || 'Failed to process return');
+        const result = await returnSaleAction(sale.id, itemsToReturn);
+
+        if (result.success) {
+          toast.success('Return processed successfully');
+          onSuccess();
+        } else {
+          toast.error(result.error || 'Failed to process return');
+        }
       }
     } catch (error) {
       toast.error('Unexpected error processing return');

@@ -3,7 +3,8 @@ import { SaleInput } from '@/lib/validations';
 import { MOCK_SALES, MOCK_CUSTOMERS } from '@/lib/mock-data';
 import { calculateItemTotal, calculateBillTotal } from '@/lib/calculations';
 import { getDemoCustomers } from '@/services/customers.service';
-import { getStoredDemoSales, saveStoredDemoSales } from '@/lib/demo-storage';
+import { getStoredDemoSales, saveStoredDemoSales, getStoredDemoProducts } from '@/lib/demo-storage';
+import { calculateTodaySales, calculateSalesChart } from '@/services/dashboard-data.service';
 
 /** Check if Supabase is running with placeholder credentials (demo mode). */
 export function isPlaceholderMode(): boolean {
@@ -373,29 +374,31 @@ export async function returnSale(shopId: string, saleId: string, items: { saleIt
 export async function getTodaySales(shopId: string) {
   if (isPlaceholderMode()) {
     const list = getDemoSales();
-    const todayStr = new Date().toISOString().split('T')[0];
-    const todayList = list.filter(s => {
-      const d = (s.sale_date || s.created_at || '').split('T')[0];
-      return d === todayStr && s.status !== 'CANCELLED';
-    });
-
+    const products = getStoredDemoProducts((p: any) => p);
+    const result = calculateTodaySales(list, products);
     return {
-      count: todayList.length,
-      total: todayList.reduce((sum, s) => sum + Number(s.total_amount || s.grand_total || 0), 0),
-      profit: todayList.reduce((sum, s) => sum + Number(s.profit_amount || Math.round(Number(s.total_amount || 0) * 0.15)), 0)
+      count: result.count,
+      total: result.total,
+      profit: result.profit,
     };
   }
 
   try {
     const supabase = await createServerSupabaseClient();
-    const todayStr = new Date().toISOString().split('T')[0];
+    
+    // Calculate start of today in IST (Asia/Kolkata) as UTC timestamp
+    const now = new Date();
+    const istOffsetMs = 5.5 * 60 * 60 * 1000;
+    const istNow = new Date(now.getTime() + istOffsetMs);
+    const istMidnight = new Date(Date.UTC(istNow.getUTCFullYear(), istNow.getUTCMonth(), istNow.getUTCDate(), 0, 0, 0));
+    const utcStartOfTodayIST = new Date(istMidnight.getTime() - istOffsetMs).toISOString();
     
     const { data, error } = await supabase
       .from('sales')
-      .select('id, total_amount, profit_amount')
+      .select('id, total_amount, grand_total, profit_amount, status')
       .eq('shop_id', shopId)
-      .eq('status', 'completed')
-      .gte('sale_date', `${todayStr}T00:00:00.000Z`);
+      .neq('status', 'CANCELLED')
+      .gte('sale_date', utcStartOfTodayIST);
 
     if (error || !data) {
       return { count: 0, total: 0, profit: 0 };
@@ -403,8 +406,8 @@ export async function getTodaySales(shopId: string) {
     
     return {
       count: data.length,
-      total: data.reduce((sum, s) => sum + Number(s.total_amount || 0), 0),
-      profit: data.reduce((sum, s) => sum + Number(s.profit_amount || 0), 0)
+      total: data.reduce((sum, s) => sum + Number(s.total_amount || s.grand_total || 0), 0),
+      profit: data.reduce((sum, s) => sum + Number(s.profit_amount || Math.round(Number(s.total_amount || s.grand_total || 0) * 0.15)), 0)
     };
   } catch (error) {
     console.error("Error fetching today sales:", error);
@@ -415,33 +418,20 @@ export async function getTodaySales(shopId: string) {
 export async function getSalesChart(shopId: string, period: 'daily' | 'weekly' | 'monthly' = 'daily') {
   if (isPlaceholderMode()) {
     const list = getDemoSales();
-    const dateMap = new Map<string, { date: string, sales: number, profit: number, total: number }>();
-    for (const sale of list) {
-      if (sale.status === 'CANCELLED') continue;
-      const isoDate = (sale.sale_date || sale.created_at || '').split('T')[0];
-      if (!isoDate) continue;
-      const current = dateMap.get(isoDate) || { date: isoDate, sales: 0, profit: 0, total: 0 };
-      const amt = Number(sale.total_amount || sale.grand_total || 0);
-      const prf = Number(sale.profit_amount || Math.round(amt * 0.15));
-      current.sales += amt;
-      current.total += amt;
-      current.profit += prf;
-      dateMap.set(isoDate, current);
-    }
-    return Array.from(dateMap.values()).sort((a, b) => a.date.localeCompare(b.date));
+    return calculateSalesChart(list, 90);
   }
 
   try {
     const supabase = await createServerSupabaseClient();
-    const daysAgo = 30;
+    const daysAgo = 90;
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - daysAgo);
 
     const { data, error } = await supabase
       .from('sales')
-      .select('sale_date, total_amount, profit_amount')
+      .select('sale_date, created_at, total_amount, grand_total, profit_amount, status')
       .eq('shop_id', shopId)
-      .eq('status', 'completed')
+      .neq('status', 'CANCELLED')
       .gte('sale_date', startDate.toISOString())
       .order('sale_date', { ascending: true });
 
@@ -449,20 +439,7 @@ export async function getSalesChart(shopId: string, period: 'daily' | 'weekly' |
       return [];
     }
 
-    const dateMap = new Map<string, { date: string, sales: number, profit: number, total: number }>();
-
-    for (const sale of data) {
-      const isoDate = new Date(sale.sale_date).toISOString().split('T')[0];
-      const current = dateMap.get(isoDate) || { date: isoDate, sales: 0, profit: 0, total: 0 };
-      const amt = Number(sale.total_amount || 0);
-      const prf = Number(sale.profit_amount || 0);
-      current.sales += amt;
-      current.total += amt;
-      current.profit += prf;
-      dateMap.set(isoDate, current);
-    }
-
-    return Array.from(dateMap.values());
+    return calculateSalesChart(data, 90);
   } catch (error) {
     console.error("Error fetching sales chart data:", error);
     return [];
