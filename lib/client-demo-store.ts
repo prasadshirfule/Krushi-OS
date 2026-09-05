@@ -462,13 +462,31 @@ export function saveDemoSaleClient(data: any): any {
     const customers = getDemoCustomersClient();
     const found = customers.find(c => c.id === customerId);
     if (found) {
-      customerObj = { id: found.id, name: found.name, phone: found.phone || found.mobile || '' };
+      customerObj = { 
+        id: found.id, 
+        name: found.name, 
+        phone: found.phone || found.mobile || '',
+        mobile: found.mobile || found.phone || '',
+        village: found.village || found.address || '',
+        address: found.address || '',
+        gstin: found.gstin || found.gst_number || '',
+        aadhaar: found.aadhaar || ''
+      };
       customerName = found.name;
       customerPhone = found.phone || found.mobile || '';
     } else if (data.customer_name || data.customer?.name) {
       customerName = data.customer_name || data.customer?.name;
       customerPhone = data.customer_phone || data.customer?.phone || '';
-      customerObj = { id: customerId, name: customerName, phone: customerPhone };
+      customerObj = { 
+        id: customerId, 
+        name: customerName, 
+        phone: customerPhone,
+        mobile: customerPhone,
+        village: data.customer?.village || '',
+        address: data.customer?.address || '',
+        gstin: data.customer?.gstin || '',
+        aadhaar: data.customer?.aadhaar || ''
+      };
     }
   } else if (data.customer_name && data.customer_name.toLowerCase() !== 'walk-in' && data.customer_name.toLowerCase() !== 'walk-in customer') {
     customerName = data.customer_name;
@@ -505,6 +523,9 @@ export function saveDemoSaleClient(data: any): any {
       total_tax: itemTotal.totalTax,
       total_amount: itemTotal.total,
       total_price: itemTotal.total,
+      product: it.product || it, // Preserve the product details for the invoice
+      hsn_code: it.hsn_code || it.product?.hsn_code || '',
+      expiry_date: it.expiry_date || it.product?.expiry_date || '',
     };
   });
 

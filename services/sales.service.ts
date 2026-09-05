@@ -225,7 +225,7 @@ export async function getSales(
 
     let query = supabase
       .from('sales')
-      .select('*, customer:customers(id, name, mobile), items:sale_items(*)', { count: 'exact' })
+      .select('*, customer:customers(id, name, mobile, address, village, gstin, aadhaar), items:sale_items(*, product:products(*))', { count: 'exact' })
       .eq('shop_id', shopId);
     
     if (options.customerId) query = query.eq('customer_id', options.customerId);
@@ -286,7 +286,7 @@ export async function getSaleByInvoice(shopId: string, invoiceNumber: string) {
     const supabase = await createServerSupabaseClient();
     const { data, error } = await supabase
       .from('sales')
-      .select('*, customer:customers(*), items:sale_items(*)')
+      .select('*, customer:customers(*), items:sale_items(*, product:products(*))')
       .eq('shop_id', shopId)
       .eq('invoice_number', invoiceNumber)
       .single();
