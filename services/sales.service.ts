@@ -77,9 +77,11 @@ export async function completeSale(shopId: string, data: any, userId: string) {
     const items = (data.items || []).map((it: any, idx: number) => {
       const q = Math.max(1, Number(it.quantity) || 1);
       const rate = Number(it.unit_price ?? it.selling_price ?? it.rate ?? 0);
-      const disc = Number(it.discount_percent ?? it.discount ?? 0);
+      const disc = Number(it.discount_amount !== undefined ? it.discount_amount : (it.discount !== undefined ? it.discount : (it.discount_percent || 0)));
       const gst = Number(it.gst_rate ?? it.gst ?? 0);
-      const itemTotal = calculateItemTotal(q, rate, disc, gst);
+      const itemTotal = calculateItemTotal(q, rate, disc, gst, true, {
+        discountAmount: it.discount_amount !== undefined ? Number(it.discount_amount) : undefined,
+      });
 
       const prodName = it.product_name && it.product_name !== 'Product'
         ? it.product_name
@@ -103,7 +105,9 @@ export async function completeSale(shopId: string, data: any, userId: string) {
         unit_price: rate,
         selling_price: rate,
         rate: rate,
-        discount_percent: disc,
+        discount_amount: itemTotal.discountAmount,
+        discount: itemTotal.discountAmount,
+        discount_percent: it.discount_percent !== undefined ? Number(it.discount_percent) : (q * rate > 0 ? (itemTotal.discountAmount / (q * rate)) * 100 : 0),
         gst_rate: gst,
         taxable_amount: itemTotal.taxableAmount,
         cgst: itemTotal.cgst,
@@ -114,7 +118,8 @@ export async function completeSale(shopId: string, data: any, userId: string) {
       };
     });
 
-    const billTotals = data.totals || calculateBillTotal(items);
+    const rawAdjustments = Array.isArray(data.adjustments) ? data.adjustments : [];
+    const billTotals = data.totals || calculateBillTotal(items, rawAdjustments);
     const payable = Number(billTotals.payableAmount ?? billTotals.grandTotal ?? 0);
     const paymentMethod = data.payment_method || (data.payments?.[0]?.method) || 'Cash';
     const isCredit = paymentMethod.toUpperCase() === 'CREDIT';
@@ -130,8 +135,11 @@ export async function completeSale(shopId: string, data: any, userId: string) {
       customer_name: customerObj?.name || 'Walk-in Customer',
       items: items,
       sale_items: items,
+      adjustments: rawAdjustments,
       subtotal: Number(billTotals.subtotal || 0),
       discount_amount: Number(billTotals.totalDiscount || 0),
+      total_additions: Number(billTotals.totalAdditions || 0),
+      total_deductions: Number(billTotals.totalDeductions || 0),
       tax_amount: Number(billTotals.totalTax || 0),
       cgst_total: Number(billTotals.totalCGST || 0),
       sgst_total: Number(billTotals.totalSGST || 0),

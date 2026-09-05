@@ -186,11 +186,24 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails }: In
   const taxableTotal = items.reduce((sum, item) => sum + item.taxableAmount, 0);
   const cgstTotal = items.reduce((sum, item) => sum + item.cgstAmount, 0);
   const sgstTotal = items.reduce((sum, item) => sum + item.sgstAmount, 0);
-  const netTotal = items.reduce((sum, item) => sum + item.total, 0);
+  const productsTotal = items.reduce((sum, item) => sum + item.total, 0);
+
+  // Bill adjustments from sale transaction
+  const adjustments: any[] = Array.isArray(s.adjustments) ? s.adjustments : [];
+  const totalAdditions = adjustments
+    .filter(a => a.type === 'ADD')
+    .reduce((sum, a) => sum + (Number(a.amount) || 0), 0);
+  const totalDeductions = adjustments
+    .filter(a => a.type === 'DEDUCT')
+    .reduce((sum, a) => sum + (Number(a.amount) || 0), 0);
+
+  const netTotal = s.total_amount !== undefined && s.total_amount !== null
+    ? Number(s.total_amount)
+    : Math.max(0, productsTotal + totalAdditions - totalDeductions);
 
   const amountPaid = s.paid_amount !== undefined ? Number(s.paid_amount) : (isCredit ? 0 : netTotal);
   const balanceDue = isCredit ? Math.max(0, netTotal - amountPaid) : 0;
-  const words = numberToWords(netTotal);
+  const words = numberToWords(Math.round(netTotal));
 
   // Fill up to 5 rows so the receipt table looks realistic and dense
   const minRows = 5;
@@ -441,6 +454,20 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails }: In
                 <td className="p-1.5 font-bold text-gray-800">SGST Amount:</td>
                 <td className="p-1.5 text-right font-mono font-semibold">₹{sgstTotal.toFixed(2)}</td>
               </tr>
+              {/* Bill Adjustments (Additions & Deductions) */}
+              {adjustments.map((adj: any, i: number) => {
+                const isAdd = adj.type === 'ADD';
+                return (
+                  <tr key={adj.id || i} className="border-b border-black/40 text-[10px]">
+                    <td className="p-1 font-semibold text-gray-800">
+                      {adj.reason} {isAdd ? '(+)' : '(-)'}:
+                    </td>
+                    <td className={`p-1 text-right font-mono font-bold ${isAdd ? 'text-emerald-700' : 'text-amber-800'}`}>
+                      {isAdd ? `+₹${Number(adj.amount || 0).toFixed(2)}` : `-₹${Number(adj.amount || 0).toFixed(2)}`}
+                    </td>
+                  </tr>
+                );
+              })}
               <tr className="border-b-2 border-black bg-gray-100">
                 <td className="p-2 font-black text-xs text-black">NET TOTAL:</td>
                 <td className="p-2 text-right font-mono font-black text-sm text-black">₹{netTotal.toFixed(2)}</td>

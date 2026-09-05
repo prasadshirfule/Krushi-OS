@@ -279,12 +279,24 @@ export const paymentSplitSchema = z.object({
   amount: z.number().min(0.01),
 });
 
+export const adjustmentSchema = z.object({
+  id: z.string().optional(),
+  type: z.enum(['ADD', 'DEDUCT']),
+  reason: z.string().min(1),
+  customReason: z.string().optional().nullable(),
+  amount: z.number().min(0),
+  tax_treatment: z.enum(['TAXABLE', 'NON_TAXABLE']).optional(),
+  taxTreatment: z.enum(['TAXABLE', 'NON_TAXABLE']).optional(),
+}).passthrough();
+
 export const saleItemSchema = z.object({
   product_id: z.string(),
   batch_id: z.string().optional().nullable(),
   quantity: z.number().min(1),
   unit_price: z.number().min(0),
-  discount_percent: z.number().min(0).max(100),
+  discount_percent: z.number().min(0).optional(),
+  discount_amount: z.number().min(0).optional(),
+  discount: z.number().min(0).optional(),
   gst_rate: z.number().min(0),
   product_name: z.string().optional().nullable(),
   batch_number: z.string().optional().nullable(),
@@ -298,6 +310,7 @@ export const saleItemSchema = z.object({
 export const saleSchema = z.object({
   customer_id: z.string().optional().nullable(),
   items: z.array(saleItemSchema).min(1),
+  adjustments: z.array(adjustmentSchema).optional(),
   payments: z.array(paymentSplitSchema).min(1),
   notes: z.string().optional().nullable(),
   idempotency_key: z.string(),

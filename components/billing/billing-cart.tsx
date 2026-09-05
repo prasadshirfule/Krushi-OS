@@ -7,7 +7,7 @@ import { formatCurrency, numberToWords } from '@/lib/utils';
 import { formatProductPackDisplay } from '@/lib/validations';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Trash2, ShoppingBasket, Plus, Minus, Receipt, Percent, AlertCircle } from 'lucide-react';
+import { Trash2, ShoppingBasket, Plus, Minus, Receipt, Percent, AlertCircle, Tag } from 'lucide-react';
 
 interface BillingCartProps {
   items: BillingCartItem[];
@@ -107,14 +107,17 @@ export default function BillingCart({ items, onChange, onClear, totals: propTota
               </thead>
               <tbody className="divide-y divide-border/50">
                 {items.map((item, idx) => {
+                  const effectiveDiscount = item.discount_amount !== undefined ? item.discount_amount : (item.discount || 0);
                   const itemTotal = calculateItemTotal(
                     item.quantity || 1,
                     item.rate || 0,
-                    item.discount || 0,
-                    item.gst_rate || 0
+                    effectiveDiscount,
+                    item.gst_rate || 0,
+                    true,
+                    { discountAmount: effectiveDiscount }
                   );
                   const isDiscountOpen = showDiscountIndex === idx;
-                  const hasDiscount = (item.discount || 0) > 0;
+                  const hasDiscount = effectiveDiscount > 0;
                   const stockExceeded = item.available_stock && item.quantity > item.available_stock;
 
                   return (
@@ -144,35 +147,47 @@ export default function BillingCart({ items, onChange, onClear, totals: propTota
                             GST: {item.gst_rate || 0}%
                           </span>
 
-                          {/* Discount toggle button */}
+                          {/* Discount toggle button (in ₹) */}
                           <button
                             type="button"
                             onClick={() => setShowDiscountIndex(isDiscountOpen ? null : idx)}
-                            className={`text-[11px] flex items-center gap-0.5 px-1.5 py-0.5 rounded transition-colors ${
+                            className={`text-[11px] flex items-center gap-1 px-2 py-0.5 rounded transition-colors ${
                               hasDiscount
-                                ? 'bg-amber-500/20 text-amber-300 font-semibold border border-amber-500/30'
+                                ? 'bg-amber-500/20 text-amber-300 font-bold border border-amber-500/40'
                                 : 'text-primary hover:underline'
                             }`}
                           >
-                            <Percent className="h-2.5 w-2.5" />
-                            {hasDiscount ? `${item.discount}% off` : '+ Add Discount'}
+                            <Tag className="h-2.5 w-2.5" />
+                            {hasDiscount ? `₹${effectiveDiscount.toFixed(2)} off` : '+ Add Discount (₹)'}
                           </button>
                         </div>
 
-                        {/* Inline Discount Editor */}
+                        {/* Inline Discount Editor in ₹ */}
                         {isDiscountOpen && (
-                          <div className="mt-2 flex items-center gap-2 bg-muted/70 p-2 rounded-lg border border-border">
-                            <span className="text-xs font-semibold text-foreground">Discount %:</span>
-                            <Input
-                              type="number"
-                              min="0"
-                              max="100"
-                              value={item.discount || ''}
-                              placeholder="0"
-                              onChange={e => updateItem(idx, { discount: Math.min(100, Math.max(0, Number(e.target.value) || 0)) })}
-                              className="h-7 w-20 px-2 text-xs bg-background border-border text-foreground"
-                              autoFocus
-                            />
+                          <div className="mt-2 flex items-center gap-2 bg-muted/80 p-2.5 rounded-lg border border-border flex-wrap">
+                            <span className="text-xs font-semibold text-foreground">Discount (₹):</span>
+                            <div className="relative">
+                              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">₹</span>
+                              <Input
+                                type="number"
+                                min="0"
+                                max={(item.quantity || 1) * (item.rate || 0)}
+                                step="any"
+                                value={item.discount_amount !== undefined ? (item.discount_amount || '') : (item.discount || '')}
+                                placeholder="0.00"
+                                onChange={e => {
+                                  const lineMax = (item.quantity || 1) * (item.rate || 0);
+                                  const val = e.target.value === '' ? 0 : Math.max(0, Number(e.target.value) || 0);
+                                  const clamped = Math.min(lineMax, val);
+                                  updateItem(idx, { discount_amount: clamped, discount: clamped });
+                                }}
+                                className="h-7 w-28 pl-6 pr-2 text-xs bg-background border-border text-foreground font-mono font-bold"
+                                autoFocus
+                              />
+                            </div>
+                            <span className="text-[11px] text-muted-foreground">
+                              (Max: {formatCurrency((item.quantity || 1) * (item.rate || 0))})
+                            </span>
                             <Button
                               type="button"
                               size="sm"
@@ -290,12 +305,41 @@ export default function BillingCart({ items, onChange, onClear, totals: propTota
                 </span>
               </div>
               <div>
-                <span className="text-xs text-muted-foreground block font-medium">Total Discount</span>
+                <span className="text-xs text-muted-foreground block font-medium">Product Discount</span>
                 <span className="font-bold text-amber-400 text-base">
                   {(totals.totalDiscount || 0) > 0 ? `-${formatCurrency(totals.totalDiscount)}` : '₹0.00'}
                 </span>
               </div>
             </div>
+
+            {/* Adjustments row if present */}
+            {((totals.totalAdditions || 0) > 0 || (totals.totalDeductions || 0) > 0) && (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm py-3 border-b border-border/60 bg-muted/20 px-2 rounded-md my-2">
+                <div>
+                  <span className="text-xs text-muted-foreground block font-medium">Products Total</span>
+                  <span className="font-semibold text-foreground text-sm">
+                    {formatCurrency(totals.productsTotal || (totals.subtotal + totals.totalTax - totals.totalDiscount))}
+                  </span>
+                </div>
+                {(totals.totalAdditions || 0) > 0 ? (
+                  <div>
+                    <span className="text-xs text-emerald-400 block font-medium">Added Charges (+)</span>
+                    <span className="font-bold text-emerald-400 text-sm">
+                      +{formatCurrency(totals.totalAdditions)}
+                    </span>
+                  </div>
+                ) : <div />}
+                {(totals.totalDeductions || 0) > 0 ? (
+                  <div>
+                    <span className="text-xs text-amber-400 block font-medium">Deductions (-)</span>
+                    <span className="font-bold text-amber-400 text-sm">
+                      -{formatCurrency(totals.totalDeductions)}
+                    </span>
+                  </div>
+                ) : <div />}
+                <div />
+              </div>
+            )}
 
             {/* Prominent Grand Total Display */}
             <div className="pt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">

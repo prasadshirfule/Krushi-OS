@@ -17,6 +17,7 @@ import {
 
 interface PaymentPanelProps {
   cart: any[];
+  adjustments?: any[];
   totals: any;
   customerId?: string;
   customerName?: string;
@@ -40,7 +41,7 @@ const METHOD_TO_ENUM: Record<string, 'CASH' | 'UPI' | 'CARD' | 'BANK_TRANSFER' |
   Credit: 'CREDIT',
 };
 
-export default function PaymentPanel({ cart, totals, customerId, customerName, customerPhone, onComplete }: PaymentPanelProps) {
+export default function PaymentPanel({ cart, adjustments = [], totals, customerId, customerName, customerPhone, onComplete }: PaymentPanelProps) {
   const router = useRouter();
   const [paymentMethod, setPaymentMethod] = useState<string>(PAYMENT_METHODS[0]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -120,25 +121,40 @@ export default function PaymentPanel({ cart, totals, customerId, customerName, c
       const idempotencyKey = generateId();
 
       // Format items to match saleItemSchema while preserving complete transaction product metadata
-      const formattedItems = cart.map(item => ({
-        product_id: item.product_id || item.id,
-        product: item.product || item,
-        product_name: item.product_name || item.name || item.product?.name || 'Product',
-        batch_id: item.batch_id || undefined,
-        batch_number: item.batch_number || item.batch?.batch_number || item.product?.batch_number || '',
-        hsn_code: item.hsn_code || item.product?.hsn_code || item.product?.hsnCode || '',
-        expiry_date: item.expiry_date || item.batch?.expiry_date || item.product?.expiry_date || '',
-        unit: item.unit || item.product?.unit || '',
-        pack_size: item.pack_size || item.product?.pack_size || '',
-        product_size_value: item.product_size_value ?? item.product?.product_size_value,
-        product_size_unit: item.product_size_unit ?? item.product?.product_size_unit,
-        manufacturer: item.product?.manufacturer || item.product?.brand?.manufacturer || item.product?.brand?.name || item.manufacturer || '',
-        quantity: Math.max(1, Number(item.quantity) || 1),
-        unit_price: Number(item.rate) || 0,
-        selling_price: Number(item.rate) || 0,
-        rate: Number(item.rate) || 0,
-        discount_percent: Number(item.discount) || 0,
-        gst_rate: Number(item.gst_rate) || 0,
+      const formattedItems = cart.map(item => {
+        const discAmt = Number(item.discount_amount !== undefined ? item.discount_amount : (item.discount || 0));
+        return {
+          product_id: item.product_id || item.id,
+          product: item.product || item,
+          product_name: item.product_name || item.name || item.product?.name || 'Product',
+          batch_id: item.batch_id || undefined,
+          batch_number: item.batch_number || item.batch?.batch_number || item.product?.batch_number || '',
+          hsn_code: item.hsn_code || item.product?.hsn_code || item.product?.hsnCode || '',
+          expiry_date: item.expiry_date || item.batch?.expiry_date || item.product?.expiry_date || '',
+          unit: item.unit || item.product?.unit || '',
+          pack_size: item.pack_size || item.product?.pack_size || '',
+          product_size_value: item.product_size_value ?? item.product?.product_size_value,
+          product_size_unit: item.product_size_unit ?? item.product?.product_size_unit,
+          manufacturer: item.product?.manufacturer || item.product?.brand?.manufacturer || item.product?.brand?.name || item.manufacturer || '',
+          quantity: Math.max(1, Number(item.quantity) || 1),
+          unit_price: Number(item.rate) || 0,
+          selling_price: Number(item.rate) || 0,
+          rate: Number(item.rate) || 0,
+          discount_amount: discAmt,
+          discount: discAmt,
+          discount_percent: Number(item.discount_percent || 0),
+          gst_rate: Number(item.gst_rate) || 0,
+        };
+      });
+
+      // Format bill adjustments
+      const formattedAdjustments = (adjustments || []).map((a: any) => ({
+        id: a.id,
+        type: a.type,
+        reason: a.reason === 'Other' && a.customReason ? a.customReason : a.reason,
+        amount: Number(a.amount) || 0,
+        tax_treatment: a.taxTreatment || 'NON_TAXABLE',
+        taxTreatment: a.taxTreatment || 'NON_TAXABLE',
       }));
 
       // Format payment to match paymentSplitSchema
@@ -163,6 +179,7 @@ export default function PaymentPanel({ cart, totals, customerId, customerName, c
           phone: customerPhone || '',
         },
         items: formattedItems,
+        adjustments: formattedAdjustments,
         payments: formattedPayments,
         notes: notes.trim() || null,
         idempotency_key: idempotencyKey,

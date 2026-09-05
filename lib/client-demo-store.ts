@@ -57,17 +57,34 @@ export function normalizeDemoCustomer(c: any) {
 export function normalizeDemoSale(sale: any) {
   const rawItems = sale.items || sale.sale_items || [];
   const total = Number(sale.total_amount ?? sale.grand_total ?? sale.totalAmount ?? sale.payableAmount ?? 0);
-  const normalizedItems = rawItems.map((it: any) => ({
-    ...it,
-    product_name: it.product_name || it.name || it.product?.name || '',
-    unit_price: Number(it.unit_price ?? it.unitPrice ?? it.selling_price ?? it.rate ?? 0),
-    selling_price: Number(it.selling_price ?? it.unit_price ?? it.unitPrice ?? it.rate ?? 0),
-    rate: Number(it.rate ?? it.unit_price ?? it.selling_price ?? 0),
-    discount_percent: Number(it.discount_percent ?? it.discountPercent ?? it.discount ?? 0),
-    gst_rate: Number(it.gst_rate ?? it.gstRate ?? it.gst ?? 0),
-    total_amount: Number(it.total_amount ?? it.totalAmount ?? it.total_price ?? ((it.quantity || 1) * (it.unit_price || 0))),
-    total_price: Number(it.total_price ?? it.total_amount ?? it.totalAmount ?? ((it.quantity || 1) * (it.unit_price || 0))),
-  }));
+  const normalizedItems = rawItems.map((it: any) => {
+    const rate = Number(it.unit_price ?? it.unitPrice ?? it.selling_price ?? it.rate ?? 0);
+    const q = Number(it.quantity) || 1;
+    const gross = rate * q;
+    const discAmt = Number(
+      it.discount_amount !== undefined 
+        ? it.discount_amount 
+        : (it.discount !== undefined ? it.discount : (it.discount_percent ? (gross * it.discount_percent) / 100 : 0))
+    );
+    const discPercent = Number(
+      it.discount_percent !== undefined 
+        ? it.discount_percent 
+        : (gross > 0 ? (discAmt / gross) * 100 : 0)
+    );
+    return {
+      ...it,
+      product_name: it.product_name || it.name || it.product?.name || '',
+      unit_price: rate,
+      selling_price: rate,
+      rate: rate,
+      discount_amount: discAmt,
+      discount: discAmt,
+      discount_percent: discPercent,
+      gst_rate: Number(it.gst_rate ?? it.gstRate ?? it.gst ?? 0),
+      total_amount: Number(it.total_amount ?? it.totalAmount ?? it.total_price ?? (gross - discAmt)),
+      total_price: Number(it.total_price ?? it.total_amount ?? it.totalAmount ?? (gross - discAmt)),
+    };
+  });
   return {
     ...sale,
     grand_total: total,
@@ -76,6 +93,7 @@ export function normalizeDemoSale(sale: any) {
     payableAmount: total,
     items: normalizedItems,
     sale_items: normalizedItems,
+    adjustments: Array.isArray(sale.adjustments) ? sale.adjustments : [],
     status: sale.status || (sale.payment_status === 'PAID' ? 'COMPLETED' : (sale.payment_status === 'UNPAID' ? 'PENDING' : 'COMPLETED')),
     sale_date: sale.sale_date || sale.created_at,
     created_at: sale.created_at || sale.sale_date,
@@ -502,9 +520,11 @@ export function saveDemoSaleClient(data: any): any {
   const items = (data.items || []).map((it: any, idx: number) => {
     const q = Math.max(1, Number(it.quantity) || 1);
     const rate = Number(it.unit_price ?? it.selling_price ?? it.rate ?? 0);
-    const disc = Number(it.discount_percent ?? it.discount ?? 0);
+    const disc = Number(it.discount_amount !== undefined ? it.discount_amount : (it.discount !== undefined ? it.discount : (it.discount_percent || 0)));
     const gst = Number(it.gst_rate ?? it.gst ?? 0);
-    const itemTotal = calculateItemTotal(q, rate, disc, gst);
+    const itemTotal = calculateItemTotal(q, rate, disc, gst, true, {
+      discountAmount: it.discount_amount !== undefined ? Number(it.discount_amount) : undefined,
+    });
 
     const products = getDemoProductsClient();
     const pLookup = products.find((p: any) => p.id === (it.product_id || it.id));
@@ -539,7 +559,9 @@ export function saveDemoSaleClient(data: any): any {
       unit_price: rate,
       selling_price: rate,
       rate: rate,
-      discount_percent: disc,
+      discount_amount: itemTotal.discountAmount,
+      discount: itemTotal.discountAmount,
+      discount_percent: it.discount_percent !== undefined ? Number(it.discount_percent) : (q * rate > 0 ? (itemTotal.discountAmount / (q * rate)) * 100 : 0),
       gst_rate: gst,
       taxable_amount: itemTotal.taxableAmount,
       cgst: itemTotal.cgst,
@@ -550,7 +572,8 @@ export function saveDemoSaleClient(data: any): any {
     };
   });
 
-  const billTotals = data.totals || calculateBillTotal(items);
+  const rawAdjustments = Array.isArray(data.adjustments) ? data.adjustments : [];
+  const billTotals = data.totals || calculateBillTotal(items, rawAdjustments);
   const payable = Number(billTotals.payableAmount ?? billTotals.grandTotal ?? 0);
   const paymentMethod = data.payment_method || (data.payments?.[0]?.method) || 'Cash';
   const isCredit = paymentMethod.toUpperCase() === 'CREDIT';
@@ -566,8 +589,11 @@ export function saveDemoSaleClient(data: any): any {
     customer_name: customerName,
     items: items,
     sale_items: items,
+    adjustments: rawAdjustments,
     subtotal: Number(billTotals.subtotal || 0),
     discount_amount: Number(billTotals.totalDiscount || 0),
+    total_additions: Number(billTotals.totalAdditions || 0),
+    total_deductions: Number(billTotals.totalDeductions || 0),
     tax_amount: Number(billTotals.totalTax || 0),
     cgst_total: Number(billTotals.totalCGST || 0),
     sgst_total: Number(billTotals.totalSGST || 0),

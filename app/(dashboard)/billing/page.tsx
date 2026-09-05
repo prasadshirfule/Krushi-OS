@@ -3,10 +3,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import ProductSearch from '@/components/billing/product-search';
 import BillingCart from '@/components/billing/billing-cart';
+import BillAdjustments from '@/components/billing/bill-adjustments';
 import PaymentPanel from '@/components/billing/payment-panel';
 import BillSuccessDialog from '@/components/billing/bill-success-dialog';
 import { CustomerFormDialog } from '@/components/customers/customer-form-dialog';
-import { BillingCartItem } from '@/types/sales';
+import { BillingCartItem, BillAdjustment } from '@/types/sales';
 import { generateId } from '@/lib/utils';
 import { calculateBillTotal } from '@/lib/calculations';
 import { getCustomersAction } from '@/actions/customers';
@@ -31,6 +32,7 @@ const WALK_IN_CUSTOMER: CustomerOption = { id: 'walk-in', name: 'Walk-in', phone
 export default function BillingPage() {
   /* ─── State ─── */
   const [cart, setCart] = useState<BillingCartItem[]>([]);
+  const [adjustments, setAdjustments] = useState<BillAdjustment[]>([]);
   const [customerList, setCustomerList] = useState<CustomerOption[]>([]);
   const [recentCustomerIds, setRecentCustomerIds] = useState<string[]>([]);
   const [customerId, setCustomerId] = useState('');
@@ -112,7 +114,7 @@ export default function BillingPage() {
   }, [loadCustomers]);
 
   /* ─── Derived ─── */
-  const totals = calculateBillTotal(cart);
+  const totals = calculateBillTotal(cart, adjustments);
   const now = new Date();
   const dateStr = now.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
   const timeStr = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
@@ -198,16 +200,18 @@ export default function BillingPage() {
   };
 
   const handleClearCart = useCallback(() => {
-    if (cart.length > 0 && window.confirm('Clear all items from the bill?')) {
+    if ((cart.length > 0 || adjustments.length > 0) && window.confirm('Clear all items and adjustments from the bill?')) {
       setCart([]);
+      setAdjustments([]);
     }
-  }, [cart]);
+  }, [cart, adjustments]);
 
   const handleSaleComplete = (saleId: string, invoiceNumber?: string) => {
     setLastSaleId(saleId);
     if (invoiceNumber) setLastInvoiceNumber(invoiceNumber);
     setShowSuccessDialog(true);
     setCart([]);
+    setAdjustments([]);
     setCustomerId('');
     setCustomerName('');
     setCustomerPhone('');
@@ -400,9 +404,17 @@ export default function BillingPage() {
         totals={totals}
       />
 
-      {/* ════════ SECTION 4: PAYMENT & COMPLETE ════════ */}
+      {/* ════════ SECTION 4: BILL ADJUSTMENTS ════════ */}
+      <BillAdjustments
+        adjustments={adjustments}
+        onChange={setAdjustments}
+        productsTotal={totals.productsTotal || totals.subtotal}
+      />
+
+      {/* ════════ SECTION 5: PAYMENT & COMPLETE ════════ */}
       <PaymentPanel
         cart={cart}
+        adjustments={adjustments}
         totals={totals}
         customerId={customerId || (customerSearch.trim() ? `cust-${Date.now()}` : '')}
         customerName={customerName || customerSearch.trim()}

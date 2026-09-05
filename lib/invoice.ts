@@ -204,6 +204,17 @@ export function generateInvoicePDF(sale: any, customSettings?: any) {
     });
   }
 
+  // Adjust grandTotal by additions and deductions
+  const adjustments: any[] = Array.isArray(s.adjustments) ? s.adjustments : [];
+  const totalAdditions = adjustments.filter(a => a.type === 'ADD').reduce((sum, a) => sum + (Number(a.amount) || 0), 0);
+  const totalDeductions = adjustments.filter(a => a.type === 'DEDUCT').reduce((sum, a) => sum + (Number(a.amount) || 0), 0);
+
+  if (s.total_amount !== undefined && s.total_amount !== null) {
+    grandTotal = Number(s.total_amount);
+  } else {
+    grandTotal = Math.max(0, grandTotal + totalAdditions - totalDeductions);
+  }
+
   // Pad table rows if few items to maintain realistic physical bill height
   while (tableRows.length < 5) {
     tableRows.push(['', '', '', '', '', '', '', '', '', '']);
@@ -321,16 +332,28 @@ export function generateInvoicePDF(sale: any, customSettings?: any) {
   // Right Content (Bordered Tax Calculation lines):
   const rightX = marginX + summaryLeftWidth;
   let lineY = finalY;
-  const rightRowHeight = 7.5;
 
-  const rows = [
+  const rows: Array<{ label: string; val: string; isBold?: boolean; isHighlight?: boolean }> = [
     { label: 'Taxable Amount:', val: `Rs. ${totalTaxable.toFixed(2)}` },
     { label: 'CGST Amount:', val: `Rs. ${totalCgst.toFixed(2)}` },
     { label: 'SGST Amount:', val: `Rs. ${totalSgst.toFixed(2)}` },
+  ];
+
+  adjustments.forEach((adj: any) => {
+    const isAdd = adj.type === 'ADD';
+    rows.push({
+      label: `${adj.reason} (${isAdd ? '+' : '-'}):`,
+      val: `${isAdd ? 'Rs.' : '-Rs.'} ${Number(adj.amount || 0).toFixed(2)}`,
+    });
+  });
+
+  rows.push(
     { label: 'NET TOTAL:', val: `Rs. ${grandTotal.toFixed(2)}`, isBold: true, isHighlight: true },
     { label: 'Amount Paid:', val: `Rs. ${(s.paid_amount ?? grandTotal).toFixed(2)}` },
     { label: 'Balance / Udhari:', val: `Rs. ${(isCredit ? Math.max(0, grandTotal - (s.paid_amount || 0)) : 0).toFixed(2)}`, isBold: true },
-  ];
+  );
+
+  const rightRowHeight = summaryHeight / rows.length;
 
   rows.forEach((row, i) => {
     lineY = finalY + (i * rightRowHeight);
@@ -341,9 +364,10 @@ export function generateInvoicePDF(sale: any, customSettings?: any) {
     doc.line(rightX, lineY + rightRowHeight, rightX + summaryRightWidth, lineY + rightRowHeight);
 
     doc.setFont('helvetica', row.isBold ? 'bold' : 'normal');
-    doc.setFontSize(row.isHighlight ? 8.5 : 7.5);
-    doc.text(row.label, rightX + 3, lineY + 5);
-    doc.text(row.val, rightX + summaryRightWidth - 3, lineY + 5, { align: 'right' });
+    doc.setFontSize(row.isHighlight ? 8 : (rows.length > 6 ? 6.5 : 7.2));
+    const textOffsetY = rightRowHeight * 0.65;
+    doc.text(row.label, rightX + 3, lineY + textOffsetY);
+    doc.text(row.val, rightX + summaryRightWidth - 3, lineY + textOffsetY, { align: 'right' });
   });
 
   // ─── 5. SIGNATURE BLOCK ───
