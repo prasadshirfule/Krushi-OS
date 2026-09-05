@@ -4,8 +4,12 @@ import React, { useEffect, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { formatCurrency } from '@/lib/utils';
-import { CheckCircle2, Printer, FileText, PlusCircle } from 'lucide-react';
+import { CheckCircle2, Printer, FileText, PlusCircle, Loader2 } from 'lucide-react';
 import Link from 'next/link';
+import { generateInvoicePDF } from '@/lib/invoice';
+import { isClientDemoMode } from '@/lib/client-demo-store';
+import { getSaleAction } from '@/actions/sales';
+import { toast } from 'sonner';
 
 interface BillSuccessDialogProps {
   saleId: string;
@@ -17,6 +21,8 @@ interface BillSuccessDialogProps {
 export default function BillSuccessDialog({ saleId, invoiceNumber, totals, onClose }: BillSuccessDialogProps) {
   const newBillBtnRef = useRef<HTMLButtonElement>(null);
 
+  const [isGenerating, setIsGenerating] = React.useState(false);
+
   useEffect(() => {
     // Auto-focus New Bill button
     setTimeout(() => {
@@ -24,10 +30,49 @@ export default function BillSuccessDialog({ saleId, invoiceNumber, totals, onClo
     }, 100);
   }, []);
 
-  const handlePrint = (type: string) => {
-    // In a real app, this would open a new window with print styles or call a print API
-    console.log(`Printing ${type} for sale ${saleId}`);
-    window.open(`/api/print/sale/${saleId}?type=${type}`, '_blank');
+  const handlePrint = async (type: string) => {
+    setIsGenerating(true);
+    try {
+      let saleData = null;
+      let shopDetails = {};
+
+      if (isClientDemoMode()) {
+        const { getDemoSalesClient } = await import('@/lib/client-demo-store');
+        const sales = getDemoSalesClient();
+        saleData = sales.find((s: any) => s.id === saleId);
+        try {
+          const shopSettingsRaw = localStorage.getItem('krushi_demo_shop_details');
+          if (shopSettingsRaw) {
+            shopDetails = JSON.parse(shopSettingsRaw);
+          }
+        } catch {}
+      } else {
+        const res = await getSaleAction(saleId);
+        if (res.success && res.data) {
+          saleData = res.data;
+        }
+        // In real app, fetch shop details from server here if available
+      }
+
+      if (!saleData) {
+        toast.error('Sale not found. Cannot generate invoice.');
+        setIsGenerating(false);
+        return;
+      }
+
+      const pdf = generateInvoicePDF(saleData, shopDetails);
+      if (type === 'pdf') {
+        pdf.save(`${saleData.invoice_number || 'invoice'}.pdf`);
+      } else {
+        const blobUrl = pdf.output('bloburl');
+        window.open(blobUrl, '_blank');
+      }
+    } catch (err) {
+      console.error('Print error:', err);
+      toast.error('Failed to generate invoice.');
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const displayInv = invoiceNumber || (saleId.startsWith('KOS-') ? saleId : `KOS-${saleId.substring(0, 8).toUpperCase()}`);
@@ -51,14 +96,11 @@ export default function BillSuccessDialog({ saleId, invoiceNumber, totals, onClo
         </div>
 
         <div className="grid grid-cols-2 gap-3 mb-2">
-          <Button variant="outline" onClick={() => handlePrint('a4')} className="w-full">
-            <Printer className="mr-2 h-4 w-4" /> Print A4
+          <Button variant="outline" onClick={() => handlePrint('a4')} className="w-full" disabled={isGenerating}>
+            {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Printer className="mr-2 h-4 w-4" />} Print Bill
           </Button>
-          <Button variant="outline" onClick={() => handlePrint('80mm')} className="w-full">
-            <Printer className="mr-2 h-4 w-4" /> Thermal 80mm
-          </Button>
-          <Button variant="outline" onClick={() => handlePrint('pdf')} className="w-full col-span-2">
-            <FileText className="mr-2 h-4 w-4" /> Download PDF
+          <Button variant="outline" onClick={() => handlePrint('pdf')} className="w-full" disabled={isGenerating}>
+            {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />} Download PDF
           </Button>
         </div>
 

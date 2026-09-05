@@ -146,12 +146,20 @@
 
 /* Print Styles */
 @media print {
-  .no-print {
+  .no-print,
+  aside, 
+  nav,
+  header {
     display: none !important;
   }
 
   .print-only {
     display: block !important;
+  }
+
+  body, html {
+    background-color: white !important;
+    color: black !important;
   }
 
   body * {
@@ -161,6 +169,7 @@
   .print-content,
   .print-content * {
     visibility: visible;
+    color: black !important;
   }
 
   .print-content {
@@ -168,6 +177,9 @@
     left: 0;
     top: 0;
     width: 100%;
+    margin: 0;
+    padding: 0;
+    background-color: white !important;
   }
 }
 

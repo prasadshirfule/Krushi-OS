@@ -46,6 +46,7 @@ export default function PaymentPanel({ cart, totals, customerId, customerName, c
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [notes, setNotes] = useState('');
   const [cashTendered, setCashTendered] = useState<string>('');
+  const [creditPaidAmount, setCreditPaidAmount] = useState<string>('');
 
   const payableAmount = Number(totals?.payableAmount || 0);
   const isCredit = paymentMethod === 'Credit';
@@ -65,6 +66,10 @@ export default function PaymentPanel({ cart, totals, customerId, customerName, c
   // Cash change calculation
   const tenderedNum = parseFloat(cashTendered) || 0;
   const changeToReturn = tenderedNum > payableAmount ? tenderedNum - payableAmount : 0;
+
+  // Credit partial payment calculation
+  const creditPaidNum = parseFloat(creditPaidAmount) || 0;
+  const currentUdhari = isCredit ? Math.max(0, payableAmount - creditPaidNum) : 0;
 
   // F8 Keyboard shortcut
   useEffect(() => {
@@ -101,6 +106,10 @@ export default function PaymentPanel({ cart, totals, customerId, customerName, c
       toast.warning('Total amount must be greater than ₹0.');
       return;
     }
+    if (isCredit && creditPaidNum > payableAmount) {
+      toast.warning('Amount paid cannot exceed bill total.');
+      return;
+    }
     if (creditError) {
       toast.error('A registered customer is required for credit sales. Please select or add a customer.');
       return;
@@ -122,10 +131,11 @@ export default function PaymentPanel({ cart, totals, customerId, customerName, c
 
       // Format payment to match paymentSplitSchema
       const methodEnum = METHOD_TO_ENUM[paymentMethod] || 'CASH';
+      const actualPaidAmount = isCredit ? creditPaidNum : payableAmount;
       const formattedPayments = [
         {
           method: methodEnum,
-          amount: payableAmount,
+          amount: actualPaidAmount,
         },
       ];
 
@@ -147,6 +157,7 @@ export default function PaymentPanel({ cart, totals, customerId, customerName, c
         // Legacy fallback fields
         payment_method: paymentMethod,
         totals,
+        paid_amount: actualPaidAmount,
       };
 
       if (isClientDemoMode()) {
@@ -291,6 +302,47 @@ export default function PaymentPanel({ cart, totals, customerId, customerName, c
               </span>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ─── Credit Partial Payment Calculator ─── */}
+      {isCredit && payableAmount > 0 && !creditError && (
+        <div className="bg-muted/30 border border-border rounded-xl p-4 space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex-1">
+              <label className="text-xs font-semibold text-foreground block mb-1">
+                Amount Paid Now (Optional)
+              </label>
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground font-bold">₹</span>
+                <Input
+                  type="number"
+                  placeholder="0"
+                  value={creditPaidAmount}
+                  onChange={e => setCreditPaidAmount(e.target.value)}
+                  className="h-10 text-lg font-bold bg-background border-border text-foreground max-w-xs"
+                />
+              </div>
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Enter the amount received now. Remaining amount will be added to Udhari.
+              </p>
+            </div>
+          </div>
+
+          <div className="pt-2 border-t border-border space-y-1">
+            <div className="flex items-center justify-between text-sm text-muted-foreground">
+              <span>Bill Total:</span>
+              <span>{formatCurrency(payableAmount)}</span>
+            </div>
+            <div className="flex items-center justify-between text-sm text-muted-foreground">
+              <span>Amount Paid:</span>
+              <span>{formatCurrency(creditPaidNum)}</span>
+            </div>
+            <div className="flex items-center justify-between text-sm font-semibold text-foreground pt-1">
+              <span>Remaining Udhari:</span>
+              <span className="text-red-600 font-bold">{formatCurrency(currentUdhari)}</span>
+            </div>
+          </div>
         </div>
       )}
 

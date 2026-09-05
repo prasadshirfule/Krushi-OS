@@ -24,6 +24,7 @@ const navItems = [
   { href: '/expenses', label: 'Expenses', icon: IndianRupee },
   { href: '/reports', label: 'Reports', icon: BarChart3 },
   { href: '/employees', label: 'Employees', icon: UserCog },
+  { href: '/shop-details', label: 'Shop Details', icon: Building2 },
   { href: '/notifications', label: 'Notifications', icon: Bell },
   { href: '/settings', label: 'Settings', icon: Settings },
 ]

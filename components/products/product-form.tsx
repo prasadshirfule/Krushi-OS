@@ -570,6 +570,19 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
                 </SelectContent>
               </Select>
             </div>
+
+            {/* HSN Code */}
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="hsn_code" className="text-sm font-semibold text-foreground">
+                HSN Code
+              </Label>
+              <Input
+                id="hsn_code"
+                placeholder="e.g. 3105"
+                className="h-11 text-base rounded-lg border-border bg-background"
+                {...form.register('hsn_code')}
+              />
+            </div>
           </CardContent>
         </Card>
 

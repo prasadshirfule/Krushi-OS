@@ -534,13 +534,13 @@ export function saveDemoSaleClient(data: any): any {
     grand_total: payable,
     totalAmount: payable,
     payableAmount: payable,
-    paid_amount: isCredit ? 0 : payable,
+    paid_amount: data.paid_amount !== undefined ? data.paid_amount : (isCredit ? 0 : payable),
     profit_amount: Math.round(payable * 0.15),
     payment_mode: paymentMethod,
     payment_method: paymentMethod,
-    payments: data.payments || [{ method: paymentMethod, amount: payable }],
+    payments: data.payments || [{ method: paymentMethod, amount: data.paid_amount !== undefined ? data.paid_amount : (isCredit ? 0 : payable) }],
     status: 'COMPLETED',
-    payment_status: isCredit ? 'UNPAID' : 'PAID',
+    payment_status: isCredit ? (data.paid_amount > 0 ? (data.paid_amount >= payable ? 'PAID' : 'PARTIAL') : 'UNPAID') : 'PAID',
     notes: data.notes || null,
     created_at: new Date().toISOString(),
     sale_date: new Date().toISOString(),
@@ -572,14 +572,19 @@ export function saveDemoSaleClient(data: any): any {
     // If CREDIT sale with a real customer, update their outstanding and create ledger entry
     const saleCustomerId = newSale.customer_id;
     if (isCredit && saleCustomerId && saleCustomerId !== 'walk-in') {
-      updateDemoCustomerOutstanding(saleCustomerId, payable);
-      addDemoLedgerEntry({
-        customer_id: saleCustomerId,
-        type: 'DEBIT',
-        amount: payable,
-        description: `Credit Sale (${invoiceNum})`,
-        reference: invoiceNum,
-      });
+      const actualPaid = data.paid_amount !== undefined ? Number(data.paid_amount) : 0;
+      const udhariAdded = Math.max(0, payable - actualPaid);
+
+      if (udhariAdded > 0) {
+        updateDemoCustomerOutstanding(saleCustomerId, udhariAdded);
+        addDemoLedgerEntry({
+          customer_id: saleCustomerId,
+          type: 'DEBIT',
+          amount: udhariAdded,
+          description: `Credit Sale (${invoiceNum})`,
+          reference: invoiceNum,
+        });
+      }
     }
 
     // Update customer total_purchases regardless of payment method
