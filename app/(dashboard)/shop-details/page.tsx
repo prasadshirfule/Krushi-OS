@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { Building2, Save, Upload, Loader2, IndianRupee, Store, FileText, MapPin, Phone } from 'lucide-react';
+import { Building2, Save, Upload, Loader2, IndianRupee, Store, FileText, MapPin, Phone, CreditCard } from 'lucide-react';
 
 const KRUSHI_DEMO_SHOP_DETAILS = 'krushi_demo_shop_details';
 
@@ -21,6 +21,7 @@ export default function ShopDetailsPage() {
     gstNumber: '',
     address: '',
     village: '',
+    taluka: '',
     district: '',
     state: '',
     pincode: '',
@@ -32,6 +33,13 @@ export default function ShopDetailsPage() {
     invoiceTerms: '1. Goods once sold will not be taken back.\n2. Interest @ 18% p.a. will be charged if not paid within 30 days.',
     authorizedSignatory: '',
     logoBase64: '',
+    // Bank Details
+    bankName: '',
+    accountName: '',
+    accountNumber: '',
+    ifsc: '',
+    branch: '',
+    accountType: '',
   });
 
   useEffect(() => {
@@ -149,28 +157,32 @@ export default function ShopDetailsPage() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Village / City</Label>
-                <Input name="village" value={formData.village} onChange={handleInputChange} />
+                <Label>Village / Area</Label>
+                <Input name="village" value={formData.village} onChange={handleInputChange} placeholder="e.g. Wagholi" />
+              </div>
+              <div className="space-y-2">
+                <Label>Taluka / Tehsil</Label>
+                <Input name="taluka" value={formData.taluka} onChange={handleInputChange} placeholder="e.g. Haveli" />
               </div>
               <div className="space-y-2">
                 <Label>District</Label>
-                <Input name="district" value={formData.district} onChange={handleInputChange} />
+                <Input name="district" value={formData.district} onChange={handleInputChange} placeholder="e.g. Pune" />
               </div>
               <div className="space-y-2">
                 <Label>State</Label>
-                <Input name="state" value={formData.state} onChange={handleInputChange} />
+                <Input name="state" value={formData.state} onChange={handleInputChange} placeholder="e.g. Maharashtra" />
               </div>
               <div className="space-y-2">
                 <Label>PIN Code</Label>
-                <Input name="pincode" value={formData.pincode} onChange={handleInputChange} />
+                <Input name="pincode" value={formData.pincode} onChange={handleInputChange} placeholder="e.g. 412207" />
               </div>
               <div className="space-y-2">
                 <Label>Contact Number 1</Label>
                 <Input name="contact1" value={formData.contact1} onChange={handleInputChange} placeholder="e.g. 9876543210" />
               </div>
-              <div className="space-y-2">
-                <Label>Contact Number 2</Label>
-                <Input name="contact2" value={formData.contact2} onChange={handleInputChange} />
+              <div className="space-y-2 col-span-2">
+                <Label>Contact Number 2 / Alternate</Label>
+                <Input name="contact2" value={formData.contact2} onChange={handleInputChange} placeholder="Optional alternate number" />
               </div>
             </div>
           </CardContent>
@@ -244,6 +256,70 @@ export default function ShopDetailsPage() {
                 </div>
                 <p className="text-xs text-muted-foreground">Square image recommended. Max size: 1MB.</p>
               </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Bank Details */}
+        <Card className="md:col-span-2">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><CreditCard className="h-5 w-5 text-primary" /> Bank Account Details (Printed on Invoices)</CardTitle>
+            <CardDescription>These bank details will be printed in the invoice footer for customer direct transfers</CardDescription>
+          </CardHeader>
+          <CardContent className="grid md:grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label>Account Holder Name</Label>
+              <Input 
+                name="accountName" 
+                value={formData.accountName} 
+                onChange={handleInputChange} 
+                placeholder={formData.ownerName || "Name as per Bank records"} 
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Bank Name</Label>
+              <Input 
+                name="bankName" 
+                value={formData.bankName} 
+                onChange={handleInputChange} 
+                placeholder="e.g. State Bank of India / HDFC Bank" 
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Account Number</Label>
+              <Input 
+                name="accountNumber" 
+                value={formData.accountNumber} 
+                onChange={handleInputChange} 
+                placeholder="Bank Account Number" 
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>IFSC Code</Label>
+              <Input 
+                name="ifsc" 
+                value={formData.ifsc} 
+                onChange={handleInputChange} 
+                placeholder="e.g. SBIN0001234" 
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Branch</Label>
+              <Input 
+                name="branch" 
+                value={formData.branch} 
+                onChange={handleInputChange} 
+                placeholder="Branch Name" 
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Account Type</Label>
+              <Input 
+                name="accountType" 
+                value={formData.accountType} 
+                onChange={handleInputChange} 
+                placeholder="Current / Savings" 
+              />
             </div>
           </CardContent>
         </Card>

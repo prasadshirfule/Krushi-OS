@@ -215,8 +215,36 @@ export const MOCK_SALES = [
     created_at: new Date(Date.now() - 3600000 * 28).toISOString(),
     sale_date: new Date(Date.now() - 3600000 * 28).toISOString(),
     sale_items: [
-      { id: 'si-1', product_name: 'Confidor Insecticide 100ml', quantity: 2, unit_price: 550, total_price: 1100 },
-      { id: 'si-2', product_name: 'DAP Fertilizer 50kg (IFFCO)', quantity: 1, unit_price: 1350, total_price: 1350 }
+      { 
+        id: 'si-1', 
+        product_name: 'Confidor Insecticide 100ml', 
+        quantity: 2, 
+        unit_price: 550, 
+        rate: 550,
+        total_price: 1100,
+        manufacturer: 'Bayer CropScience',
+        hsn_code: '3808',
+        batch_number: 'BAY-CF-882',
+        expiry_date: '10/2027',
+        pack_size: '100',
+        unit: 'ml',
+        gst_rate: 18
+      },
+      { 
+        id: 'si-2', 
+        product_name: 'DAP Fertilizer 50kg (IFFCO)', 
+        quantity: 1, 
+        unit_price: 1350, 
+        rate: 1350,
+        total_price: 1350,
+        manufacturer: 'IFFCO Ltd',
+        hsn_code: '3105',
+        batch_number: 'IF-DAP-419',
+        expiry_date: '03/2028',
+        pack_size: '50',
+        unit: 'kg',
+        gst_rate: 5
+      }
     ]
   },
   {
@@ -231,8 +259,36 @@ export const MOCK_SALES = [
     created_at: new Date(Date.now() - 3600000 * 52).toISOString(),
     sale_date: new Date(Date.now() - 3600000 * 52).toISOString(),
     sale_items: [
-      { id: 'si-3', product_name: 'Syngenta Quantis Biostimulant 1L', quantity: 4, unit_price: 950, total_price: 3800 },
-      { id: 'si-4', product_name: 'DAP Fertilizer 50kg (IFFCO)', quantity: 2, unit_price: 1350, total_price: 2700 }
+      { 
+        id: 'si-3', 
+        product_name: 'Syngenta Quantis Biostimulant 1L', 
+        quantity: 4, 
+        unit_price: 950, 
+        rate: 950,
+        total_price: 3800,
+        manufacturer: 'Syngenta India',
+        hsn_code: '3808',
+        batch_number: 'SYN-Q11',
+        expiry_date: '04/2027',
+        pack_size: '1',
+        unit: 'L',
+        gst_rate: 18
+      },
+      { 
+        id: 'si-4', 
+        product_name: 'DAP Fertilizer 50kg (IFFCO)', 
+        quantity: 2, 
+        unit_price: 1350, 
+        rate: 1350,
+        total_price: 2700,
+        manufacturer: 'IFFCO Ltd',
+        hsn_code: '3105',
+        batch_number: 'IF-DAP-419',
+        expiry_date: '03/2028',
+        pack_size: '50',
+        unit: 'kg',
+        gst_rate: 5
+      }
     ]
   }
 ];

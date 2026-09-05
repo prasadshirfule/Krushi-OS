@@ -280,21 +280,28 @@ export const paymentSplitSchema = z.object({
 });
 
 export const saleItemSchema = z.object({
-  product_id: z.string().uuid(),
-  batch_id: z.string().uuid(),
-  quantity: z.number().int().min(1),
+  product_id: z.string(),
+  batch_id: z.string().optional().nullable(),
+  quantity: z.number().min(1),
   unit_price: z.number().min(0),
   discount_percent: z.number().min(0).max(100),
   gst_rate: z.number().min(0),
-});
+  product_name: z.string().optional().nullable(),
+  batch_number: z.string().optional().nullable(),
+  hsn_code: z.string().optional().nullable(),
+  expiry_date: z.string().optional().nullable(),
+  manufacturer: z.string().optional().nullable(),
+  unit: z.string().optional().nullable(),
+  pack_size: z.string().optional().nullable(),
+}).passthrough();
 
 export const saleSchema = z.object({
-  customer_id: z.string().uuid().optional().nullable(),
+  customer_id: z.string().optional().nullable(),
   items: z.array(saleItemSchema).min(1),
   payments: z.array(paymentSplitSchema).min(1),
   notes: z.string().optional().nullable(),
   idempotency_key: z.string(),
-});
+}).passthrough();
 
 export const expenseSchema = z.object({
   category_id: z.string().uuid().optional().nullable(),

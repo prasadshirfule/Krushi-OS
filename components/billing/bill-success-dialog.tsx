@@ -80,6 +80,11 @@ export default function BillSuccessDialog({ saleId, invoiceNumber, totals, onClo
         return;
       }
 
+      if (!saleData && currentSale) {
+        setSaleData(currentSale);
+        await new Promise((r) => setTimeout(r, 60));
+      }
+
       // Check if rendered DOM node is present
       const invoiceElement = document.getElementById('bill-success-invoice');
 

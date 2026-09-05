@@ -81,13 +81,24 @@ export async function completeSale(shopId: string, data: any, userId: string) {
       const gst = Number(it.gst_rate ?? it.gst ?? 0);
       const itemTotal = calculateItemTotal(q, rate, disc, gst);
 
+      const prodName = it.product_name && it.product_name !== 'Product'
+        ? it.product_name
+        : (it.name && it.name !== 'Product' ? it.name : (it.product?.name || `Item ${idx + 1}`));
+
       return {
         id: `si-${Date.now()}-${idx + 1}`,
         sale_id: saleId,
         product_id: it.product_id || it.id,
-        product_name: it.product_name || it.name || 'Product',
+        product_name: prodName,
+        name: prodName,
         batch_id: it.batch_id || null,
-        batch_number: it.batch_number || null,
+        batch_number: it.batch_number || it.batch?.batch_number || it.product?.batch_number || null,
+        hsn_code: it.hsn_code || it.product?.hsn_code || it.product?.hsnCode || null,
+        expiry_date: it.expiry_date || it.batch?.expiry_date || it.product?.expiry_date || null,
+        unit: it.unit || it.product?.unit || null,
+        pack_size: it.pack_size || it.product?.pack_size || null,
+        manufacturer: it.manufacturer || it.product?.manufacturer || it.product?.brand?.manufacturer || it.product?.brand?.name || null,
+        product: it.product || it,
         quantity: q,
         unit_price: rate,
         selling_price: rate,
