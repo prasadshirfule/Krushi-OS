@@ -199,7 +199,7 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
     .replace(/\s+/g, ' ')
     .trim();
 
-  // Dense row filler: 6 empty rows exactly matching Image 2 visual density
+  // Dense row filler: ensure table occupies large portion of bill as in Image 2
   const targetRowCount = Math.max(7, items.length + 5);
   const emptyRowsCount = Math.max(0, targetRowCount - items.length);
 
@@ -208,7 +208,7 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
   return (
     <div
       id="printable-tax-invoice"
-      className="w-[194mm] mx-auto bg-white text-black font-sans text-[11px] leading-tight border-2 border-black box-border shadow-md print:shadow-none print:w-[194mm] print:m-0 print:border-2 print:border-black select-text"
+      className="w-[280mm] max-w-[280mm] mx-auto bg-white text-black font-sans text-xs leading-tight border border-black box-border shadow-none print:shadow-none print:w-[280mm] print:max-w-[280mm] print:m-0 print:border print:border-black select-text"
       style={{
         WebkitPrintColorAdjust: 'exact',
         printColorAdjust: 'exact',
@@ -216,12 +216,12 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
         backgroundColor: '#ffffff',
       }}
     >
-      {/* ─── 1. HEADER SECTION (IMAGE 2 EXACT THREE-COMPARTMENT GRID) ─── */}
-      <div className="grid grid-cols-[105px_1fr_215px] border-b border-black items-stretch">
-        {/* Left Column: Agricultural / Business Logo */}
+      {/* ─── 1. HEADER SECTION (TALL, IMAGE 2 THREE-AREA GRID) ─── */}
+      <div className="grid grid-cols-[130px_1fr_240px] border-b border-black items-stretch min-h-[105px]">
+        {/* Left Column: Dedicated Business Logo Area */}
         <div className="p-2 border-r border-black flex flex-col items-center justify-center bg-white">
           {shop.logoBase64 ? (
-            <div className="w-14 h-14 shrink-0 flex items-center justify-center overflow-hidden">
+            <div className="w-16 h-16 shrink-0 flex items-center justify-center overflow-hidden">
               <img src={shop.logoBase64} alt="Shop Logo" className="max-w-full max-h-full object-contain" />
             </div>
           ) : (
@@ -242,139 +242,137 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
           )}
         </div>
 
-        {/* Center Column: Shop Name, Address & Owner Info */}
-        <div className="p-2.5 flex flex-col items-center justify-center text-center space-y-1">
-          <h1 className="text-xl md:text-2xl font-black uppercase tracking-wide text-black leading-tight">
+        {/* Center Column: Prominently Centered Shop Name, Address & Owner Info */}
+        <div className="py-2.5 px-4 flex flex-col items-center justify-center text-center space-y-1">
+          <h1 className="text-2xl font-bold uppercase tracking-wide text-black leading-tight">
             {shop.shopName || 'MAULI KRUSHI SEVA KENDRA'}
           </h1>
-          <p className="text-[11.5px] font-semibold text-black leading-tight">
+          <p className="text-xs font-semibold text-black leading-tight">
             {dynamicShopAddress}
           </p>
-          <div className="text-[11.5px] font-bold text-black flex items-center justify-center gap-6 pt-0.5">
+          <div className="text-xs font-bold text-black flex items-center justify-center gap-6 pt-0.5">
             <span>Pro: {shop.ownerName || 'PRAMOD SHIRFULE'}</span>
             <span>Mob: {shop.contact1 || '9767631543'}</span>
           </div>
         </div>
 
-        {/* Right Column: GSTIN, LIC NO, REG NO Registration Table Box */}
-        <div className="flex flex-col border-l border-black text-[11px] justify-between">
-          <div className="flex border-b border-black p-1.5 flex-1 items-center">
+        {/* Right Column: Registration Box (GSTIN, LIC NO, REG NO) with thin black borders */}
+        <div className="flex flex-col border-l border-black text-xs justify-between bg-white">
+          <div className="flex border-b border-black px-2.5 flex-1 items-center">
             <span className="font-bold w-16 text-black shrink-0">GSTIN:</span>
             <span className="font-mono font-bold text-black uppercase">{shop.gstNumber || 'DLGPS9782B2ZJ'}</span>
           </div>
-          <div className="flex border-b border-black p-1.5 flex-1 items-center">
+          <div className="flex border-b border-black px-2.5 flex-1 items-center">
             <span className="font-bold w-16 text-black shrink-0">LIC NO:</span>
             <span className="font-mono font-semibold text-black">{shop.licenseNumber || ''}</span>
           </div>
-          <div className="flex p-1.5 flex-1 items-center">
+          <div className="flex px-2.5 flex-1 items-center">
             <span className="font-bold w-16 text-black shrink-0">REG NO:</span>
             <span className="font-mono font-semibold text-black">{shop.registrationNumber || ''}</span>
           </div>
         </div>
       </div>
 
-      {/* ─── 2. CUSTOMER & INVOICE DETAILS (IMAGE 2 TWO-COLUMN ROW) ─── */}
-      <div className="grid grid-cols-[1.15fr_1fr] border-b border-black text-[11px]">
+      {/* ─── 2. CUSTOMER / BILL DETAILS SECTION (LARGE TWO-COLUMN ROW) ─── */}
+      <div className="grid grid-cols-[1.2fr_1fr] border-b border-black text-xs min-h-[88px]">
         {/* Left: Customer Details with Clean Aligned Colons */}
-        <div className="p-2.5 border-r border-black">
-          <table className="w-full text-[11px] leading-relaxed">
+        <div className="p-3 border-r border-black flex flex-col justify-center">
+          <table className="w-full text-xs leading-relaxed">
             <tbody>
               <tr>
-                <td className="w-16 font-bold text-black align-top">Name</td>
-                <td className="w-3 font-bold text-center align-top">:</td>
-                <td className="font-bold text-black uppercase align-top">{customerName}</td>
+                <td className="w-16 font-bold text-black align-top py-0.5">Name</td>
+                <td className="w-3 font-bold text-center align-top py-0.5">:</td>
+                <td className="font-bold text-black uppercase align-top py-0.5">{customerName}</td>
               </tr>
               <tr>
-                <td className="w-16 font-bold text-black align-top">Address</td>
-                <td className="w-3 font-bold text-center align-top">:</td>
-                <td className="text-black font-medium align-top">{customerAddress || 'NANDED, MAHARASHTRA'}</td>
+                <td className="w-16 font-bold text-black align-top py-0.5">Address</td>
+                <td className="w-3 font-bold text-center align-top py-0.5">:</td>
+                <td className="text-black font-medium align-top py-0.5">{customerAddress || 'NANDED, MAHARASHTRA'}</td>
               </tr>
               <tr>
-                <td className="w-16 font-bold text-black align-top">Mob</td>
-                <td className="w-3 font-bold text-center align-top">:</td>
-                <td className="font-mono font-bold text-black align-top">{customerPhone || '-'}</td>
+                <td className="w-16 font-bold text-black align-top py-0.5">Mob</td>
+                <td className="w-3 font-bold text-center align-top py-0.5">:</td>
+                <td className="font-mono font-bold text-black align-top py-0.5">{customerPhone || '-'}</td>
               </tr>
             </tbody>
           </table>
         </div>
 
         {/* Right: Invoice Details & Cash Bill Badge */}
-        <div className="p-2.5 relative flex flex-col justify-between">
-          <div className="flex justify-between items-start">
-            <table className="w-full text-[11px] leading-relaxed">
-              <tbody>
-                <tr>
-                  <td className="w-16 font-bold text-black align-top">Bill No</td>
-                  <td className="w-3 font-bold text-center align-top">:</td>
-                  <td className="font-mono font-bold text-black text-xs align-top">{invoiceNo}</td>
-                </tr>
-                <tr>
-                  <td className="w-16 font-bold text-black align-top">Date</td>
-                  <td className="w-3 font-bold text-center align-top">:</td>
-                  <td className="font-medium text-black align-top">
-                    {formattedDate} &nbsp;({formattedTime})
-                  </td>
-                </tr>
-                <tr>
-                  <td className="w-16 font-bold text-black align-top">Payment</td>
-                  <td className="w-3 font-bold text-center align-top">:</td>
-                  <td className="font-semibold text-black uppercase align-top">{paymentMode}</td>
-                </tr>
-              </tbody>
-            </table>
+        <div className="p-3 flex justify-between items-start">
+          <table className="w-full text-xs leading-relaxed">
+            <tbody>
+              <tr>
+                <td className="w-16 font-bold text-black align-top py-0.5">Bill No</td>
+                <td className="w-3 font-bold text-center align-top py-0.5">:</td>
+                <td className="font-mono font-bold text-black text-sm align-top py-0.5">{invoiceNo}</td>
+              </tr>
+              <tr>
+                <td className="w-16 font-bold text-black align-top py-0.5">Date</td>
+                <td className="w-3 font-bold text-center align-top py-0.5">:</td>
+                <td className="font-medium text-black align-top py-0.5">
+                  {formattedDate} &nbsp;({formattedTime})
+                </td>
+              </tr>
+              <tr>
+                <td className="w-16 font-bold text-black align-top py-0.5">Payment</td>
+                <td className="w-3 font-bold text-center align-top py-0.5">:</td>
+                <td className="font-semibold text-black uppercase align-top py-0.5">{paymentMode}</td>
+              </tr>
+            </tbody>
+          </table>
 
-            {/* Right Badge: [R] Cash Bill / [R] Credit Bill */}
-            <div className="border border-black px-2 py-0.5 text-[11px] font-bold text-black shrink-0 ml-2 whitespace-nowrap bg-white">
-              {paymentBadge}
-            </div>
+          {/* Right Badge: [R] Cash Bill / [R] Credit Bill */}
+          <div className="border border-black px-2.5 py-1 text-xs font-bold text-black shrink-0 ml-3 whitespace-nowrap bg-white">
+            {paymentBadge}
           </div>
         </div>
       </div>
 
-      {/* ─── 3. PRODUCT TABLE (IMAGE 2 EXACT 10-COLUMN STRUCTURE) ─── */}
+      {/* ─── 3. PRODUCT TABLE (EXACT 10-COLUMN STRUCTURE) ─── */}
       <div className="w-full">
-        <table className="w-full border-collapse text-[10.5px]">
+        <table className="w-full border-collapse text-xs">
           <thead>
             <tr className="border-b border-black text-black bg-white">
-              <th className="border-r border-black py-1.5 px-1 text-center w-[4.5%] font-bold">Sr.</th>
-              <th className="border-r border-black py-1.5 px-2 text-left w-[27%] font-bold">Product Details</th>
-              <th className="border-r border-black py-1.5 px-1 text-center w-[7.5%] font-bold">HSN</th>
-              <th className="border-r border-black py-1.5 px-1 text-center w-[9.5%] font-bold">BATCH</th>
-              <th className="border-r border-black py-1.5 px-1 text-center w-[9.5%] font-bold">EXPIRY</th>
-              <th className="border-r border-black py-1.5 px-1 text-center w-[5.5%] font-bold">Qty</th>
-              <th className="border-r border-black py-1.5 px-1 text-right w-[8.5%] font-bold">Rate</th>
-              <th className="border-r border-black py-1.5 px-1 text-center w-[7%] font-bold">GST %</th>
-              <th className="border-r border-black py-1.5 px-1 text-right w-[10%] font-bold">Rate (With GST)</th>
-              <th className="py-1.5 px-2 text-right w-[11%] font-bold">Total</th>
+              <th className="border-r border-black py-2 px-1 text-center w-[4%] font-bold">Sr.</th>
+              <th className="border-r border-black py-2 px-2 text-center w-[32%] font-bold">Product Details</th>
+              <th className="border-r border-black py-2 px-1 text-center w-[7.5%] font-bold">HSN</th>
+              <th className="border-r border-black py-2 px-1 text-center w-[8.5%] font-bold">BATCH</th>
+              <th className="border-r border-black py-2 px-1 text-center w-[9.5%] font-bold">EXPIRY</th>
+              <th className="border-r border-black py-2 px-1 text-center w-[5.5%] font-bold">Qty</th>
+              <th className="border-r border-black py-2 px-1 text-center w-[8.5%] font-bold">Rate</th>
+              <th className="border-r border-black py-2 px-1 text-center w-[6.5%] font-bold">GST %</th>
+              <th className="border-r border-black py-2 px-1 text-center w-[9%] font-bold">Rate (With GST)</th>
+              <th className="py-2 px-2 text-center w-[9%] font-bold">Total</th>
             </tr>
           </thead>
           <tbody>
             {items.map((item, idx) => (
-              <tr key={item.id || idx} className="border-b border-black">
-                <td className="border-r border-black py-1 px-1 text-center font-bold">{idx + 1}</td>
-                <td className="border-r border-black py-1 px-2 text-left">
+              <tr key={item.id || idx} className="border-b border-black h-10">
+                <td className="border-r border-black py-1.5 px-1 text-center font-bold">{idx + 1}</td>
+                <td className="border-r border-black py-1.5 px-2 text-left">
                   <div className="font-bold text-black uppercase leading-tight">{item.name}</div>
                   {item.manufacturer && (
-                    <div className="text-[9.5px] text-gray-800 leading-tight">Mfg: {item.manufacturer}</div>
+                    <div className="text-[10.5px] text-gray-800 leading-tight">Mfg: {item.manufacturer}</div>
                   )}
                 </td>
-                <td className="border-r border-black py-1 px-1 text-center font-mono text-[10px]">{item.hsn || '-'}</td>
-                <td className="border-r border-black py-1 px-1 text-center font-mono text-[10px] uppercase font-semibold">{item.batch || '-'}</td>
-                <td className="border-r border-black py-1 px-1 text-center font-mono text-[10px]">{item.expiry || '-'}</td>
-                <td className="border-r border-black py-1 px-1 text-center font-mono font-bold text-black">
+                <td className="border-r border-black py-1.5 px-1 text-center font-mono text-xs">{item.hsn || '-'}</td>
+                <td className="border-r border-black py-1.5 px-1 text-center font-mono text-xs uppercase font-semibold">{item.batch || '-'}</td>
+                <td className="border-r border-black py-1.5 px-1 text-center font-mono text-xs">{item.expiry || '-'}</td>
+                <td className="border-r border-black py-1.5 px-1 text-center font-mono font-bold text-black">
                   {typeof item.quantity === 'number' ? (Number.isInteger(item.quantity) ? item.quantity : item.quantity.toFixed(1)) : item.quantity}
                 </td>
-                <td className="border-r border-black py-1 px-1 text-right font-mono">{item.rate.toFixed(2)}</td>
-                <td className="border-r border-black py-1 px-1 text-center font-mono font-semibold">{item.gstRate.toFixed(2)}</td>
-                <td className="border-r border-black py-1 px-1 text-right font-mono font-medium">{item.rateWithGst.toFixed(2)}</td>
-                <td className="py-1 px-2 text-right font-mono font-bold">{item.total.toFixed(2)}</td>
+                <td className="border-r border-black py-1.5 px-1 text-right font-mono">{item.rate.toFixed(2)}</td>
+                <td className="border-r border-black py-1.5 px-1 text-center font-mono font-semibold">{item.gstRate.toFixed(2)}</td>
+                <td className="border-r border-black py-1.5 px-1 text-right font-mono font-medium">{item.rateWithGst.toFixed(2)}</td>
+                <td className="py-1.5 px-2 text-right font-mono font-bold">{item.total.toFixed(2)}</td>
               </tr>
             ))}
 
             {/* Empty filler rows with black borders to match Image 2 visual space */}
             {emptyRowsCount > 0 &&
               Array.from({ length: emptyRowsCount }).map((_, i) => (
-                <tr key={`empty-${i}`} className="border-b border-black h-6">
+                <tr key={`empty-${i}`} className="border-b border-black h-8">
                   <td className="border-r border-black py-1 px-1 text-center">&nbsp;</td>
                   <td className="border-r border-black py-1 px-2">&nbsp;</td>
                   <td className="border-r border-black py-1 px-1">&nbsp;</td>
@@ -391,98 +389,98 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
         </table>
       </div>
 
-      {/* ─── 4. HORIZONTAL TAX SUMMARY BAR (IMAGE 2 SIGNATURE FEATURE) ─── */}
-      <div className="grid grid-cols-[1fr_1fr_1fr_2.4fr] border-b border-black text-[11px] bg-white">
-        <div className="border-r border-black p-1.5 flex flex-col justify-center">
-          <span className="font-bold text-black text-[10.5px]">taxable</span>
-          <span className="font-mono font-bold text-black text-xs">
+      {/* ─── 4. TAX SUMMARY + NET TOTAL ROW ─── */}
+      <div className="grid grid-cols-[1.1fr_1fr_1fr_2.5fr] border-b border-black text-xs bg-white min-h-[46px]">
+        <div className="border-r border-black p-2 flex flex-col justify-center">
+          <span className="font-bold text-black text-xs">taxable</span>
+          <span className="font-mono font-bold text-black text-sm pt-0.5">
             ₹ {taxableTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </span>
         </div>
-        <div className="border-r border-black p-1.5 flex flex-col justify-center">
-          <span className="font-bold text-black text-[10.5px]">cgst</span>
-          <span className="font-mono font-bold text-black text-xs">
+        <div className="border-r border-black p-2 flex flex-col justify-center">
+          <span className="font-bold text-black text-xs">cgst</span>
+          <span className="font-mono font-bold text-black text-sm pt-0.5">
             ₹ {cgstTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </span>
         </div>
-        <div className="border-r border-black p-1.5 flex flex-col justify-center">
-          <span className="font-bold text-black text-[10.5px]">sgst</span>
-          <span className="font-mono font-bold text-black text-xs">
+        <div className="border-r border-black p-2 flex flex-col justify-center">
+          <span className="font-bold text-black text-xs">sgst</span>
+          <span className="font-mono font-bold text-black text-sm pt-0.5">
             ₹ {sgstTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </span>
         </div>
-        <div className="p-1.5 flex items-center justify-between px-3">
-          <span className="font-bold text-black text-sm">Net total</span>
-          <span className="font-mono font-black text-black text-base">
+        <div className="p-2 px-4 flex items-center justify-between">
+          <span className="font-bold text-black text-base">Net total</span>
+          <span className="font-mono font-bold text-black text-xl">
             ₹ {netTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </span>
         </div>
       </div>
 
-      {/* ─── 5. BOTTOM THREE-BOX SECTION (IMAGE 2 EXACT COMPONENT ARRANGE) ─── */}
-      <div className="grid grid-cols-[1.1fr_1.35fr_1.4fr] text-[10.5px] items-stretch min-h-[125px]">
-        {/* Box 1: Bank Details & Terms */}
-        <div className="border-r border-black p-2 flex flex-col justify-between">
+      {/* ─── 5. LOWER SECTION — THREE MAIN AREAS ─── */}
+      <div className="grid grid-cols-[1.1fr_1.3fr_1.4fr] text-xs items-stretch min-h-[145px]">
+        {/* Left: Bank Details & Terms */}
+        <div className="border-r border-black p-2.5 flex flex-col justify-between">
           <div>
-            <div className="font-bold text-[11px] text-black mb-1">Bank details</div>
-            <table className="w-full text-[10px] leading-tight">
+            <div className="font-bold text-xs text-black mb-1">Bank details</div>
+            <table className="w-full text-xs leading-normal">
               <tbody>
                 <tr>
-                  <td className="w-16 text-black font-medium">Bank Name</td>
-                  <td className="w-2.5 text-center">:</td>
+                  <td className="w-20 text-black font-medium">Bank Name</td>
+                  <td className="w-3 text-center">:</td>
                   <td className="font-semibold text-black">{shop.bankName || 'Maharastra Gramin Bank'}</td>
                 </tr>
                 <tr>
-                  <td className="w-16 text-black font-medium">A/C No</td>
-                  <td className="w-2.5 text-center">:</td>
+                  <td className="w-20 text-black font-medium">A/C No</td>
+                  <td className="w-3 text-center">:</td>
                   <td className="font-mono font-bold text-black">{shop.accountNumber || '80045403150'}</td>
                 </tr>
                 <tr>
-                  <td className="w-16 text-black font-medium">IFSC Code</td>
-                  <td className="w-2.5 text-center">:</td>
+                  <td className="w-20 text-black font-medium">IFSC Code</td>
+                  <td className="w-3 text-center">:</td>
                   <td className="font-mono font-bold text-black">{shop.ifsc || 'MAHG0004120'}</td>
                 </tr>
                 <tr>
-                  <td className="w-16 text-black font-medium">Branch</td>
-                  <td className="w-2.5 text-center">:</td>
+                  <td className="w-20 text-black font-medium">Branch</td>
+                  <td className="w-3 text-center">:</td>
                   <td className="text-black">{shop.branch || 'Kamari'}</td>
                 </tr>
                 <tr>
-                  <td className="w-16 text-black font-medium">A/C Type</td>
-                  <td className="w-2.5 text-center">:</td>
+                  <td className="w-20 text-black font-medium">A/C Type</td>
+                  <td className="w-3 text-center">:</td>
                   <td className="text-black">{shop.accountType || 'Current Account'}</td>
                 </tr>
               </tbody>
             </table>
           </div>
 
-          {/* Terms & Conditions in Lower Left */}
-          <div className="text-[8.5px] text-gray-800 pt-1 mt-1 border-t border-gray-300 leading-tight">
+          {/* Terms & Conditions */}
+          <div className="text-[9px] text-gray-800 pt-1.5 mt-1 border-t border-black/20 leading-tight">
             <span className="font-bold">Terms: </span>
             <span>1. Goods once sold will not be taken back. 2. Interest @ 18% p.a. charged after 30 days.</span>
           </div>
         </div>
 
-        {/* Box 2: Amount in Words & Calculations / Ledger */}
+        {/* Middle: Amount in Words & Balances */}
         <div className="border-r border-black flex flex-col justify-between">
           {/* Top: Amount in words */}
-          <div className="p-2 border-b border-black flex-1">
-            <div className="font-bold text-[10.5px] text-black mb-0.5">Amount in words</div>
-            <div className="text-[10px] font-semibold text-black capitalize italic leading-tight">
+          <div className="p-2.5 border-b border-black flex-1">
+            <div className="font-bold text-xs text-black mb-1">Amount in words</div>
+            <div className="text-xs font-semibold text-black capitalize leading-tight">
               {cleanWords}
             </div>
           </div>
 
           {/* Bottom: Calculations / Balances */}
-          <div className="p-2 bg-white space-y-0.5">
-            <table className="w-full text-[10px] leading-tight">
+          <div className="p-2.5 space-y-1">
+            <table className="w-full text-xs leading-normal">
               <tbody>
                 {adjustments.length > 0 && adjustments.map((adj: any, i: number) => {
                   const isAdd = adj.type === 'ADD';
                   return (
                     <tr key={adj.id || i}>
                       <td className="text-black font-medium">{adj.reason}</td>
-                      <td className="w-2.5 text-center">:</td>
+                      <td className="w-3 text-center">:</td>
                       <td className={`text-right font-mono font-bold ${isAdd ? 'text-emerald-700' : 'text-amber-800'}`}>
                         {isAdd ? `+₹ ${Number(adj.amount || 0).toFixed(2)}` : `-₹ ${Number(adj.amount || 0).toFixed(2)}`}
                       </td>
@@ -491,14 +489,14 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
                 })}
                 <tr>
                   <td className="text-black font-medium">Amount Paid</td>
-                  <td className="w-2.5 text-center">:</td>
+                  <td className="w-3 text-center">:</td>
                   <td className="text-right font-mono font-bold text-black">
                     ₹ {amountPaid.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
                 </tr>
                 <tr>
                   <td className="text-black font-medium">Balance / Udhar</td>
-                  <td className="w-2.5 text-center">:</td>
+                  <td className="w-3 text-center">:</td>
                   <td className={`text-right font-mono font-bold ${balanceDue > 0 ? 'text-red-700 font-black' : 'text-black'}`}>
                     ₹ {balanceDue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
@@ -508,25 +506,28 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
           </div>
         </div>
 
-        {/* Box 3: Signatures (Customer Sign on left, Shop Name + Authorized Sign on right) */}
-        <div className="grid grid-cols-[1fr_1.3fr] items-stretch">
-          {/* Customer sign */}
-          <div className="border-r border-black p-2 flex flex-col justify-end items-center text-center pb-3">
-            <span className="font-semibold text-[10.5px] text-black">Customer sign</span>
-          </div>
-
-          {/* Authorized Sign */}
-          <div className="p-2 flex flex-col justify-between items-center text-center pb-3">
-            <span className="font-bold text-[10.5px] uppercase text-black leading-tight">
+        {/* Right: Signature Area */}
+        <div className="p-3 flex flex-col justify-between">
+          {/* Upper/Middle business name */}
+          <div className="text-right pt-1 pr-2">
+            <span className="font-bold text-xs uppercase text-black">
               {shop.authorizedSignatory || shop.shopName || 'MAULI KRUSHI SEVA KENDRA'}
             </span>
-            <span className="font-semibold text-[10.5px] text-black">Authorized Sign</span>
+          </div>
+
+          {/* Blank space for seal/stamp & signature */}
+          <div className="h-16"></div>
+
+          {/* Bottom signature labels */}
+          <div className="flex justify-between items-end px-2 pb-1">
+            <span className="font-semibold text-xs text-black">Customer sign</span>
+            <span className="font-semibold text-xs text-black">Authorized Sign</span>
           </div>
         </div>
       </div>
 
-      {/* ─── 6. BORDERED FOOTER (MATCHING IMAGE 2) ─── */}
-      <div className="border-t border-black bg-white py-1 px-3 flex justify-between items-center text-[9px] font-bold text-black uppercase tracking-wider">
+      {/* ─── 6. FOOTER BAR ─── */}
+      <div className="border-t border-black bg-white py-1 px-3 flex justify-between items-center text-[10px] font-bold text-black uppercase tracking-wider">
         <span>THIS IS COMPUTER GENERATED TAX INVOICE</span>
         <span>SUBJECT TO {shop.district ? shop.district.toUpperCase() : 'NANDED'} JURISDICTION</span>
         <span>PAGE 1 OF 1</span>
@@ -572,8 +573,8 @@ export function printInvoiceDirectly(elementId: string) {
         ${styles}
         <style>
           @page {
-            size: A4 portrait;
-            margin: 8mm;
+            size: A4 landscape;
+            margin: 6mm;
           }
           html, body {
             background-color: #ffffff !important;
@@ -589,7 +590,7 @@ export function printInvoiceDirectly(elementId: string) {
         </style>
       </head>
       <body>
-        <div style="padding: 0; margin: 0 auto; width: 194mm;">
+        <div style="padding: 0; margin: 0 auto; width: 280mm;">
           ${element.outerHTML}
         </div>
       </body>
@@ -626,13 +627,13 @@ export async function downloadInvoiceAsPDF(elementId: string, filename: string =
     const imgData = canvas.toDataURL('image/jpeg', 0.98);
     const { jsPDF } = await import('jspdf');
     const pdf = new jsPDF({
-      orientation: 'portrait',
+      orientation: 'landscape',
       unit: 'mm',
       format: 'a4',
     });
 
-    // A4 dimensions: 210 x 297 mm, center 194mm width
-    pdf.addImage(imgData, 'JPEG', 8, 8, 194, (194 * canvas.height) / canvas.width);
+    // A4 landscape dimensions: 297 x 210 mm. Printable width 281mm.
+    pdf.addImage(imgData, 'JPEG', 8, 8, 281, (281 * canvas.height) / canvas.width);
     pdf.save(filename);
   } catch (err) {
     console.error('Error generating PDF from DOM:', err);
