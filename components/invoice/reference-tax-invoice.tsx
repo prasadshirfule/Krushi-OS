@@ -18,10 +18,10 @@ export interface InvoiceItemData {
   batch: string;
   expiry: string;
   quantity: number;
-  rate: number;          // Taxable unit price
-  gstRate: number;       // GST %
-  rateWithGst: number;   // Unit price including GST
-  total: number;         // Line total
+  rate: number;          
+  gstRate: number;       
+  rateWithGst: number;   
+  total: number;         
   taxableAmount: number;
   cgstAmount: number;
   sgstAmount: number;
@@ -33,7 +33,6 @@ export interface InvoiceProps {
   customItems?: InvoiceItemData[];
 }
 
-// Calculate reverse GST for item line totals
 export function calculateItemGst(totalAmt: number, qty: number, gstRate: number) {
   const safeQty = qty > 0 ? qty : 1;
   const safeRate = gstRate >= 0 ? gstRate : 0;
@@ -44,14 +43,7 @@ export function calculateItemGst(totalAmt: number, qty: number, gstRate: number)
   const taxableUnitRate = Math.round((taxable / safeQty) * 100) / 100;
   const unitWithGst = Math.round((totalAmt / safeQty) * 100) / 100;
 
-  return {
-    taxable,
-    totalTax,
-    cgst,
-    sgst,
-    taxableUnitRate,
-    unitWithGst,
-  };
+  return { taxable, totalTax, cgst, sgst, taxableUnitRate, unitWithGst };
 }
 
 export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, customItems }: InvoiceProps) {
@@ -69,18 +61,16 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
   const s = sale || {};
   const hasRealSale = Boolean(s.id || s.invoice_number || (s.items && s.items.length > 0) || (s.sale_items && s.sale_items.length > 0));
 
-  // Customer Details: fallback to Image 1 source data if not present
-  const customerName = s.customer?.name || (typeof s.customer === 'string' ? s.customer : null) || s.customer_name || (hasRealSale ? 'Walk-in Customer' : 'GOVIND DEORAYE');
-  const customerPhone = s.customer?.phone || s.customer?.mobile || s.customer_phone || (hasRealSale ? '' : '5412336787');
+  const customerName = s.customer?.name || (typeof s.customer === 'string' ? s.customer : null) || s.customer_name || (hasRealSale ? 'Walk-in Customer' : 'Demo Customer Name');
+  const customerPhone = s.customer?.phone || s.customer?.mobile || s.customer_phone || (hasRealSale ? '' : '9876543210');
   const customerAddress = [
-    s.customer?.village || s.customer?.address || (!hasRealSale ? 'At kamari, Himayatnagar' : ''),
-    s.customer?.district || (!hasRealSale ? 'Nanded' : ''),
-    s.customer?.state || (!hasRealSale ? 'Maharashtra - 431802' : '')
+    s.customer?.village || s.customer?.address || (!hasRealSale ? 'Demo Address' : ''),
+    s.customer?.district || (!hasRealSale ? 'Demo District' : ''),
+    s.customer?.state || (!hasRealSale ? 'Demo State' : '')
   ].filter(Boolean).join(', ');
 
-  // Invoice Details
-  const invoiceNo = s.invoice_number || s.invoiceNumber || (s.id ? (s.id.startsWith('KOS-') ? s.id : `KOS-${s.id.substring(0, 8).toUpperCase()}`) : 'KOS-2026-033');
-  const dateObj = s.sale_date || s.created_at ? new Date(s.sale_date || s.created_at) : new Date('2026-09-05T23:59:00+05:30');
+  const invoiceNo = s.invoice_number || s.invoiceNumber || (s.id ? (s.id.startsWith('KOS-') ? s.id : `KOS-${s.id.substring(0, 8).toUpperCase()}`) : 'KOS-2026-001');
+  const dateObj = s.sale_date || s.created_at ? new Date(s.sale_date || s.created_at) : new Date();
   const formattedDate = dateObj.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
   const formattedTime = dateObj.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
 
@@ -88,7 +78,6 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
   const paymentBadge = isCredit ? '[R] Credit Bill' : '[R] Cash Bill';
   const paymentMode = s.payment_method || s.payment_mode || s.paymentMethod || 'Cash';
 
-  // Map Product Items
   const rawItems = customItems || s.items || s.sale_items || [];
   let items: InvoiceItemData[] = [];
 
@@ -97,7 +86,7 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
       const p = item.product || {};
       const qty = Number(item.quantity || 1);
       const gst = Number(item.gst_rate ?? item.gstRate ?? p.gst_rate ?? 18);
-      const lineTotal = Number(item.total_amount ?? item.totalAmount ?? item.total_price ?? (qty * Number(item.unit_price ?? item.selling_price ?? 550)));
+      const lineTotal = Number(item.total_amount ?? item.totalAmount ?? item.total_price ?? (qty * Number(item.unit_price ?? item.selling_price ?? 0)));
       
       const { taxable, cgst, sgst, taxableUnitRate, unitWithGst } = calculateItemGst(lineTotal, qty, gst);
 
@@ -110,7 +99,7 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
           if (match) prodName = match.name;
         } catch {}
       }
-      if (!prodName) prodName = 'Confidor Insecticide 100ml';
+      if (!prodName) prodName = 'Demo Product';
 
       let mfg = item.manufacturer || p.manufacturer || p.brand?.manufacturer || p.brand?.name || '';
       if (!mfg && (item.product_id || item.id)) {
@@ -120,11 +109,10 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
           if (match) mfg = match.manufacturer || match.brand?.manufacturer || match.brand?.name || '';
         } catch {}
       }
-      if (!mfg && !hasRealSale) mfg = 'Bayer CropScience';
 
-      let hsn = item.hsn_code || p.hsn_code || p.hsnCode || (!hasRealSale ? '3808' : '');
-      let batch = item.batch_number || item.batch?.batch_number || p.batch_number || (!hasRealSale ? 'B-2026-01' : '-');
-      let expiryStr = item.expiry_date || item.batch?.expiry_date || p.expiry_date || (!hasRealSale ? '2026-11-30' : '-');
+      let hsn = item.hsn_code || p.hsn_code || p.hsnCode || '';
+      let batch = item.batch_number || item.batch?.batch_number || p.batch_number || '-';
+      let expiryStr = item.expiry_date || item.batch?.expiry_date || p.expiry_date || '-';
       if (expiryStr && expiryStr.includes('T')) {
         const d = new Date(expiryStr);
         if (!isNaN(d.getTime())) {
@@ -150,383 +138,317 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
       };
     });
   } else {
-    // Default to Image 1 item if completely empty
     items = [
       {
         id: 'default-item-1',
-        name: 'Confidor Insecticide 100ml',
-        manufacturer: 'Bayer CropScience',
-        hsn: '3808',
-        batch: 'B-2026-01',
-        expiry: '2026-11-30',
+        name: 'Demo Product 1',
+        manufacturer: 'Demo Mfg',
+        hsn: '1234',
+        batch: 'B-01',
+        expiry: '2026-12-31',
         quantity: 1,
-        rate: 466.10,
+        rate: 100,
         gstRate: 18,
-        rateWithGst: 550.00,
-        taxableAmount: 466.10,
-        cgstAmount: 41.95,
-        sgstAmount: 41.95,
-        total: 550.00,
+        rateWithGst: 118,
+        taxableAmount: 100,
+        cgstAmount: 9,
+        sgstAmount: 9,
+        total: 118,
       }
     ];
   }
 
-  // Totals calculations
   const taxableTotal = items.reduce((sum, item) => sum + item.taxableAmount, 0);
   const cgstTotal = items.reduce((sum, item) => sum + item.cgstAmount, 0);
   const sgstTotal = items.reduce((sum, item) => sum + item.sgstAmount, 0);
   const productsTotal = items.reduce((sum, item) => sum + item.total, 0);
 
   const adjustments: any[] = Array.isArray(s.adjustments) ? s.adjustments : [];
-  const totalAdditions = adjustments
-    .filter(a => a.type === 'ADD')
-    .reduce((sum, a) => sum + (Number(a.amount) || 0), 0);
-  const totalDeductions = adjustments
-    .filter(a => a.type === 'DEDUCT')
-    .reduce((sum, a) => sum + (Number(a.amount) || 0), 0);
+  const totalAdditions = adjustments.filter(a => a.type === 'ADD').reduce((sum, a) => sum + (Number(a.amount) || 0), 0);
+  const totalDeductions = adjustments.filter(a => a.type === 'DEDUCT').reduce((sum, a) => sum + (Number(a.amount) || 0), 0);
 
   const netTotal = s.total_amount !== undefined && s.total_amount !== null
     ? Number(s.total_amount)
     : Math.max(0, productsTotal + totalAdditions - totalDeductions);
 
-  const amountPaid = s.paid_amount !== undefined ? Number(s.paid_amount) : (isCredit ? 0 : netTotal);
-  const balanceDue = isCredit ? Math.max(0, netTotal - amountPaid) : 0;
-
-  // Amount in words: format cleanly without duplicate "Rupees Only"
   let rawWords = numberToWords(Math.round(netTotal));
-  let cleanWords = `${rawWords} Rupees Only`
-    .replace(/Rupees Only\s+Rupees Only/gi, 'Rupees Only')
-    .replace(/\s+/g, ' ')
-    .trim();
+  let cleanWords = `${rawWords} Rupees Only`.replace(/Rupees Only\s+Rupees Only/gi, 'Rupees Only').replace(/\s+/g, ' ').trim();
 
-  // Dense row filler: 6 empty rows exactly matching Image 2 visual density
-  const targetRowCount = Math.max(7, items.length + 5);
+  // Ledger calculation
+  const amountPaid = s.paid_amount !== undefined ? Number(s.paid_amount) : (isCredit ? 0 : netTotal);
+  const openingBal = s.customer?.opening_balance ? Number(s.customer.opening_balance) : 0;
+  const drInvoice = netTotal;
+  const closingBalance = openingBal + drInvoice - amountPaid;
+
+  const targetRowCount = Math.max(10, items.length + 4); 
   const emptyRowsCount = Math.max(0, targetRowCount - items.length);
 
-  const dynamicShopAddress = formatShopAddress(shop) || 'At kamari, Himayatnagar, NANDED, MAHARASHTRA - 431802';
+  const dynamicShopAddress = formatShopAddress(shop) || 'At Post Jujarpu r, Tal Sangola, Dist Solapur, Maharashtra - 413307';
 
   return (
     <div
       id="printable-tax-invoice"
-      className="w-[194mm] mx-auto bg-white text-black font-sans text-[11px] leading-tight border-2 border-black box-border shadow-md print:shadow-none print:w-[194mm] print:m-0 print:border-2 print:border-black select-text"
-      style={{
+      className="bg-white text-black font-sans box-border relative mx-auto"
+      style={{ 
+        width: '287mm', // 297mm (A4 landscape) - 10mm margins
+        height: '190mm', // 210mm (A4 height) - 20mm margins
+        border: '2px solid black',
+        display: 'flex',
+        flexDirection: 'column',
         WebkitPrintColorAdjust: 'exact',
         printColorAdjust: 'exact',
         color: '#000000',
         backgroundColor: '#ffffff',
       }}
     >
-      {/* ─── 1. HEADER SECTION (IMAGE 2 EXACT THREE-COMPARTMENT GRID) ─── */}
-      <div className="grid grid-cols-[105px_1fr_215px] border-b border-black items-stretch">
-        {/* Left Column: Agricultural / Business Logo */}
-        <div className="p-2 border-r border-black flex flex-col items-center justify-center bg-white">
+      {/* 1. HEADER (18%) */}
+      <div style={{ flex: '0 0 18%', borderBottom: '2px solid black', display: 'flex', overflow: 'hidden' }}>
+        {/* Left: Logo */}
+        <div style={{ flex: '0 0 15%', borderRight: '2px solid black', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '5px' }}>
           {shop.logoBase64 ? (
-            <div className="w-14 h-14 shrink-0 flex items-center justify-center overflow-hidden">
-              <img src={shop.logoBase64} alt="Shop Logo" className="max-w-full max-h-full object-contain" />
-            </div>
+            <img src={shop.logoBase64} alt="Shop Logo" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
           ) : (
-            <div className="flex flex-col items-center justify-center">
-              <div className="w-14 h-14 rounded-full border-2 border-[#2e7d32] p-1 flex items-center justify-center bg-white">
-                <svg viewBox="0 0 100 100" className="w-full h-full" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <circle cx="50" cy="50" r="44" stroke="#2e7d32" strokeWidth="4" fill="#f4fbf5" />
-                  <path d="M50 16 C44 34 26 44 26 68 C26 78 36 84 50 84 C64 84 74 78 74 68 C74 44 56 34 50 16 Z" fill="#2e7d32" />
-                  <path d="M50 20 L50 80" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" />
-                  <path d="M50 42 Q38 34 32 46 Q44 48 50 54" fill="#fff" opacity="0.9" />
-                  <path d="M50 42 Q62 34 68 46 Q56 48 50 54" fill="#fff" opacity="0.9" />
-                  <path d="M50 56 Q38 50 34 60 Q44 62 50 68" fill="#fff" opacity="0.9" />
-                  <path d="M50 56 Q62 50 66 60 Q56 62 50 68" fill="#fff" opacity="0.9" />
-                </svg>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <div style={{ width: '60px', height: '60px', borderRadius: '50%', border: '2px solid #2e7d32', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#2e7d32' }}>LOGO</span>
               </div>
-              <span className="text-[10px] font-black text-[#2e7d32] tracking-wider mt-1 uppercase">MAULI</span>
             </div>
           )}
         </div>
-
-        {/* Center Column: Shop Name, Address & Owner Info */}
-        <div className="p-2.5 flex flex-col items-center justify-center text-center space-y-1">
-          <h1 className="text-xl md:text-2xl font-black uppercase tracking-wide text-black leading-tight">
-            {shop.shopName || 'MAULI KRUSHI SEVA KENDRA'}
+        {/* Center: Business Details */}
+        <div style={{ flex: '1', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '5px' }}>
+          <h1 style={{ fontSize: '26px', fontWeight: '900', margin: '0', textTransform: 'uppercase', lineHeight: '1.2' }}>
+            {shop.shopName || 'KRUSHI OS SEVA KENDRA'}
           </h1>
-          <p className="text-[11.5px] font-semibold text-black leading-tight">
+          <p style={{ fontSize: '13px', fontWeight: '600', margin: '4px 0 0 0', lineHeight: '1.2' }}>
             {dynamicShopAddress}
           </p>
-          <div className="text-[11.5px] font-bold text-black flex items-center justify-center gap-6 pt-0.5">
-            <span>Pro: {shop.ownerName || 'PRAMOD SHIRFULE'}</span>
-            <span>Mob: {shop.contact1 || '9767631543'}</span>
+          <div style={{ fontSize: '13px', fontWeight: 'bold', marginTop: '6px', display: 'flex', gap: '30px' }}>
+            <span>Pro: {shop.ownerName || 'Demo Owner Name'}</span>
+            <span>Mob: {shop.contact1 || '9876543210'}</span>
           </div>
         </div>
-
-        {/* Right Column: GSTIN, LIC NO, REG NO Registration Table Box */}
-        <div className="flex flex-col border-l border-black text-[11px] justify-between">
-          <div className="flex border-b border-black p-1.5 flex-1 items-center">
-            <span className="font-bold w-16 text-black shrink-0">GSTIN:</span>
-            <span className="font-mono font-bold text-black uppercase">{shop.gstNumber || 'DLGPS9782B2ZJ'}</span>
+        {/* Right: Registration Box */}
+        <div style={{ flex: '0 0 20%', borderLeft: '2px solid black', display: 'flex', flexDirection: 'column', fontSize: '12px', overflow: 'hidden' }}>
+          <div style={{ flex: '1', borderBottom: '2px solid black', display: 'flex', alignItems: 'center', padding: '0 8px' }}>
+            <span style={{ fontWeight: 'bold', width: '65px' }}>GSTIN:</span>
+            <span style={{ fontWeight: 'bold', fontFamily: 'monospace' }}>{shop.gstNumber || ''}</span>
           </div>
-          <div className="flex border-b border-black p-1.5 flex-1 items-center">
-            <span className="font-bold w-16 text-black shrink-0">LIC NO:</span>
-            <span className="font-mono font-semibold text-black">{shop.licenseNumber || ''}</span>
+          <div style={{ flex: '1', borderBottom: '2px solid black', display: 'flex', alignItems: 'center', padding: '0 8px' }}>
+            <span style={{ fontWeight: 'bold', width: '65px' }}>LIC NO:</span>
+            <span style={{ fontWeight: 'bold', fontFamily: 'monospace' }}>{shop.licenseNumber || ''}</span>
           </div>
-          <div className="flex p-1.5 flex-1 items-center">
-            <span className="font-bold w-16 text-black shrink-0">REG NO:</span>
-            <span className="font-mono font-semibold text-black">{shop.registrationNumber || ''}</span>
+          <div style={{ flex: '1', display: 'flex', alignItems: 'center', padding: '0 8px' }}>
+            <span style={{ fontWeight: 'bold', width: '65px' }}>REG NO:</span>
+            <span style={{ fontWeight: 'bold', fontFamily: 'monospace' }}>{shop.registrationNumber || ''}</span>
           </div>
         </div>
       </div>
 
-      {/* ─── 2. CUSTOMER & INVOICE DETAILS (IMAGE 2 TWO-COLUMN ROW) ─── */}
-      <div className="grid grid-cols-[1.15fr_1fr] border-b border-black text-[11px]">
-        {/* Left: Customer Details with Clean Aligned Colons */}
-        <div className="p-2.5 border-r border-black">
-          <table className="w-full text-[11px] leading-relaxed">
+      {/* 2. CUSTOMER & INVOICE DETAILS (14%) */}
+      <div style={{ flex: '0 0 14%', borderBottom: '2px solid black', display: 'flex', overflow: 'hidden' }}>
+        {/* Left (60%) */}
+        <div style={{ flex: '0 0 60%', borderRight: '2px solid black', padding: '8px 12px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+          <table style={{ width: '100%', fontSize: '13px', lineHeight: '1.4', borderCollapse: 'collapse' }}>
             <tbody>
               <tr>
-                <td className="w-16 font-bold text-black align-top">Name</td>
-                <td className="w-3 font-bold text-center align-top">:</td>
-                <td className="font-bold text-black uppercase align-top">{customerName}</td>
+                <td style={{ width: '80px', fontWeight: 'bold', verticalAlign: 'top' }}>Name</td>
+                <td style={{ width: '15px', fontWeight: 'bold', verticalAlign: 'top' }}>:</td>
+                <td style={{ fontWeight: 'bold', verticalAlign: 'top' }}>{customerName}</td>
               </tr>
               <tr>
-                <td className="w-16 font-bold text-black align-top">Address</td>
-                <td className="w-3 font-bold text-center align-top">:</td>
-                <td className="text-black font-medium align-top">{customerAddress || 'NANDED, MAHARASHTRA'}</td>
+                <td style={{ width: '80px', fontWeight: 'bold', verticalAlign: 'top' }}>Address</td>
+                <td style={{ width: '15px', fontWeight: 'bold', verticalAlign: 'top' }}>:</td>
+                <td style={{ fontWeight: '600', verticalAlign: 'top' }}>{customerAddress}</td>
               </tr>
               <tr>
-                <td className="w-16 font-bold text-black align-top">Mob</td>
-                <td className="w-3 font-bold text-center align-top">:</td>
-                <td className="font-mono font-bold text-black align-top">{customerPhone || '-'}</td>
+                <td style={{ width: '80px', fontWeight: 'bold', verticalAlign: 'top' }}>Mob</td>
+                <td style={{ width: '15px', fontWeight: 'bold', verticalAlign: 'top' }}>:</td>
+                <td style={{ fontWeight: 'bold', fontFamily: 'monospace', verticalAlign: 'top' }}>{customerPhone || '-'}</td>
               </tr>
             </tbody>
           </table>
         </div>
-
-        {/* Right: Invoice Details & Cash Bill Badge */}
-        <div className="p-2.5 relative flex flex-col justify-between">
-          <div className="flex justify-between items-start">
-            <table className="w-full text-[11px] leading-relaxed">
-              <tbody>
-                <tr>
-                  <td className="w-16 font-bold text-black align-top">Bill No</td>
-                  <td className="w-3 font-bold text-center align-top">:</td>
-                  <td className="font-mono font-bold text-black text-xs align-top">{invoiceNo}</td>
-                </tr>
-                <tr>
-                  <td className="w-16 font-bold text-black align-top">Date</td>
-                  <td className="w-3 font-bold text-center align-top">:</td>
-                  <td className="font-medium text-black align-top">
-                    {formattedDate} &nbsp;({formattedTime})
-                  </td>
-                </tr>
-                <tr>
-                  <td className="w-16 font-bold text-black align-top">Payment</td>
-                  <td className="w-3 font-bold text-center align-top">:</td>
-                  <td className="font-semibold text-black uppercase align-top">{paymentMode}</td>
-                </tr>
-              </tbody>
-            </table>
-
-            {/* Right Badge: [R] Cash Bill / [R] Credit Bill */}
-            <div className="border border-black px-2 py-0.5 text-[11px] font-bold text-black shrink-0 ml-2 whitespace-nowrap bg-white">
-              {paymentBadge}
-            </div>
+        {/* Right (40%) */}
+        <div style={{ flex: '0 0 40%', padding: '8px 12px', position: 'relative', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+          <div style={{ position: 'absolute', top: '8px', right: '8px', border: '1px solid black', padding: '2px 8px', fontSize: '12px', fontWeight: 'bold', backgroundColor: 'white' }}>
+            {paymentBadge}
           </div>
+          <table style={{ width: '100%', fontSize: '13px', lineHeight: '1.4', borderCollapse: 'collapse', marginTop: '10px' }}>
+            <tbody>
+              <tr>
+                <td style={{ width: '80px', fontWeight: 'bold', verticalAlign: 'top' }}>Bill No</td>
+                <td style={{ width: '15px', fontWeight: 'bold', verticalAlign: 'top' }}>:</td>
+                <td style={{ fontWeight: 'bold', fontFamily: 'monospace', verticalAlign: 'top' }}>{invoiceNo}</td>
+              </tr>
+              <tr>
+                <td style={{ width: '80px', fontWeight: 'bold', verticalAlign: 'top' }}>Date</td>
+                <td style={{ width: '15px', fontWeight: 'bold', verticalAlign: 'top' }}>:</td>
+                <td style={{ fontWeight: '600', verticalAlign: 'top' }}>{formattedDate} ({formattedTime})</td>
+              </tr>
+              <tr>
+                <td style={{ width: '80px', fontWeight: 'bold', verticalAlign: 'top' }}>Payment</td>
+                <td style={{ width: '15px', fontWeight: 'bold', verticalAlign: 'top' }}>:</td>
+                <td style={{ fontWeight: 'bold', textTransform: 'uppercase', verticalAlign: 'top' }}>{paymentMode}</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
 
-      {/* ─── 3. PRODUCT TABLE (IMAGE 2 EXACT 10-COLUMN STRUCTURE) ─── */}
-      <div className="w-full">
-        <table className="w-full border-collapse text-[10.5px]">
+      {/* 3. PRODUCT TABLE (40%) */}
+      <div style={{ flex: '0 0 40%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        <table style={{ width: '100%', height: '100%', tableLayout: 'fixed', borderCollapse: 'collapse', fontSize: '12px' }}>
           <thead>
-            <tr className="border-b border-black text-black bg-white">
-              <th className="border-r border-black py-1.5 px-1 text-center w-[4.5%] font-bold">Sr.</th>
-              <th className="border-r border-black py-1.5 px-2 text-left w-[27%] font-bold">Product Details</th>
-              <th className="border-r border-black py-1.5 px-1 text-center w-[7.5%] font-bold">HSN</th>
-              <th className="border-r border-black py-1.5 px-1 text-center w-[9.5%] font-bold">BATCH</th>
-              <th className="border-r border-black py-1.5 px-1 text-center w-[9.5%] font-bold">EXPIRY</th>
-              <th className="border-r border-black py-1.5 px-1 text-center w-[5.5%] font-bold">Qty</th>
-              <th className="border-r border-black py-1.5 px-1 text-right w-[8.5%] font-bold">Rate</th>
-              <th className="border-r border-black py-1.5 px-1 text-center w-[7%] font-bold">GST %</th>
-              <th className="border-r border-black py-1.5 px-1 text-right w-[10%] font-bold">Rate (With GST)</th>
-              <th className="py-1.5 px-2 text-right w-[11%] font-bold">Total</th>
+            <tr style={{ borderBottom: '2px solid black', height: '26px' }}>
+              <th style={{ borderRight: '2px solid black', width: '6%', fontWeight: 'bold', textAlign: 'center', padding: '4px' }}>Sr.</th>
+              <th style={{ borderRight: '2px solid black', width: '25%', fontWeight: 'bold', textAlign: 'left', padding: '4px 6px' }}>Product Details</th>
+              <th style={{ borderRight: '2px solid black', width: '7%', fontWeight: 'bold', textAlign: 'center', padding: '4px' }}>HSN</th>
+              <th style={{ borderRight: '2px solid black', width: '9%', fontWeight: 'bold', textAlign: 'center', padding: '4px' }}>BATCH</th>
+              <th style={{ borderRight: '2px solid black', width: '10%', fontWeight: 'bold', textAlign: 'center', padding: '4px' }}>EXPIRY</th>
+              <th style={{ borderRight: '2px solid black', width: '7%', fontWeight: 'bold', textAlign: 'center', padding: '4px' }}>Qty</th>
+              <th style={{ borderRight: '2px solid black', width: '9%', fontWeight: 'bold', textAlign: 'right', padding: '4px' }}>Rate</th>
+              <th style={{ borderRight: '2px solid black', width: '8%', fontWeight: 'bold', textAlign: 'center', padding: '4px' }}>GST %</th>
+              <th style={{ borderRight: '2px solid black', width: '10%', fontWeight: 'bold', textAlign: 'right', padding: '4px' }}>Rate<br/>(With GST)</th>
+              <th style={{ width: '9%', fontWeight: 'bold', textAlign: 'right', padding: '4px' }}>Total</th>
             </tr>
           </thead>
           <tbody>
             {items.map((item, idx) => (
-              <tr key={item.id || idx} className="border-b border-black">
-                <td className="border-r border-black py-1 px-1 text-center font-bold">{idx + 1}</td>
-                <td className="border-r border-black py-1 px-2 text-left">
-                  <div className="font-bold text-black uppercase leading-tight">{item.name}</div>
-                  {item.manufacturer && (
-                    <div className="text-[9.5px] text-gray-800 leading-tight">Mfg: {item.manufacturer}</div>
-                  )}
+              <tr key={item.id || idx} style={{ borderBottom: '1px solid black', height: '24px' }}>
+                <td style={{ borderRight: '2px solid black', textAlign: 'center', fontWeight: 'bold', padding: '2px 4px' }}>{idx + 1}</td>
+                <td style={{ borderRight: '2px solid black', textAlign: 'left', padding: '2px 6px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  <span style={{ fontWeight: 'bold', textTransform: 'uppercase' }}>{item.name}</span>
+                  {item.manufacturer && <span style={{ fontSize: '10px', display: 'block' }}>Mfg: {item.manufacturer}</span>}
                 </td>
-                <td className="border-r border-black py-1 px-1 text-center font-mono text-[10px]">{item.hsn || '-'}</td>
-                <td className="border-r border-black py-1 px-1 text-center font-mono text-[10px] uppercase font-semibold">{item.batch || '-'}</td>
-                <td className="border-r border-black py-1 px-1 text-center font-mono text-[10px]">{item.expiry || '-'}</td>
-                <td className="border-r border-black py-1 px-1 text-center font-mono font-bold text-black">
+                <td style={{ borderRight: '2px solid black', textAlign: 'center', fontFamily: 'monospace', padding: '2px 4px' }}>{item.hsn}</td>
+                <td style={{ borderRight: '2px solid black', textAlign: 'center', fontFamily: 'monospace', fontWeight: 'bold', padding: '2px 4px' }}>{item.batch}</td>
+                <td style={{ borderRight: '2px solid black', textAlign: 'center', fontFamily: 'monospace', padding: '2px 4px' }}>{item.expiry}</td>
+                <td style={{ borderRight: '2px solid black', textAlign: 'center', fontWeight: 'bold', fontFamily: 'monospace', padding: '2px 4px' }}>
                   {typeof item.quantity === 'number' ? (Number.isInteger(item.quantity) ? item.quantity : item.quantity.toFixed(1)) : item.quantity}
                 </td>
-                <td className="border-r border-black py-1 px-1 text-right font-mono">{item.rate.toFixed(2)}</td>
-                <td className="border-r border-black py-1 px-1 text-center font-mono font-semibold">{item.gstRate.toFixed(2)}</td>
-                <td className="border-r border-black py-1 px-1 text-right font-mono font-medium">{item.rateWithGst.toFixed(2)}</td>
-                <td className="py-1 px-2 text-right font-mono font-bold">{item.total.toFixed(2)}</td>
+                <td style={{ borderRight: '2px solid black', textAlign: 'right', fontFamily: 'monospace', padding: '2px 4px' }}>{item.rate.toFixed(2)}</td>
+                <td style={{ borderRight: '2px solid black', textAlign: 'center', fontFamily: 'monospace', fontWeight: 'bold', padding: '2px 4px' }}>{item.gstRate.toFixed(2)}</td>
+                <td style={{ borderRight: '2px solid black', textAlign: 'right', fontFamily: 'monospace', padding: '2px 4px' }}>{item.rateWithGst.toFixed(2)}</td>
+                <td style={{ textAlign: 'right', fontWeight: 'bold', fontFamily: 'monospace', padding: '2px 4px' }}>{item.total.toFixed(2)}</td>
               </tr>
             ))}
-
-            {/* Empty filler rows with black borders to match Image 2 visual space */}
-            {emptyRowsCount > 0 &&
-              Array.from({ length: emptyRowsCount }).map((_, i) => (
-                <tr key={`empty-${i}`} className="border-b border-black h-6">
-                  <td className="border-r border-black py-1 px-1 text-center">&nbsp;</td>
-                  <td className="border-r border-black py-1 px-2">&nbsp;</td>
-                  <td className="border-r border-black py-1 px-1">&nbsp;</td>
-                  <td className="border-r border-black py-1 px-1">&nbsp;</td>
-                  <td className="border-r border-black py-1 px-1">&nbsp;</td>
-                  <td className="border-r border-black py-1 px-1">&nbsp;</td>
-                  <td className="border-r border-black py-1 px-1">&nbsp;</td>
-                  <td className="border-r border-black py-1 px-1">&nbsp;</td>
-                  <td className="border-r border-black py-1 px-1">&nbsp;</td>
-                  <td className="py-1 px-2">&nbsp;</td>
-                </tr>
-              ))}
+            {emptyRowsCount > 0 && Array.from({ length: emptyRowsCount }).map((_, i) => (
+              <tr key={`empty-${i}`} style={{ borderBottom: i === emptyRowsCount - 1 ? 'none' : '1px solid black', height: 'auto' }}>
+                <td style={{ borderRight: '2px solid black' }}>&nbsp;</td>
+                <td style={{ borderRight: '2px solid black' }}>&nbsp;</td>
+                <td style={{ borderRight: '2px solid black' }}>&nbsp;</td>
+                <td style={{ borderRight: '2px solid black' }}>&nbsp;</td>
+                <td style={{ borderRight: '2px solid black' }}>&nbsp;</td>
+                <td style={{ borderRight: '2px solid black' }}>&nbsp;</td>
+                <td style={{ borderRight: '2px solid black' }}>&nbsp;</td>
+                <td style={{ borderRight: '2px solid black' }}>&nbsp;</td>
+                <td style={{ borderRight: '2px solid black' }}>&nbsp;</td>
+                <td>&nbsp;</td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
 
-      {/* ─── 4. HORIZONTAL TAX SUMMARY BAR (IMAGE 2 SIGNATURE FEATURE) ─── */}
-      <div className="grid grid-cols-[1fr_1fr_1fr_2.4fr] border-b border-black text-[11px] bg-white">
-        <div className="border-r border-black p-1.5 flex flex-col justify-center">
-          <span className="font-bold text-black text-[10.5px]">taxable</span>
-          <span className="font-mono font-bold text-black text-xs">
-            ₹ {taxableTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </span>
+      {/* 4. TAX SUMMARY (7%) */}
+      <div style={{ flex: '0 0 7%', borderTop: '2px solid black', borderBottom: '2px solid black', display: 'flex', overflow: 'hidden' }}>
+        <div style={{ flex: '0 0 15%', borderRight: '2px solid black', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '4px 10px' }}>
+          <span style={{ fontWeight: 'bold', fontSize: '12px', lineHeight: '1.2' }}>taxable</span>
+          <span style={{ fontWeight: 'bold', fontFamily: 'monospace', fontSize: '13px' }}>₹ {taxableTotal.toFixed(2)}</span>
         </div>
-        <div className="border-r border-black p-1.5 flex flex-col justify-center">
-          <span className="font-bold text-black text-[10.5px]">cgst</span>
-          <span className="font-mono font-bold text-black text-xs">
-            ₹ {cgstTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </span>
+        <div style={{ flex: '0 0 15%', borderRight: '2px solid black', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '4px 10px' }}>
+          <span style={{ fontWeight: 'bold', fontSize: '12px', lineHeight: '1.2' }}>cgst</span>
+          <span style={{ fontWeight: 'bold', fontFamily: 'monospace', fontSize: '13px' }}>₹ {cgstTotal.toFixed(2)}</span>
         </div>
-        <div className="border-r border-black p-1.5 flex flex-col justify-center">
-          <span className="font-bold text-black text-[10.5px]">sgst</span>
-          <span className="font-mono font-bold text-black text-xs">
-            ₹ {sgstTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </span>
+        <div style={{ flex: '0 0 15%', borderRight: '2px solid black', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '4px 10px' }}>
+          <span style={{ fontWeight: 'bold', fontSize: '12px', lineHeight: '1.2' }}>sgst</span>
+          <span style={{ fontWeight: 'bold', fontFamily: 'monospace', fontSize: '13px' }}>₹ {sgstTotal.toFixed(2)}</span>
         </div>
-        <div className="p-1.5 flex items-center justify-between px-3">
-          <span className="font-bold text-black text-sm">Net total</span>
-          <span className="font-mono font-black text-black text-base">
-            ₹ {netTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </span>
+        <div style={{ flex: '1', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px' }}>
+          <span style={{ fontWeight: 'bold', fontSize: '16px' }}>Net total</span>
+          <span style={{ fontWeight: '900', fontFamily: 'monospace', fontSize: '22px' }}>₹ {netTotal.toFixed(2)}</span>
         </div>
       </div>
 
-      {/* ─── 5. BOTTOM THREE-BOX SECTION (IMAGE 2 EXACT COMPONENT ARRANGE) ─── */}
-      <div className="grid grid-cols-[1.1fr_1.35fr_1.4fr] text-[10.5px] items-stretch min-h-[125px]">
-        {/* Box 1: Bank Details & Terms */}
-        <div className="border-r border-black p-2 flex flex-col justify-between">
-          <div>
-            <div className="font-bold text-[11px] text-black mb-1">Bank details</div>
-            <table className="w-full text-[10px] leading-tight">
-              <tbody>
-                <tr>
-                  <td className="w-16 text-black font-medium">Bank Name</td>
-                  <td className="w-2.5 text-center">:</td>
-                  <td className="font-semibold text-black">{shop.bankName || 'Maharastra Gramin Bank'}</td>
-                </tr>
-                <tr>
-                  <td className="w-16 text-black font-medium">A/C No</td>
-                  <td className="w-2.5 text-center">:</td>
-                  <td className="font-mono font-bold text-black">{shop.accountNumber || '80045403150'}</td>
-                </tr>
-                <tr>
-                  <td className="w-16 text-black font-medium">IFSC Code</td>
-                  <td className="w-2.5 text-center">:</td>
-                  <td className="font-mono font-bold text-black">{shop.ifsc || 'MAHG0004120'}</td>
-                </tr>
-                <tr>
-                  <td className="w-16 text-black font-medium">Branch</td>
-                  <td className="w-2.5 text-center">:</td>
-                  <td className="text-black">{shop.branch || 'Kamari'}</td>
-                </tr>
-                <tr>
-                  <td className="w-16 text-black font-medium">A/C Type</td>
-                  <td className="w-2.5 text-center">:</td>
-                  <td className="text-black">{shop.accountType || 'Current Account'}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          {/* Terms & Conditions in Lower Left */}
-          <div className="text-[8.5px] text-gray-800 pt-1 mt-1 border-t border-gray-300 leading-tight">
-            <span className="font-bold">Terms: </span>
-            <span>1. Goods once sold will not be taken back. 2. Interest @ 18% p.a. charged after 30 days.</span>
-          </div>
+      {/* 5. LOWER SECTION (18%) */}
+      <div style={{ flex: '0 0 18%', display: 'flex', overflow: 'hidden' }}>
+        {/* Left: BANK DETAILS */}
+        <div style={{ flex: '0 0 30%', borderRight: '2px solid black', padding: '8px 12px', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ fontWeight: 'bold', fontSize: '13px', marginBottom: '6px' }}>BANK DETAILS</div>
+          <table style={{ width: '100%', fontSize: '12px', lineHeight: '1.4', borderCollapse: 'collapse' }}>
+            <tbody>
+              <tr>
+                <td style={{ width: '75px', fontWeight: '600' }}>Bank Name</td>
+                <td style={{ fontWeight: 'bold' }}>{shop.bankName || ''}</td>
+              </tr>
+              <tr>
+                <td style={{ width: '75px', fontWeight: '600' }}>A/C No</td>
+                <td style={{ fontWeight: 'bold', fontFamily: 'monospace' }}>{shop.accountNumber || ''}</td>
+              </tr>
+              <tr>
+                <td style={{ width: '75px', fontWeight: '600' }}>IFSC Code</td>
+                <td style={{ fontWeight: 'bold', fontFamily: 'monospace' }}>{shop.ifsc || ''}</td>
+              </tr>
+              <tr>
+                <td style={{ width: '75px', fontWeight: '600' }}>Branch</td>
+                <td style={{ fontWeight: '600' }}>{shop.branch || ''}</td>
+              </tr>
+              <tr>
+                <td style={{ width: '75px', fontWeight: '600' }}>A/C Type</td>
+                <td style={{ fontWeight: '600' }}>{shop.accountType || ''}</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
-
-        {/* Box 2: Amount in Words & Calculations / Ledger */}
-        <div className="border-r border-black flex flex-col justify-between">
-          {/* Top: Amount in words */}
-          <div className="p-2 border-b border-black flex-1">
-            <div className="font-bold text-[10.5px] text-black mb-0.5">Amount in words</div>
-            <div className="text-[10px] font-semibold text-black capitalize italic leading-tight">
+        
+        {/* Middle: AMOUNT IN WORDS + LEDGER */}
+        <div style={{ flex: '0 0 40%', borderRight: '2px solid black', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ padding: '8px 12px', borderBottom: '1px solid black', flex: '0 0 45%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+            <div style={{ fontWeight: 'bold', fontSize: '13px', marginBottom: '4px' }}>Amount in words</div>
+            <div style={{ fontWeight: 'bold', fontSize: '12px', fontStyle: 'italic', textTransform: 'capitalize' }}>
               {cleanWords}
             </div>
           </div>
-
-          {/* Bottom: Calculations / Balances */}
-          <div className="p-2 bg-white space-y-0.5">
-            <table className="w-full text-[10px] leading-tight">
+          <div style={{ padding: '8px 12px', flex: '1', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+            <table style={{ width: '100%', fontSize: '12px', lineHeight: '1.5', borderCollapse: 'collapse' }}>
               <tbody>
-                {adjustments.length > 0 && adjustments.map((adj: any, i: number) => {
-                  const isAdd = adj.type === 'ADD';
-                  return (
-                    <tr key={adj.id || i}>
-                      <td className="text-black font-medium">{adj.reason}</td>
-                      <td className="w-2.5 text-center">:</td>
-                      <td className={`text-right font-mono font-bold ${isAdd ? 'text-emerald-700' : 'text-amber-800'}`}>
-                        {isAdd ? `+₹ ${Number(adj.amount || 0).toFixed(2)}` : `-₹ ${Number(adj.amount || 0).toFixed(2)}`}
-                      </td>
-                    </tr>
-                  );
-                })}
                 <tr>
-                  <td className="text-black font-medium">Amount Paid</td>
-                  <td className="w-2.5 text-center">:</td>
-                  <td className="text-right font-mono font-bold text-black">
-                    ₹ {amountPaid.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </td>
+                  <td style={{ width: '120px', fontWeight: '600' }}>Opening Bal</td>
+                  <td style={{ width: '10px' }}>:</td>
+                  <td style={{ fontWeight: 'bold', fontFamily: 'monospace', textAlign: 'right' }}>₹ {openingBal.toFixed(2)}</td>
                 </tr>
                 <tr>
-                  <td className="text-black font-medium">Balance / Udhar</td>
-                  <td className="w-2.5 text-center">:</td>
-                  <td className={`text-right font-mono font-bold ${balanceDue > 0 ? 'text-red-700 font-black' : 'text-black'}`}>
-                    ₹ {balanceDue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </td>
+                  <td style={{ width: '120px', fontWeight: '600' }}>Dr invoice</td>
+                  <td style={{ width: '10px' }}>:</td>
+                  <td style={{ fontWeight: 'bold', fontFamily: 'monospace', textAlign: 'right' }}>₹ {drInvoice.toFixed(2)}</td>
+                </tr>
+                <tr>
+                  <td style={{ width: '120px', fontWeight: '600' }}>Closing balance</td>
+                  <td style={{ width: '10px' }}>:</td>
+                  <td style={{ fontWeight: 'bold', fontFamily: 'monospace', textAlign: 'right' }}>₹ {closingBalance.toFixed(2)}</td>
                 </tr>
               </tbody>
             </table>
           </div>
         </div>
 
-        {/* Box 3: Signatures (Customer Sign on left, Shop Name + Authorized Sign on right) */}
-        <div className="grid grid-cols-[1fr_1.3fr] items-stretch">
-          {/* Customer sign */}
-          <div className="border-r border-black p-2 flex flex-col justify-end items-center text-center pb-3">
-            <span className="font-semibold text-[10.5px] text-black">Customer sign</span>
-          </div>
-
-          {/* Authorized Sign */}
-          <div className="p-2 flex flex-col justify-between items-center text-center pb-3">
-            <span className="font-bold text-[10.5px] uppercase text-black leading-tight">
-              {shop.authorizedSignatory || shop.shopName || 'MAULI KRUSHI SEVA KENDRA'}
+        {/* Right: SIGNATURE */}
+        <div style={{ flex: '1', padding: '8px 12px', display: 'flex', flexDirection: 'column', position: 'relative' }}>
+          <div style={{ textAlign: 'right', paddingRight: '20px', paddingTop: '10px' }}>
+            <span style={{ fontWeight: 'bold', fontSize: '13px', textTransform: 'uppercase' }}>
+              {shop.shopName || 'KRUSHI OS SEVA KENDRA'}
             </span>
-            <span className="font-semibold text-[10.5px] text-black">Authorized Sign</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flex: '1', paddingBottom: '4px' }}>
+            <span style={{ fontWeight: 'bold', fontSize: '12px' }}>Customer sign</span>
+            <span style={{ fontWeight: 'bold', fontSize: '12px', paddingRight: '10px' }}>Authorized Sign</span>
           </div>
         </div>
       </div>
 
-      {/* ─── 6. BORDERED FOOTER (MATCHING IMAGE 2) ─── */}
-      <div className="border-t border-black bg-white py-1 px-3 flex justify-between items-center text-[9px] font-bold text-black uppercase tracking-wider">
+      {/* 6. FOOTER (3%) */}
+      <div style={{ flex: '0 0 3%', borderTop: '2px solid black', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 12px', fontSize: '11px', fontWeight: 'bold' }}>
         <span>THIS IS COMPUTER GENERATED TAX INVOICE</span>
         <span>SUBJECT TO {shop.district ? shop.district.toUpperCase() : 'NANDED'} JURISDICTION</span>
         <span>PAGE 1 OF 1</span>
@@ -535,7 +457,8 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
   );
 }
 
-// ─── UTILITY FOR SEAMLESS 100% ISOLATED PRINTING ───
+// PRINT / PDF UTILS
+
 export function printInvoiceDirectly(elementId: string) {
   const element = document.getElementById(elementId);
   if (!element) {
@@ -572,8 +495,8 @@ export function printInvoiceDirectly(elementId: string) {
         ${styles}
         <style>
           @page {
-            size: A4 portrait;
-            margin: 8mm;
+            size: A4 landscape;
+            margin: 5mm;
           }
           html, body {
             background-color: #ffffff !important;
@@ -589,7 +512,7 @@ export function printInvoiceDirectly(elementId: string) {
         </style>
       </head>
       <body>
-        <div style="padding: 0; margin: 0 auto; width: 194mm;">
+        <div style="padding: 0; margin: 0 auto; width: 287mm; display: flex; justify-content: center;">
           ${element.outerHTML}
         </div>
       </body>
@@ -608,7 +531,6 @@ export function printInvoiceDirectly(elementId: string) {
   }, 350);
 }
 
-// ─── UTILITY FOR PIXEL-PERFECT PDF DOWNLOAD ───
 export async function downloadInvoiceAsPDF(elementId: string, filename: string = 'tax-invoice.pdf') {
   const element = document.getElementById(elementId);
   if (!element) return;
@@ -626,13 +548,12 @@ export async function downloadInvoiceAsPDF(elementId: string, filename: string =
     const imgData = canvas.toDataURL('image/jpeg', 0.98);
     const { jsPDF } = await import('jspdf');
     const pdf = new jsPDF({
-      orientation: 'portrait',
+      orientation: 'landscape',
       unit: 'mm',
       format: 'a4',
     });
 
-    // A4 dimensions: 210 x 297 mm, center 194mm width
-    pdf.addImage(imgData, 'JPEG', 8, 8, 194, (194 * canvas.height) / canvas.width);
+    pdf.addImage(imgData, 'JPEG', 5, 5, 287, (287 * canvas.height) / canvas.width);
     pdf.save(filename);
   } catch (err) {
     console.error('Error generating PDF from DOM:', err);
