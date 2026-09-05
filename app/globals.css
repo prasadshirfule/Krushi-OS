@@ -146,40 +146,67 @@
 
 /* Print Styles */
 @media print {
+  @page {
+    size: A4 portrait;
+    margin: 8mm;
+  }
+
+  html, body {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    min-height: 100% !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Completely hide all UI chrome */
   .no-print,
   aside, 
   nav,
-  header {
+  header,
+  footer,
+  button,
+  [data-radix-portal],
+  [role="dialog"] button {
     display: none !important;
+  }
+
+  /* Reset dashboard layout wrapper margins on print */
+  main,
+  div[class*="sm:pl-64"] {
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  body {
+    visibility: hidden;
+  }
+
+  #printable-tax-invoice,
+  #printable-tax-invoice * {
+    visibility: visible !important;
+    color: #000000 !important;
+  }
+
+  #printable-tax-invoice {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 194mm !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    background-color: #ffffff !important;
   }
 
   .print-only {
     display: block !important;
-  }
-
-  body, html {
-    background-color: white !important;
-    color: black !important;
-  }
-
-  body * {
-    visibility: hidden;
-  }
-
-  .print-content,
-  .print-content * {
-    visibility: visible;
-    color: black !important;
-  }
-
-  .print-content {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-    margin: 0;
-    padding: 0;
-    background-color: white !important;
   }
 }
 

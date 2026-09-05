@@ -1,7 +1,6 @@
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
-import { formatCurrency, formatDate, numberToWords } from './utils';
-import { formatProductPackDisplay } from './validations';
+import { formatCurrency, numberToWords } from './utils';
 import type { SaleWithItems } from '@/types/sales';
 
 declare module 'jspdf' {
@@ -13,298 +12,357 @@ declare module 'jspdf' {
   }
 }
 
-export function generateInvoicePDF(sale: SaleWithItems, settings: any) {
-  const doc = new jsPDF();
+// ─── DEMO DETAILS AS SPECIFIED BY USER ───
+const DEMO_DETAILS = {
+  shopName: 'DEMO KRUSHI SEVA KENDRA',
+  address: 'At Demo Village, Demo Taluka, Demo District, Maharashtra',
+  ownerName: 'Demo Owner Name',
+  mobile: '9876543210',
+  gstin: '27DEMO1234D1Z5',
+  licenseNo: 'DEMO-LIC-2026-001',
+  regNo: 'DEMO-REG-2026-001',
+  jurisdiction: 'Demo Jurisdiction',
+};
 
-  const primaryColor = [22, 163, 74]; // Green
-  const textColor = [50, 50, 50];
-  const lightGray = [240, 240, 240];
+const DEMO_CUSTOMER_DETAILS = {
+  name: 'DEMO CUSTOMER NAME',
+  address: 'DEMO CUSTOMER ADDRESS, DIST: DEMO',
+  mobile: '9876543210',
+  gstin: '27DEMOCUST12345',
+};
 
-  // Shop Settings
-  const shopName = settings.shopName || 'KRUSHI OS SEVA KENDRA';
-  const ownerName = settings.ownerName || '';
-  const address = settings.address || '';
-  const village = settings.village || '';
-  const district = settings.district || '';
-  const state = settings.state || '';
-  const pincode = settings.pincode || '';
-  const phone1 = settings.contact1 || '';
-  const phone2 = settings.contact2 || '';
-  const email = settings.email || '';
-  const gstNo = settings.gstNumber || '';
-  const licenseNo = settings.licenseNumber || '';
-  const registrationNo = settings.registrationNumber || '';
-  const logoBase64 = settings.logoBase64 || null;
-
-  let currentY = 15;
-
-  // Header Left (Logo)
-  if (logoBase64) {
-    try {
-      doc.addImage(logoBase64, 'JPEG', 14, currentY, 30, 30);
-    } catch (e) {
-      console.warn('Could not add logo', e);
-    }
-  }
-
-  // Header Center (Shop Name & Details)
-  doc.setFontSize(22);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-  doc.text(shopName, 105, currentY + 10, { align: 'center' });
-
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(textColor[0], textColor[1], textColor[2]);
-
-  let addressLine = [address, village, district, state, pincode].filter(Boolean).join(', ');
-  if (addressLine) {
-    doc.text(addressLine, 105, currentY + 16, { align: 'center' });
-  }
-  
-  let contactLine = [];
-  if (phone1) contactLine.push(`Ph: ${phone1}`);
-  if (phone2) contactLine.push(`Alt: ${phone2}`);
-  if (email) contactLine.push(`Email: ${email}`);
-  if (contactLine.length > 0) {
-    doc.text(contactLine.join(' | '), 105, currentY + 22, { align: 'center' });
-  }
-
-  let taxLine = [];
-  if (gstNo) taxLine.push(`GSTIN: ${gstNo}`);
-  if (licenseNo) taxLine.push(`Licence No: ${licenseNo}`);
-  if (registrationNo) taxLine.push(`Reg No: ${registrationNo}`);
-  if (taxLine.length > 0) {
-    doc.text(taxLine.join(' | '), 105, currentY + 28, { align: 'center' });
-  }
-
-  if (ownerName) {
-    doc.text(`Owner: ${ownerName}`, 105, currentY + 34, { align: 'center' });
-  }
-
-  // Invoice Title
-  currentY += 45;
-  doc.setFontSize(14);
-  doc.setFont('helvetica', 'bold');
-  doc.text('TAX INVOICE', 105, currentY, { align: 'center' });
-  
-  doc.line(14, currentY + 2, 195, currentY + 2); // Horizontal line
-
-  // Info Section
-  currentY += 10;
-  doc.setFontSize(10);
-  
-  // Left side - Invoice Info
-  const s = sale as any;
-  const invNo = s.invoice_number || s.invoiceNumber || s.id || '';
-  const saleDate = new Date(s.sale_date || s.created_at || new Date());
-  
-  doc.setFont('helvetica', 'bold');
-  doc.text('Invoice No:', 14, currentY);
-  doc.text('Date:', 14, currentY + 6);
-  doc.text('Time:', 14, currentY + 12);
-  doc.text('Payment Mode:', 14, currentY + 18);
-
-  doc.setFont('helvetica', 'normal');
-  doc.text(invNo, 45, currentY);
-  doc.text(saleDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }), 45, currentY + 6);
-  doc.text(saleDate.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }), 45, currentY + 12);
-  doc.text(s.payment_method || s.payment_mode || s.paymentMethod || 'Cash', 45, currentY + 18);
-
-  // Right side - Customer Info
-  const rightColX = 120;
-  const custName = s.customer_name || s.customer?.name || 'Walk-in Customer';
-  const custMobile = s.customer_phone || s.customer?.mobile || s.customer?.phone || '';
-  const custVillage = s.customer?.village || s.customer?.address || '';
-  const custAadhaar = s.customer?.aadhaar || '';
-
-  doc.setFont('helvetica', 'bold');
-  doc.text('Billed To:', rightColX, currentY);
-  doc.text('Mobile:', rightColX, currentY + 6);
-  if (custVillage) doc.text('Village:', rightColX, currentY + 12);
-  if (custAadhaar) doc.text('Aadhaar:', rightColX, custVillage ? currentY + 18 : currentY + 12);
-
-  doc.setFont('helvetica', 'normal');
-  doc.text(custName, rightColX + 22, currentY);
-  doc.text(custMobile || 'N/A', rightColX + 22, currentY + 6);
-  if (custVillage) doc.text(custVillage, rightColX + 22, currentY + 12);
-  if (custAadhaar) {
-    const masked = `XXXX XXXX ${custAadhaar.slice(-4)}`;
-    doc.text(masked, rightColX + 22, custVillage ? currentY + 18 : currentY + 12);
-  }
-
-  // Table
-  currentY += 28;
-  const tableData = (s.items || s.sale_items || []).map((item: any, index: number) => {
-    const product = item.product || {};
-    const qty = item.quantity || 1;
-    const rate = item.selling_price ?? item.unitPrice ?? item.unit_price ?? item.rate ?? 0;
-    const gstRate = item.gst_rate ?? item.gstRate ?? item.gst ?? 0;
-    const total = item.total_amount ?? item.totalAmount ?? (qty * rate);
-    const hsn = product.hsn_code || product.hsnCode || item.hsn_code || '-';
-    const batch = item.batch_number || product.batch_number || '-';
-    let expiry = item.expiry_date || product.expiry_date || '-';
-    if (expiry !== '-' && expiry.includes('T')) {
-        const ed = new Date(expiry);
-        expiry = `${String(ed.getDate()).padStart(2, '0')}/${String(ed.getMonth() + 1).padStart(2, '0')}/${ed.getFullYear()}`;
-    }
-
-    const pack = formatProductPackDisplay(product);
-    const displayName = (product.name || item.product_name || 'Unknown Item');
-
-    return [
-      index + 1,
-      displayName,
-      hsn,
-      batch,
-      expiry,
-      `${qty}`,
-      pack || '-',
-      rate.toFixed(2),
-      `${gstRate}%`,
-      total.toFixed(2)
-    ];
+export function generateInvoicePDF(sale: any, _settings?: any) {
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'a4',
   });
+
+  const s = sale || {};
+  const pageWidth = 210;
+  const marginX = 8;
+  const contentWidth = 194;
+  let currentY = 8;
+
+  // Outer border for the physical tax invoice
+  doc.setDrawColor(0, 0, 0);
+  doc.setLineWidth(0.3);
+  doc.rect(marginX, currentY, contentWidth, 281);
+
+  // ─── 1. SHOP HEADER ───
+  currentY += 5;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(14);
+  doc.setTextColor(0, 0, 0);
+  doc.text(DEMO_DETAILS.shopName, marginX + 4, currentY + 2);
+
+  // License and TAX INVOICE Badge on top right
+  doc.setFontSize(7.5);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Lic No: ${DEMO_DETAILS.licenseNo}`, marginX + contentWidth - 4, currentY - 1, { align: 'right' });
+  doc.text(`Reg No: ${DEMO_DETAILS.regNo}`, marginX + contentWidth - 4, currentY + 2.5, { align: 'right' });
+
+  // Tax Invoice Badge
+  doc.setFillColor(0, 0, 0);
+  doc.rect(marginX + contentWidth - 36, currentY + 5, 32, 5.5, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(255, 255, 255);
+  doc.text('TAX INVOICE', marginX + contentWidth - 20, currentY + 9, { align: 'center' });
+
+  // Shop Address & Contacts
+  currentY += 6;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(50, 50, 50);
+  doc.text(DEMO_DETAILS.address, marginX + 4, currentY);
+
+  currentY += 4;
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(0, 0, 0);
+  doc.text(`Pro: ${DEMO_DETAILS.ownerName}   |   Mob: ${DEMO_DETAILS.mobile}`, marginX + 4, currentY);
+
+  currentY += 4;
+  doc.text(`GSTIN: ${DEMO_DETAILS.gstin}`, marginX + 4, currentY);
+
+  // Divider Line
+  currentY += 4;
+  doc.setDrawColor(0, 0, 0);
+  doc.setLineWidth(0.3);
+  doc.line(marginX, currentY, marginX + contentWidth, currentY);
+
+  // ─── 2. CUSTOMER & BILL INFO ───
+  const customerName = s.customer?.name || (typeof s.customer === 'string' ? s.customer : null) || s.customer_name || DEMO_CUSTOMER_DETAILS.name;
+  const customerMobile = s.customer?.phone || s.customer?.mobile || s.customer_phone || DEMO_CUSTOMER_DETAILS.mobile;
+  const customerAddress = [s.customer?.village || s.customer?.address, s.customer?.district].filter(Boolean).join(', ') || DEMO_CUSTOMER_DETAILS.address;
+  const customerGstin = s.customer?.gstin || DEMO_CUSTOMER_DETAILS.gstin;
+
+  const invNo = s.invoice_number || s.invoiceNumber || (s.id ? (s.id.startsWith('KOS-') ? s.id : `KOS-${s.id.substring(0, 8).toUpperCase()}`) : '1');
+  const dateObj = s.sale_date || s.created_at ? new Date(s.sale_date || s.created_at) : new Date(2026, 8, 5, 16, 25);
+  const formattedDate = dateObj.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  const formattedTime = dateObj.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+
+  const isCredit = (s.payment_method || s.payment_mode || s.paymentMethod || '').toUpperCase() === 'CREDIT';
+  const paymentBadge = isCredit ? '[R] Credit Bill' : '[R] Cash Bill';
+  const paymentMode = s.payment_method || s.payment_mode || s.paymentMethod || 'Cash';
+
+  const midX = marginX + 105;
+  const infoStartY = currentY + 4;
+
+  // Left: Customer details
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(70, 70, 70);
+  doc.text('CUSTOMER DETAILS:', marginX + 4, infoStartY);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(0, 0, 0);
+  doc.text(`Name: ${customerName}`, marginX + 4, infoStartY + 4);
+  doc.text(`Address: ${customerAddress}`, marginX + 4, infoStartY + 8);
+  doc.text(`Mob: ${customerMobile}   |   GSTIN: ${customerGstin}`, marginX + 4, infoStartY + 12);
+
+  // Right: Bill details
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(70, 70, 70);
+  doc.text('INVOICE DETAILS:', midX, infoStartY);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(0, 0, 0);
+  doc.text(`Bill No: ${invNo}   (${paymentBadge})`, midX, infoStartY + 4);
+  doc.text(`Date: ${formattedDate} (${formattedTime})`, midX, infoStartY + 8);
+  doc.text(`Payment: ${paymentMode}   |   State: Maharashtra (27)`, midX, infoStartY + 12);
+
+  // Vertical line separating customer and bill details
+  doc.line(midX - 3, currentY, midX - 3, currentY + 18);
+
+  // Divider Line
+  currentY += 18;
+  doc.line(marginX, currentY, marginX + contentWidth, currentY);
+
+  // ─── 3. PRODUCT TABLE ───
+  const rawItems = s.items || s.sale_items || [];
+  let tableRows: any[] = [];
+  let totalTaxable = 0;
+  let totalCgst = 0;
+  let totalSgst = 0;
+  let grandTotal = 0;
+
+  if (rawItems.length > 0) {
+    tableRows = rawItems.map((item: any, idx: number) => {
+      const p = item.product || {};
+      const qty = Number(item.quantity || 1);
+      const gst = Number(item.gst_rate ?? item.gstRate ?? p.gst_rate ?? 18);
+      const lineTotal = Number(item.total_amount ?? item.totalAmount ?? item.total_price ?? (qty * Number(item.selling_price || 0)));
+
+      // Exact reverse GST math
+      const taxable = Math.round((lineTotal / (1 + gst / 100)) * 100) / 100;
+      const totalTax = Math.round((lineTotal - taxable) * 100) / 100;
+      const cgst = Math.round((totalTax / 2) * 100) / 100;
+      const sgst = Math.round((totalTax - cgst) * 100) / 100;
+      const taxableRate = Math.round((taxable / qty) * 100) / 100;
+      const rateWithGst = Math.round((lineTotal / qty) * 100) / 100;
+
+      totalTaxable += taxable;
+      totalCgst += cgst;
+      totalSgst += sgst;
+      grandTotal += lineTotal;
+
+      let expiry = item.expiry_date || p.expiry_date || '09 Feb 2027';
+      if (expiry.includes('T')) {
+        const d = new Date(expiry);
+        expiry = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+      }
+
+      const mfg = p.manufacturer || p.brand?.name || 'DEMO AGRO CHEMICALS';
+      const prodName = item.product_name || p.name || `DEMO PRODUCT ${idx + 1}`;
+      const nameWithMfg = `${prodName}\nMfg: ${mfg}`;
+
+      return [
+        idx + 1,
+        nameWithMfg,
+        item.hsn_code || p.hsn_code || '3808',
+        item.batch_number || p.batch_number || `DEMO/${800 + idx}`,
+        expiry,
+        qty,
+        taxableRate.toFixed(2),
+        `${gst}%`,
+        rateWithGst.toFixed(2),
+        lineTotal.toFixed(2),
+      ];
+    });
+  } else {
+    // Default 2 realistic demo items requested by user
+    tableRows = [
+      [
+        1,
+        'DEMO PESTICIDE 500 ML\nMfg: DEMO AGRO CHEMICALS',
+        '3808',
+        'DEMO/854',
+        '09 Feb 2027',
+        2,
+        '580.37',
+        '12%',
+        '650.00',
+        '1300.00',
+      ],
+      [
+        2,
+        'DEMO FERTILIZER 1 LTR\nMfg: DEMO AGRI PRODUCTS',
+        '3808',
+        'DEMO/525',
+        '02 Apr 2027',
+        7,
+        '847.46',
+        '18%',
+        '1000.00',
+        '7000.00',
+      ],
+    ];
+    totalTaxable = 7092.91;
+    totalCgst = 603.55;
+    totalSgst = 603.54;
+    grandTotal = 8300.0;
+  }
+
+  // Pad table rows if few items to maintain realistic physical bill height
+  while (tableRows.length < 5) {
+    tableRows.push(['', '', '', '', '', '', '', '', '', '']);
+  }
 
   doc.autoTable({
     startY: currentY,
-    head: [['Sr.', 'Product Name', 'HSN', 'Batch', 'Expiry', 'Qty', 'Size', 'Rate', 'GST', 'Amount']],
-    body: tableData,
+    margin: { left: marginX, right: marginX },
+    tableWidth: contentWidth,
+    head: [['Sr.', 'Product Details', 'HSN', 'BATCH', 'EXPIRY', 'Qty', 'Rate', 'GST %', 'Rate (With GST)', 'Total']],
+    body: tableRows,
     theme: 'grid',
-    headStyles: { fillColor: lightGray, textColor: 0, fontStyle: 'bold' },
-    styles: { fontSize: 8 },
+    headStyles: {
+      fillColor: [240, 240, 240],
+      textColor: [0, 0, 0],
+      fontStyle: 'bold',
+      lineWidth: 0.2,
+      lineColor: [0, 0, 0],
+      fontSize: 7.5,
+      halign: 'center',
+    },
+    styles: {
+      fontSize: 7.2,
+      cellPadding: 1.5,
+      lineColor: [0, 0, 0],
+      lineWidth: 0.2,
+      textColor: [0, 0, 0],
+      overflow: 'linebreak',
+    },
     columnStyles: {
       0: { halign: 'center', cellWidth: 8 },
-      5: { halign: 'right' },
-      6: { halign: 'right' },
-      7: { halign: 'right' },
-      8: { halign: 'right' },
-      9: { halign: 'right', fontStyle: 'bold' },
-    }
+      1: { halign: 'left', cellWidth: 60, fontStyle: 'bold' },
+      2: { halign: 'center', cellWidth: 15 },
+      3: { halign: 'center', cellWidth: 18 },
+      4: { halign: 'center', cellWidth: 18 },
+      5: { halign: 'center', cellWidth: 10, fontStyle: 'bold' },
+      6: { halign: 'right', cellWidth: 16 },
+      7: { halign: 'center', cellWidth: 12 },
+      8: { halign: 'right', cellWidth: 18 },
+      9: { halign: 'right', cellWidth: 19, fontStyle: 'bold' },
+    },
   });
 
-  // @ts-ignore
-  const finalY = doc.lastAutoTable?.finalY || currentY + 40;
-  
-  // Billing Summary Section
-  const totalsX = 135;
-  const totalsValueX = 195;
-  let summaryY = finalY + 8;
+  const finalY = doc.lastAutoTable?.finalY || currentY + 50;
 
-  const grandTotal = s.grand_total ?? s.grandTotal ?? s.totalAmount ?? 0;
-  const subTotal = s.subtotal ?? grandTotal;
-  const discountTotal = s.total_discount ?? s.discount_amount ?? s.discountAmount ?? 0;
-  const taxTotal = s.total_tax ?? s.tax_amount ?? s.taxAmount ?? 0;
-  const cgstTotal = s.cgst_total ?? s.cgstTotal ?? (taxTotal / 2);
-  const sgstTotal = s.sgst_total ?? s.sgstTotal ?? (taxTotal / 2);
-  const roundOff = s.round_off ?? s.roundOff ?? 0;
+  // ─── 4. SUMMARY & TAX BREAKDOWN ───
+  const summaryLeftWidth = 115;
+  const summaryRightWidth = contentWidth - summaryLeftWidth; // 79mm
+  const summaryHeight = 45;
 
-  doc.setFontSize(9);
-  doc.setFont('helvetica', 'normal');
-  
-  doc.text('Subtotal:', totalsX, summaryY);
-  doc.text(formatCurrency(subTotal), totalsValueX, summaryY, { align: 'right' });
-  summaryY += 5;
+  // Left Box: Words, QR, Terms
+  doc.rect(marginX, finalY, summaryLeftWidth, summaryHeight);
+  // Right Box: Financials
+  doc.rect(marginX + summaryLeftWidth, finalY, summaryRightWidth, summaryHeight);
 
-  if (discountTotal > 0) {
-    doc.text('Discount:', totalsX, summaryY);
-    doc.text(`- ${formatCurrency(discountTotal)}`, totalsValueX, summaryY, { align: 'right' });
-    summaryY += 5;
-  }
-
-  if (taxTotal > 0) {
-    doc.text(`CGST:`, totalsX, summaryY);
-    doc.text(formatCurrency(cgstTotal), totalsValueX, summaryY, { align: 'right' });
-    summaryY += 5;
-    
-    doc.text(`SGST:`, totalsX, summaryY);
-    doc.text(formatCurrency(sgstTotal), totalsValueX, summaryY, { align: 'right' });
-    summaryY += 5;
-  }
-
-  if (roundOff !== 0) {
-    doc.text('Round Off:', totalsX, summaryY);
-    doc.text(formatCurrency(roundOff), totalsValueX, summaryY, { align: 'right' });
-    summaryY += 5;
-  }
-
+  // Left Content:
+  doc.setFontSize(7.5);
   doc.setFont('helvetica', 'bold');
-  doc.text('Net Total:', totalsX, summaryY);
-  doc.text(formatCurrency(grandTotal), totalsValueX, summaryY, { align: 'right' });
-  summaryY += 8;
-
-  // Payments and Udhari
-  const isCredit = (s.payment_method || s.payment_mode || s.paymentMethod || '').toUpperCase() === 'CREDIT';
-  let amountPaid = s.paid_amount ?? s.paidAmount ?? (isCredit ? 0 : grandTotal);
-  let currentUdhari = 0;
-  
-  if (isCredit) {
-    currentUdhari = Math.max(0, grandTotal - amountPaid);
-  }
-
-  doc.text('Amount Paid:', totalsX, summaryY);
-  doc.text(formatCurrency(amountPaid), totalsValueX, summaryY, { align: 'right' });
-  summaryY += 5;
-
-  if (isCredit) {
-    doc.text('Current Udhari:', totalsX, summaryY);
-    doc.text(formatCurrency(currentUdhari), totalsValueX, summaryY, { align: 'right' });
-    summaryY += 5;
-
-    // We can show Previous/Closing Udhari if we know the customer's full outstanding
-    // In demo store, we update the customer, but we need the exact value.
-    // If the customer object has outstanding_balance before the sale, we can use it.
-    const customer = sale.customer as any;
-    const customerOutstandingNow = customer?.outstanding ?? customer?.outstanding_balance ?? 0;
-    
-    // Attempt to calculate previous udhari
-    const previousUdhari = Math.max(0, customerOutstandingNow - currentUdhari);
-    
-    doc.setFont('helvetica', 'normal');
-    doc.text('Previous Udhari:', totalsX, summaryY);
-    doc.text(formatCurrency(previousUdhari), totalsValueX, summaryY, { align: 'right' });
-    summaryY += 5;
-
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(220, 38, 38); // Red for closing udhari
-    doc.text('Closing Udhari:', totalsX, summaryY);
-    doc.text(formatCurrency(customerOutstandingNow), totalsValueX, summaryY, { align: 'right' }); 
-    doc.setTextColor(textColor[0], textColor[1], textColor[2]); // reset
-    summaryY += 5;
-  }
-  doc.setFont('helvetica', 'normal');
-
-  // Amount in words
-  let wordsY = finalY + 12;
-  doc.setFontSize(9);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Amount in words:', 14, wordsY);
+  doc.text('Amount in Words:', marginX + 3, finalY + 5);
   doc.setFont('helvetica', 'italic');
-  doc.text(numberToWords(grandTotal), 14, wordsY + 5);
-  doc.setFont('helvetica', 'normal');
+  const amountWords = `${numberToWords(grandTotal)} Rupees Only`;
+  const splitWords = doc.splitTextToSize(amountWords, summaryLeftWidth - 6);
+  doc.text(splitWords, marginX + 3, finalY + 9);
 
-  // Terms and Footer
-  const footerY = 250;
-  
-  const termsText = settings.invoiceTerms || settings.termsAndConditions || '1. Goods once sold will not be taken back.\n2. Interest @ 18% p.a. will be charged if not paid within 30 days.';
-  
-  doc.setFontSize(8);
+  // Demo QR Code Box in lower-left
+  const qrX = marginX + 4;
+  const qrY = finalY + 16;
+  doc.setDrawColor(0, 0, 0);
+  doc.rect(qrX, qrY, 16, 16);
   doc.setFont('helvetica', 'bold');
-  doc.text('Terms & Conditions:', 14, footerY - 5);
-  doc.setFont('helvetica', 'normal');
-  
-  const splitTerms = doc.splitTextToSize(termsText, 100);
-  doc.text(splitTerms, 14, footerY);
+  doc.setFontSize(6);
+  doc.text('QR CODE', qrX + 8, qrY + 8, { align: 'center' });
+  doc.text('SCAN TO PAY', qrX + 8, qrY + 11, { align: 'center' });
 
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'italic');
-  doc.text('Thank you for your business!', 14, footerY + 25);
-
+  doc.setFontSize(7);
   doc.setFont('helvetica', 'bold');
-  doc.text(settings.authorizedSignatory || `For ${shopName}`, 195, footerY + 18, { align: 'right' });
-  doc.setFontSize(8);
+  doc.text('Scan to Verify & Pay via UPI', qrX + 19, qrY + 5);
   doc.setFont('helvetica', 'normal');
-  doc.text('Authorized Signatory', 195, footerY + 25, { align: 'right' });
+  doc.setFontSize(6.5);
+  doc.text('UPI ID: demopay@krushikendra', qrX + 19, qrY + 9);
+  doc.text('Instant digital invoice receipt', qrX + 19, qrY + 13);
+
+  // Terms & Conditions at bottom left
+  doc.setFontSize(6);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Terms & Conditions:', marginX + 3, finalY + 36);
+  doc.setFont('helvetica', 'normal');
+  doc.text('1. Goods once sold will not be accepted back or replaced.\n2. Interest @ 18% p.a. charged if payment not made on time.\n3. Subject to Demo Jurisdiction only.', marginX + 3, finalY + 39);
+
+  // Right Content (Bordered Tax Calculation lines):
+  const rightX = marginX + summaryLeftWidth;
+  let lineY = finalY;
+  const rightRowHeight = 7.5;
+
+  const rows = [
+    { label: 'Taxable Amount:', val: `Rs. ${totalTaxable.toFixed(2)}` },
+    { label: 'CGST Amount:', val: `Rs. ${totalCgst.toFixed(2)}` },
+    { label: 'SGST Amount:', val: `Rs. ${totalSgst.toFixed(2)}` },
+    { label: 'NET TOTAL:', val: `Rs. ${grandTotal.toFixed(2)}`, isBold: true, isHighlight: true },
+    { label: 'Amount Paid:', val: `Rs. ${(s.paid_amount ?? grandTotal).toFixed(2)}` },
+    { label: 'Balance / Udhari:', val: `Rs. ${(isCredit ? Math.max(0, grandTotal - (s.paid_amount || 0)) : 0).toFixed(2)}`, isBold: true },
+  ];
+
+  rows.forEach((row, i) => {
+    lineY = finalY + (i * rightRowHeight);
+    if (row.isHighlight) {
+      doc.setFillColor(240, 240, 240);
+      doc.rect(rightX, lineY, summaryRightWidth, rightRowHeight, 'F');
+    }
+    doc.line(rightX, lineY + rightRowHeight, rightX + summaryRightWidth, lineY + rightRowHeight);
+
+    doc.setFont('helvetica', row.isBold ? 'bold' : 'normal');
+    doc.setFontSize(row.isHighlight ? 8.5 : 7.5);
+    doc.text(row.label, rightX + 3, lineY + 5);
+    doc.text(row.val, rightX + summaryRightWidth - 3, lineY + 5, { align: 'right' });
+  });
+
+  // ─── 5. SIGNATURE BLOCK ───
+  const signY = finalY + summaryHeight;
+  const signHeight = 22;
+  doc.rect(marginX, signY, contentWidth, signHeight);
+
+  doc.setFontSize(7.5);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Customer Signature', marginX + 25, signY + signHeight - 3, { align: 'center' });
+  doc.line(marginX + 10, signY + signHeight - 6, marginX + 40, signY + signHeight - 6);
+
+  doc.text(`For ${DEMO_DETAILS.shopName}`, marginX + contentWidth - 30, signY + 6, { align: 'center' });
+  doc.text('Authorized Signatory', marginX + contentWidth - 30, signY + signHeight - 3, { align: 'center' });
+  doc.line(marginX + contentWidth - 50, signY + signHeight - 6, marginX + contentWidth - 10, signY + signHeight - 6);
+
+  // ─── 6. BORDERED FOOTER ───
+  const footerY = signY + signHeight;
+  doc.setFillColor(245, 245, 245);
+  doc.rect(marginX, footerY, contentWidth, 7, 'FD');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7);
+  doc.setTextColor(60, 60, 60);
+  doc.text('This Is Computer Generated Tax Invoice', marginX + 4, footerY + 4.5);
+  doc.text(`Subject To ${DEMO_DETAILS.jurisdiction}`, marginX + (contentWidth / 2), footerY + 4.5, { align: 'center' });
+  doc.text('Page 1 of 1', marginX + contentWidth - 4, footerY + 4.5, { align: 'right' });
 
   return doc;
 }

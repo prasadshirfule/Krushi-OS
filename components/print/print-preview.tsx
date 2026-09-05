@@ -5,6 +5,7 @@ import { InvoiceA4 } from './invoice-a4'
 import { Invoice80mm } from './invoice-80mm'
 import { Invoice58mm } from './invoice-58mm'
 import type { SaleWithItems } from '@/types/sales'
+import { printInvoiceDirectly, downloadInvoiceAsPDF } from '@/components/invoice/reference-tax-invoice'
 
 interface Settings {
   shopName: string
@@ -28,12 +29,19 @@ export function PrintPreview({ sale, shopSettings, defaultFormat = 'a4', onClose
   const [format, setFormat] = useState<'a4' | '80mm' | '58mm'>(defaultFormat)
 
   const handlePrint = () => {
-    window.print()
+    if (format === 'a4') {
+      printInvoiceDirectly('printable-tax-invoice')
+    } else {
+      window.print()
+    }
   }
 
-  const handleDownloadPdf = () => {
-    // Navigate to the API route that returns the PDF
-    window.open(`/api/print/invoice/${sale.id}?format=pdf`, '_blank')
+  const handleDownloadPdf = async () => {
+    if (format === 'a4') {
+      await downloadInvoiceAsPDF('printable-tax-invoice', `Invoice-${sale.invoice_number || sale.id}.pdf`)
+    } else {
+      window.open(`/api/print/invoice/${sale.id}?format=pdf`, '_blank')
+    }
   }
 
   return (
