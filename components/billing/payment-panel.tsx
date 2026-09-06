@@ -22,7 +22,7 @@ interface PaymentPanelProps {
   customerId?: string;
   customerName?: string;
   customerPhone?: string;
-  onComplete: (saleId: string, invoiceNumber?: string) => void;
+  onComplete: (saleId: string, invoiceNumber?: string, completedTotals?: any) => void;
 }
 
 const PAYMENT_METHOD_ICONS: Record<string, React.ReactNode> = {
@@ -169,8 +169,9 @@ export default function PaymentPanel({ cart, adjustments = [], totals, customerI
 
       const customerDisplayName = effectiveCustomerName || (hasCustomer ? 'Customer' : 'Walk-in Customer');
 
+      const isUuidCustomer = customerId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(customerId);
       const saleData = {
-        customer_id: hasCustomer ? (customerId || `cust-${Date.now()}`) : null,
+        customer_id: hasCustomer && isUuidCustomer ? customerId : null,
         customer_name: customerDisplayName,
         customer_phone: customerPhone || '',
         customer: {
@@ -200,16 +201,16 @@ export default function PaymentPanel({ cart, adjustments = [], totals, customerI
         router.refresh();
         const saleId = savedSale.id || `sale-${Date.now()}`;
         const invNo = savedSale.invoice_number || savedSale.invoiceNumber;
-        onComplete(saleId, invNo);
+        onComplete(saleId, invNo, totals);
       } else {
         const result = await completeSaleAction(saleData);
 
         if (result.success) {
           toast.success('Bill completed successfully!');
           router.refresh();
-          const saleId = result.data?.id || result.data?.saleId || `sale-${Date.now()}`;
+          const saleId = result.data?.sale_id || result.data?.id || result.data?.saleId;
           const invNo = result.data?.invoice_number || result.data?.invoiceNumber;
-          onComplete(saleId, invNo);
+          onComplete(saleId, invNo, totals);
         } else {
           toast.error(result.error || 'Unable to complete bill. Please try again.');
         }

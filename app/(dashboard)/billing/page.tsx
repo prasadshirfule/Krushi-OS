@@ -43,6 +43,7 @@ export default function BillingPage() {
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
   const [lastSaleId, setLastSaleId] = useState<string | null>(null);
   const [lastInvoiceNumber, setLastInvoiceNumber] = useState<string | null>(null);
+  const [lastSaleTotals, setLastSaleTotals] = useState<any>(null);
   const [showNewCustomerDialog, setShowNewCustomerDialog] = useState(false);
 
   /* ─── Fetch customers dynamically ─── */
@@ -206,9 +207,10 @@ export default function BillingPage() {
     }
   }, [cart, adjustments]);
 
-  const handleSaleComplete = (saleId: string, invoiceNumber?: string) => {
+  const handleSaleComplete = (saleId: string, invoiceNumber?: string, completedTotals?: any) => {
     setLastSaleId(saleId);
     if (invoiceNumber) setLastInvoiceNumber(invoiceNumber);
+    if (completedTotals) setLastSaleTotals(completedTotals);
     setShowSuccessDialog(true);
     setCart([]);
     setAdjustments([]);
@@ -434,8 +436,13 @@ export default function BillingPage() {
         <BillSuccessDialog
           saleId={lastSaleId}
           invoiceNumber={lastInvoiceNumber || undefined}
-          totals={totals}
-          onClose={() => setShowSuccessDialog(false)}
+          totals={lastSaleTotals || totals}
+          onClose={() => {
+            setShowSuccessDialog(false);
+            setLastSaleId(null);
+            setLastInvoiceNumber(null);
+            setLastSaleTotals(null);
+          }}
         />
       )}
 

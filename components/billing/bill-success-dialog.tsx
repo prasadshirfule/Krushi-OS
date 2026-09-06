@@ -40,7 +40,7 @@ export default function BillSuccessDialog({ saleId, invoiceNumber, totals, onClo
         if (isClientDemoMode()) {
           const { getDemoSalesClient } = await import('@/lib/client-demo-store');
           const sales = getDemoSalesClient();
-          const s = sales.find((item: any) => item.id === saleId);
+          const s = sales.find((item: any) => item.id === saleId || item.invoice_number === saleId || item.invoiceNumber === saleId);
           if (s) setSaleData(s);
         } else {
           const res = await getSaleAction(saleId);
@@ -65,7 +65,7 @@ export default function BillSuccessDialog({ saleId, invoiceNumber, totals, onClo
         if (isClientDemoMode()) {
           const { getDemoSalesClient } = await import('@/lib/client-demo-store');
           const sales = getDemoSalesClient();
-          currentSale = sales.find((s: any) => s.id === saleId);
+          currentSale = sales.find((s: any) => s.id === saleId || s.invoice_number === saleId || s.invoiceNumber === saleId);
         } else {
           const res = await getSaleAction(saleId);
           if (res.success && res.data) {
@@ -113,7 +113,8 @@ export default function BillSuccessDialog({ saleId, invoiceNumber, totals, onClo
     }
   };
 
-  const displayInv = invoiceNumber || (saleId.startsWith('KOS-') ? saleId : `KOS-${saleId.substring(0, 8).toUpperCase()}`);
+  const displayInv = invoiceNumber || saleData?.invoice_number || (saleId.startsWith('KOS-') ? saleId : `KOS-${saleId.substring(0, 8).toUpperCase()}`);
+  const displayTotal = Number(totals?.payableAmount ?? totals?.total_amount ?? totals?.grand_total ?? saleData?.total_amount ?? saleData?.grand_total ?? 0);
 
   return (
     <>
@@ -123,7 +124,7 @@ export default function BillSuccessDialog({ saleId, invoiceNumber, totals, onClo
         aria-hidden="true"
       >
         <div id="bill-success-invoice">
-          <ReferenceTaxInvoice sale={saleData || { id: saleId, invoice_number: displayInv }} />
+          <ReferenceTaxInvoice sale={saleData || { id: saleId, invoice_number: displayInv, total_amount: displayTotal, grand_total: displayTotal }} />
         </div>
       </div>
 
@@ -141,7 +142,7 @@ export default function BillSuccessDialog({ saleId, invoiceNumber, totals, onClo
 
           <div className="bg-muted p-4 rounded-md my-4">
             <div className="text-sm text-muted-foreground mb-1">Total Amount</div>
-            <div className="text-3xl font-bold text-primary">{formatCurrency(totals.payableAmount)}</div>
+            <div className="text-3xl font-bold text-primary">{formatCurrency(displayTotal)}</div>
           </div>
 
           <div className="grid grid-cols-2 gap-3 mb-2">

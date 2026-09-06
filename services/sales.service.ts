@@ -169,22 +169,60 @@ export async function completeSale(shopId: string, data: any, userId: string) {
 
   // Real Supabase mode
   const supabase = await createServerSupabaseClient();
-  const { data: sale, error } = await supabase.rpc('process_sale', {
+
+  // Validate customer_id: pass null if not a valid UUID (e.g. 'walk-in' or 'cust-123')
+  const isUuidCustomer = data.customer_id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(data.customer_id);
+  const realCustomerId = isUuidCustomer ? data.customer_id : null;
+
+  // Clean items: ensure quantity, unit_price, discount_percent, gst_rate are valid numbers and batch_id is UUID or null
+  const cleanItems = (data.items || []).map((it: any) => {
+    const isUuidBatch = it.batch_id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(it.batch_id);
+    return {
+      product_id: it.product_id || it.id,
+      batch_id: isUuidBatch ? it.batch_id : null,
+      quantity: Math.max(1, Math.round(Number(it.quantity) || 1)),
+      unit_price: Number(it.unit_price ?? it.rate ?? it.selling_price ?? 0),
+      discount_percent: Number(it.discount_percent || 0),
+      gst_rate: Number(it.gst_rate ?? it.gst ?? 0)
+    };
+  });
+
+  // Clean payments
+  const cleanPayments = (data.payments || []).map((p: any) => ({
+    method: p.method,
+    amount: Number(p.amount) || 0
+  }));
+
+  const { data: saleRes, error } = await supabase.rpc('process_sale', {
     p_shop_id: shopId,
     p_user_id: userId,
-    p_customer_id: data.customer_id || null,
-    p_items: data.items,
-    p_payments: data.payments,
+    p_customer_id: realCustomerId,
+    p_items: cleanItems,
+    p_payments: cleanPayments,
     p_notes: data.notes || null,
     p_idempotency_key: data.idempotency_key || null
   });
 
   if (error) {
-    console.error("Failed to complete sale:", error);
+    console.error("Failed to complete sale RPC:", error);
     throw new Error(`Failed to complete sale: ${error.message}`);
   }
-  
-  return sale;
+
+  const realSaleId = saleRes?.sale_id || saleRes?.id;
+  const invoiceNum = saleRes?.invoice_number || saleRes?.invoiceNumber;
+  const grandTotal = Number(saleRes?.grand_total ?? saleRes?.total_amount ?? data.totals?.payableAmount ?? 0);
+
+  return {
+    ...saleRes,
+    id: realSaleId,
+    sale_id: realSaleId,
+    saleId: realSaleId,
+    invoice_number: invoiceNum,
+    invoiceNumber: invoiceNum,
+    total_amount: grandTotal,
+    grand_total: grandTotal,
+    payableAmount: grandTotal,
+  };
 }
 
 export async function getSales(
@@ -262,7 +300,7 @@ export async function getSales(
       return { sales: [], total: 0 };
     }
     
-    return { sales: data || [], total: count || 0 };
+    return { sales: (data || []).map(normalizeSale), total: count || 0 };
   } catch (error) {
     console.error("Failed to load sales:", error);
     return { sales: [], total: 0 };
@@ -278,17 +316,25 @@ export async function getSaleById(shopId: string, saleId: string) {
 
   try {
     const supabase = await createServerSupabaseClient();
-    const { data, error } = await supabase
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(saleId);
+    
+    let query = supabase
       .from('sales')
       .select('*, customer:customers(*), items:sale_items(*, product:products(*))')
-      .eq('shop_id', shopId)
-      .eq('id', saleId)
-      .single();
+      .eq('shop_id', shopId);
+
+    if (isUuid) {
+      query = query.eq('id', saleId);
+    } else {
+      query = query.eq('invoice_number', saleId);
+    }
+
+    const { data, error } = await query.maybeSingle();
     if (error) {
-      console.error("Error fetching sale by ID:", error);
+      console.error("Error fetching sale by ID/Invoice:", error);
       return null;
     }
-    return data;
+    return data ? normalizeSale(data) : null;
   } catch (error) {
     console.error("Failed to load sale by ID:", error);
     return null;
@@ -309,12 +355,12 @@ export async function getSaleByInvoice(shopId: string, invoiceNumber: string) {
       .select('*, customer:customers(*), items:sale_items(*, product:products(*))')
       .eq('shop_id', shopId)
       .eq('invoice_number', invoiceNumber)
-      .single();
+      .maybeSingle();
     if (error) {
       console.error("Error fetching sale by invoice:", error);
       return null;
     }
-    return data;
+    return data ? normalizeSale(data) : null;
   } catch (error) {
     console.error("Failed to load sale by invoice:", error);
     return null;
