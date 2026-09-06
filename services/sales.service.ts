@@ -639,42 +639,13 @@ export async function returnSale(shopId: string, saleId: string, items: { saleIt
 }
 
 export async function getTodaySales(shopId: string) {
-  if (isPlaceholderMode()) {
-    const list = getDemoSales();
-    const products = getStoredDemoProducts((p: any) => p);
-    const result = calculateTodaySales(list, products);
+  try {
+    const { sales } = await getSales(shopId, { limit: 1000 });
+    const result = calculateTodaySales(sales);
     return {
       count: result.count,
       total: result.total,
       profit: result.profit,
-    };
-  }
-
-  try {
-    const supabase = await createServerSupabaseClient();
-    
-    // Calculate start of today in IST (Asia/Kolkata) as UTC timestamp
-    const now = new Date();
-    const istOffsetMs = 5.5 * 60 * 60 * 1000;
-    const istNow = new Date(now.getTime() + istOffsetMs);
-    const istMidnight = new Date(Date.UTC(istNow.getUTCFullYear(), istNow.getUTCMonth(), istNow.getUTCDate(), 0, 0, 0));
-    const utcStartOfTodayIST = new Date(istMidnight.getTime() - istOffsetMs).toISOString();
-    
-    const { data, error } = await supabase
-      .from('sales')
-      .select('id, total_amount, grand_total, profit_amount, status')
-      .eq('shop_id', shopId)
-      .neq('status', 'CANCELLED')
-      .gte('sale_date', utcStartOfTodayIST);
-
-    if (error || !data) {
-      return { count: 0, total: 0, profit: 0 };
-    }
-    
-    return {
-      count: data.length,
-      total: data.reduce((sum, s) => sum + Number(s.total_amount || s.grand_total || 0), 0),
-      profit: data.reduce((sum, s) => sum + Number(s.profit_amount || Math.round(Number(s.total_amount || s.grand_total || 0) * 0.15)), 0)
     };
   } catch (error) {
     console.error("Error fetching today sales:", error);
@@ -683,30 +654,10 @@ export async function getTodaySales(shopId: string) {
 }
 
 export async function getSalesChart(shopId: string, period: 'daily' | 'weekly' | 'monthly' = 'daily') {
-  if (isPlaceholderMode()) {
-    const list = getDemoSales();
-    return calculateSalesChart(list, 90);
-  }
-
   try {
-    const supabase = await createServerSupabaseClient();
-    const daysAgo = 90;
-    const startDate = new Date();
-    startDate.setDate(startDate.getDate() - daysAgo);
-
-    const { data, error } = await supabase
-      .from('sales')
-      .select('sale_date, created_at, total_amount, grand_total, profit_amount, status')
-      .eq('shop_id', shopId)
-      .neq('status', 'CANCELLED')
-      .gte('sale_date', startDate.toISOString())
-      .order('sale_date', { ascending: true });
-
-    if (error || !data || data.length === 0) {
-      return [];
-    }
-
-    return calculateSalesChart(data, 90);
+    const maxDays = period === 'weekly' ? 30 : (period === 'monthly' ? 90 : 90);
+    const { sales } = await getSales(shopId, { limit: 1000 });
+    return calculateSalesChart(sales, maxDays);
   } catch (error) {
     console.error("Error fetching sales chart data:", error);
     return [];

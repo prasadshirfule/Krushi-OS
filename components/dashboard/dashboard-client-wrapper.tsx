@@ -8,6 +8,8 @@ import AlertsPanel from '@/components/dashboard/alerts-panel';
 import TopProducts from '@/components/dashboard/top-products';
 import ActivityFeed from '@/components/dashboard/activity-feed';
 import { isClientDemoMode, getDemoDashboardDataClient } from '@/lib/client-demo-store';
+import { getDashboardStatsAction } from '@/actions/dashboard';
+import { useRouter } from 'next/navigation';
 
 interface DashboardClientWrapperProps {
   initialStats: any;
@@ -22,12 +24,13 @@ export default function DashboardClientWrapper({
   initialExpiring = [],
   initialActivities = [],
 }: DashboardClientWrapperProps) {
+  const router = useRouter();
   const [stats, setStats] = useState<any>(initialStats);
   const [lowStockProducts, setLowStockProducts] = useState<any[]>(initialLowStock);
   const [expiringBatches, setExpiringBatches] = useState<any[]>(initialExpiring);
   const [activities, setActivities] = useState<any[]>(initialActivities);
 
-  const syncData = useCallback(() => {
+  const syncData = useCallback(async () => {
     if (isClientDemoMode()) {
       try {
         const liveData = getDemoDashboardDataClient();
@@ -38,45 +41,57 @@ export default function DashboardClientWrapper({
       } catch (err) {
         console.error('Error synchronizing dashboard live data:', err);
       }
+      return;
+    }
+
+    try {
+      const res = await getDashboardStatsAction();
+      if (res.success && res.data) {
+        setStats(res.data);
+        if (res.data.lowStockProducts) setLowStockProducts(res.data.lowStockProducts);
+        if (res.data.expiringBatches) setExpiringBatches(res.data.expiringBatches);
+        if (res.data.activities) setActivities(res.data.activities);
+      }
+    } catch (err) {
+      console.warn('Dashboard live refresh warning:', err);
     }
   }, []);
 
   useEffect(() => {
-    if (isClientDemoMode()) {
+    setStats(initialStats);
+    setLowStockProducts(initialLowStock);
+    setExpiringBatches(initialExpiring);
+    setActivities(initialActivities);
+
+    const handleStorageOrEvent = () => {
       syncData();
+      router.refresh();
+    };
 
-      const handleStorageOrEvent = () => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
         syncData();
-      };
+      }
+    };
 
-      const handleVisibilityChange = () => {
-        if (document.visibilityState === 'visible') {
-          syncData();
-        }
-      };
+    window.addEventListener('krushi-sales-updated', handleStorageOrEvent);
+    window.addEventListener('krushi-products-updated', handleStorageOrEvent);
+    window.addEventListener('krushi-customers-updated', handleStorageOrEvent);
+    window.addEventListener('krushi-ledger-updated', handleStorageOrEvent);
+    window.addEventListener('storage', handleStorageOrEvent);
+    window.addEventListener('focus', handleStorageOrEvent);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
-      window.addEventListener('krushi-sales-updated', handleStorageOrEvent);
-      window.addEventListener('krushi-products-updated', handleStorageOrEvent);
-      window.addEventListener('krushi-customers-updated', handleStorageOrEvent);
-      window.addEventListener('krushi-ledger-updated', handleStorageOrEvent);
-      window.addEventListener('storage', handleStorageOrEvent);
-      document.addEventListener('visibilitychange', handleVisibilityChange);
-
-      return () => {
-        window.removeEventListener('krushi-sales-updated', handleStorageOrEvent);
-        window.removeEventListener('krushi-products-updated', handleStorageOrEvent);
-        window.removeEventListener('krushi-customers-updated', handleStorageOrEvent);
-        window.removeEventListener('krushi-ledger-updated', handleStorageOrEvent);
-        window.removeEventListener('storage', handleStorageOrEvent);
-        document.removeEventListener('visibilitychange', handleVisibilityChange);
-      };
-    } else {
-      setStats(initialStats);
-      setLowStockProducts(initialLowStock);
-      setExpiringBatches(initialExpiring);
-      setActivities(initialActivities);
-    }
-  }, [initialStats, initialLowStock, initialExpiring, initialActivities, syncData]);
+    return () => {
+      window.removeEventListener('krushi-sales-updated', handleStorageOrEvent);
+      window.removeEventListener('krushi-products-updated', handleStorageOrEvent);
+      window.removeEventListener('krushi-customers-updated', handleStorageOrEvent);
+      window.removeEventListener('krushi-ledger-updated', handleStorageOrEvent);
+      window.removeEventListener('storage', handleStorageOrEvent);
+      window.removeEventListener('focus', handleStorageOrEvent);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [initialStats, initialLowStock, initialExpiring, initialActivities, syncData, router]);
 
   return (
     <div className="flex flex-col gap-6 p-6">
