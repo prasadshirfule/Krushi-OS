@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
+import QRCode from 'qrcode';
 import { formatCurrency, numberToWords } from './utils';
 import { 
   ShopDetails, 
@@ -8,6 +9,7 @@ import {
   formatShopAddress 
 } from './shop-details';
 import { formatProductNameWithSize } from './validations';
+import { buildUpiUri } from './upi';
 
 declare module 'jspdf' {
   interface jsPDF {
@@ -141,8 +143,9 @@ export function generateInvoicePDF(sale: any, customSettings?: any) {
   const formattedTime = dateObj.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
 
   const isCredit = (s.payment_method || s.payment_mode || s.paymentMethod || '').toUpperCase() === 'CREDIT';
-  const paymentBadge = isCredit ? '[R] Credit Bill' : '[R] Cash Bill';
-  const paymentMode = s.payment_method || s.payment_mode || s.paymentMethod || 'Cash';
+  const isUpi = (s.payment_method || s.payment_mode || s.paymentMethod || s.payments?.[0]?.method || '').toUpperCase() === 'UPI';
+  const paymentBadge = isCredit ? '[R] Credit Bill' : (isUpi ? '[R] UPI Bill' : '[R] Cash Bill');
+  const paymentMode = isUpi ? 'UPI' : (isCredit ? 'Credit' : (s.payment_method || s.payment_mode || s.paymentMethod || 'Cash'));
 
   const midX = marginX + 105;
   const infoStartY = currentY + 4;
@@ -172,7 +175,7 @@ export function generateInvoicePDF(sale: any, customSettings?: any) {
   doc.setTextColor(0, 0, 0);
   doc.text(`Bill No: ${invNo}   (${paymentBadge})`, midX, infoStartY + 4);
   doc.text(`Date: ${formattedDate} (${formattedTime})`, midX, infoStartY + 8);
-  doc.text(`Payment: ${paymentMode}   |   Place: ${shop.district || 'Maharashtra'}`, midX, infoStartY + 12);
+  doc.text(`Payment: ${paymentMode}${isUpi && shop.upiId ? ` (${shop.upiId})` : ''}   |   Place: ${shop.district || 'Maharashtra'}`, midX, infoStartY + 12);
 
   // Vertical line separating customer and bill details
   doc.line(midX - 3, currentY, midX - 3, currentY + 18);
@@ -412,8 +415,37 @@ export function generateInvoicePDF(sale: any, customSettings?: any) {
   const signHeight = 22;
   doc.rect(marginX, signY, contentWidth, signHeight);
 
+  if (isUpi && shop.upiId && grandTotal > 0) {
+    try {
+      const upiUri = buildUpiUri(shop.upiId, shop.shopName, grandTotal);
+      const qr = QRCode.create(upiUri, { errorCorrectionLevel: 'M' });
+      const qrSizeMm = 14;
+      const qrX = marginX + (contentWidth / 2) - (qrSizeMm / 2);
+      const qrY = signY + 1.5;
+      const moduleCount = qr.modules.size;
+      const moduleSize = qrSizeMm / moduleCount;
+
+      doc.setFillColor(0, 0, 0);
+      for (let r = 0; r < moduleCount; r++) {
+        for (let c = 0; c < moduleCount; c++) {
+          if (qr.modules.get(r, c)) {
+            doc.rect(qrX + c * moduleSize, qrY + r * moduleSize, moduleSize, moduleSize, 'F');
+          }
+        }
+      }
+
+      doc.setFontSize(6.5);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(0, 0, 0);
+      doc.text(`UPI: ${shop.upiId}  |  Rs. ${grandTotal.toFixed(2)}`, qrX + qrSizeMm / 2, qrY + qrSizeMm + 3, { align: 'center' });
+    } catch (err) {
+      console.warn('PDF QR generation error:', err);
+    }
+  }
+
   doc.setFontSize(8.5);
   doc.setFont('helvetica', 'bold');
+  doc.setTextColor(0, 0, 0);
   doc.text('Customer Signature', marginX + 25, signY + signHeight - 3, { align: 'center' });
   doc.line(marginX + 10, signY + signHeight - 6, marginX + 40, signY + signHeight - 6);
 

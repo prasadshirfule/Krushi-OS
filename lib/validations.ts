@@ -220,9 +220,30 @@ export function formatProductSizeCompact(packSize?: string | null, unitStr?: str
 }
 
 /**
- * Returns formatted "PRODUCT_NAME(SIZE)" in uppercase.
- * Example: "UREA" + "45 KG" -> "UREA(45KG)"
- * Example: "DAP" + "50 KG" -> "DAP(50KG)"
+ * Basic validation for UPI ID / VPA.
+ * Must contain exactly one "@", with non-empty text before and after "@".
+ * Allows standard bank handles (e.g. name@upi, 9876543210@upi, shop@okaxis, shop@ybl, shop@oksbi).
+ */
+export function isValidUpiId(val?: string | null): boolean {
+  if (!val || typeof val !== 'string') return false;
+  const trimmed = val.trim();
+  const parts = trimmed.split('@');
+  return parts.length === 2 && parts[0].length > 0 && parts[1].length > 0;
+}
+
+/**
+ * Trims and normalizes a UPI ID.
+ */
+export function normalizeUpiId(val?: string | null): string {
+  if (!val || typeof val !== 'string') return '';
+  return val.trim();
+}
+
+/**
+ * Returns formatted "PRODUCT_NAME (SIZE)" in uppercase.
+ * Example: "UREA" + "45 KG" -> "UREA (45KG)"
+ * Example: "DAP" + "50 KG" -> "DAP (50KG)"
+ * Example: "STUNNER GOLD" + "1 L" -> "STUNNER GOLD (1L)"
  * If size is not present, returns just "UREA". Never undefined, null, or NaN.
  */
 export function formatProductNameWithSize(
@@ -241,9 +262,14 @@ export function formatProductNameWithSize(
     return cleanName;
   }
 
-  // Avoid duplicating if cleanName already ends with (SIZE)
-  if (cleanName.endsWith(`(${sizeCompact})`)) {
+  // Avoid duplicating if cleanName already ends with " (SIZE)"
+  if (cleanName.endsWith(` (${sizeCompact})`)) {
     return cleanName;
+  }
+
+  // If cleanName ends with "(SIZE)" without space, clean it
+  if (cleanName.endsWith(`(${sizeCompact})`)) {
+    cleanName = cleanName.substring(0, cleanName.length - sizeCompact.length - 2).trim();
   }
 
   // If cleanName ends with " SIZE" e.g. "UREA 45KG", extract base name
@@ -251,7 +277,7 @@ export function formatProductNameWithSize(
     cleanName = cleanName.substring(0, cleanName.length - sizeCompact.length - 1).trim();
   }
 
-  return `${cleanName}(${sizeCompact})`;
+  return `${cleanName} (${sizeCompact})`;
 }
 
 export const productSchema = z.object({

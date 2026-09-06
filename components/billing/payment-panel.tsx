@@ -2,13 +2,17 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { completeSaleAction } from '@/actions/sales';
+import { getShopProfileAction } from '@/actions/settings';
 import { formatCurrency, generateId } from '@/lib/utils';
 import { PAYMENT_METHODS } from '@/lib/constants';
 import { CheckCircle2, Loader2, CreditCard, Banknote, QrCode, Building2, BookOpen, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
+import { ShopDetails, getSavedShopDetails } from '@/lib/shop-details';
+import { buildUpiUri, generateQrDataUrl } from '@/lib/upi';
 
 import { 
   isClientDemoMode, 
@@ -49,8 +53,41 @@ export default function PaymentPanel({ cart, adjustments = [], totals, customerI
   const [notes, setNotes] = useState('');
   const [cashTendered, setCashTendered] = useState<string>('');
   const [creditPaidAmount, setCreditPaidAmount] = useState<string>('');
+  const [shopProfile, setShopProfile] = useState<ShopDetails | null>(null);
+  const [upiQrDataUrl, setUpiQrDataUrl] = useState<string>('');
 
   const payableAmount = Number(totals?.payableAmount || 0);
+
+  // Load shop profile for dynamic UPI QR code
+  useEffect(() => {
+    const cached = getSavedShopDetails();
+    if (cached) setShopProfile(cached);
+
+    getShopProfileAction().then(res => {
+      if (res?.success && res?.data) {
+        setShopProfile(res.data);
+      }
+    }).catch(() => {});
+  }, []);
+
+  // Dynamically generate QR code when UPI is selected or bill amount changes
+  useEffect(() => {
+    if (paymentMethod !== 'UPI') return;
+
+    const upiId = shopProfile?.upiId?.trim();
+    if (!upiId || payableAmount <= 0) {
+      setUpiQrDataUrl('');
+      return;
+    }
+
+    const upiUri = buildUpiUri(upiId, shopProfile?.shopName, payableAmount);
+    generateQrDataUrl(upiUri, { width: 220, margin: 1 }).then(url => {
+      setUpiQrDataUrl(url);
+    }).catch(err => {
+      console.error('Failed to generate UPI QR code:', err);
+    });
+  }, [paymentMethod, payableAmount, shopProfile?.upiId, shopProfile?.shopName]);
+
   const isCredit = paymentMethod === 'Credit';
   const effectiveCustomerName = customerName?.trim() || '';
   const hasCustomer = Boolean(
@@ -282,6 +319,100 @@ export default function PaymentPanel({ cart, adjustments = [], totals, customerI
           <span>
             <strong>Credit (Udhaar) requires a customer.</strong> Please select or add a customer in the Customer section at the top of the page.
           </span>
+        </div>
+      )}
+
+      {/* ─── Dynamic UPI Payment & QR Code Section ─── */}
+      {paymentMethod === 'UPI' && (
+        <div className="bg-muted/30 border border-border rounded-xl p-4 sm:p-5 space-y-4">
+          <div className="flex items-center justify-between border-b border-border pb-3">
+            <div>
+              <h3 className="text-base font-bold text-foreground flex items-center gap-2">
+                <QrCode className="h-5 w-5 text-primary" />
+                UPI PAYMENT
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                Scan to Pay using any UPI App (GPay, PhonePe, Paytm, BHIM)
+              </p>
+            </div>
+            {shopProfile?.upiId && (
+              <span className="text-xs font-bold px-2.5 py-1 bg-primary/10 text-primary rounded-md border border-primary/20">
+                Exact Bill QR
+              </span>
+            )}
+          </div>
+
+          {shopProfile?.upiId ? (
+            <div className="flex flex-col sm:flex-row items-center gap-5 pt-1">
+              {/* Dynamic QR Display */}
+              <div className="bg-white p-3 rounded-xl border-2 border-slate-300 shadow-sm flex flex-col items-center justify-center shrink-0">
+                {upiQrDataUrl ? (
+                  <img
+                    src={upiQrDataUrl}
+                    alt="UPI Payment QR Code"
+                    className="w-44 h-44 object-contain rounded-md"
+                  />
+                ) : (
+                  <div className="w-44 h-44 flex flex-col items-center justify-center gap-2 text-slate-500">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    <span className="text-xs font-semibold">Generating QR...</span>
+                  </div>
+                )}
+                <span className="text-[11px] font-black text-slate-800 tracking-wider uppercase mt-1">
+                  Scan to Pay
+                </span>
+              </div>
+
+              {/* Payment Details */}
+              <div className="flex-1 space-y-3 w-full text-left">
+                <div className="bg-background border border-border rounded-lg p-3 space-y-1">
+                  <span className="text-xs text-muted-foreground font-semibold block">UPI ID:</span>
+                  <span className="text-base font-black font-mono text-foreground break-all">
+                    {shopProfile.upiId}
+                  </span>
+                </div>
+
+                <div className="bg-background border border-border rounded-lg p-3 space-y-1">
+                  <span className="text-xs text-muted-foreground font-semibold block">Amount:</span>
+                  <span className="text-2xl font-black text-primary font-mono">
+                    {formatCurrency(payableAmount)}
+                  </span>
+                  <span className="text-[11px] text-muted-foreground block">
+                    (Final bill total including GST and all adjustments)
+                  </span>
+                </div>
+
+                <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                  <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
+                  Amount updates automatically with items or adjustments.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 space-y-3">
+              <div className="flex items-start gap-3 text-amber-300">
+                <AlertCircle className="h-5 w-5 text-amber-400 shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="text-sm font-bold text-amber-300">UPI ID Not Configured</h4>
+                  <p className="text-xs text-amber-200/90 mt-0.5">
+                    UPI ID not configured. Please add your UPI ID in Settings → Shop Profile.
+                  </p>
+                </div>
+              </div>
+              <div className="pt-1">
+                <Link href="/settings?tab=shop">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="border-amber-400/50 text-amber-300 hover:bg-amber-400/10 text-xs font-semibold"
+                  >
+                    Configure UPI in Settings
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

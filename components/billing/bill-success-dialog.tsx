@@ -115,6 +115,8 @@ export default function BillSuccessDialog({ saleId, invoiceNumber, totals, onClo
 
   const displayInv = invoiceNumber || saleData?.invoice_number || (saleId.startsWith('KOS-') ? saleId : `KOS-${saleId.substring(0, 8).toUpperCase()}`);
   const displayTotal = Number(totals?.payableAmount ?? totals?.total_amount ?? totals?.grand_total ?? saleData?.total_amount ?? saleData?.grand_total ?? 0);
+  const rawPayment = saleData?.payment_method || saleData?.payment_mode || totals?.payment_method || saleData?.payments?.[0]?.method || 'Cash';
+  const displayPayment = String(rawPayment).toUpperCase() === 'UPI' ? 'UPI' : String(rawPayment).toUpperCase();
 
   return (
     <>
@@ -140,9 +142,15 @@ export default function BillSuccessDialog({ saleId, invoiceNumber, totals, onClo
             </DialogDescription>
           </DialogHeader>
 
-          <div className="bg-muted p-4 rounded-md my-4">
-            <div className="text-sm text-muted-foreground mb-1">Total Amount</div>
-            <div className="text-3xl font-bold text-primary">{formatCurrency(displayTotal)}</div>
+          <div className="bg-muted p-4 rounded-md my-4 space-y-2">
+            <div>
+              <div className="text-sm text-muted-foreground mb-1">Total Amount</div>
+              <div className="text-3xl font-bold text-primary">{formatCurrency(displayTotal)}</div>
+            </div>
+            <div className="pt-2 border-t border-border flex items-center justify-between text-xs">
+              <span className="text-muted-foreground font-semibold">Payment:</span>
+              <span className="font-bold text-foreground uppercase tracking-wider">{displayPayment}</span>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3 mb-2">

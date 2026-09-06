@@ -16,6 +16,8 @@ export interface ShopDetails {
   invoiceTerms: string;
   authorizedSignatory: string;
   logoBase64?: string;
+  // UPI Details
+  upiId?: string;
   // Owner Bank Details
   bankName?: string;
   accountName?: string;
@@ -43,6 +45,7 @@ export const DEFAULT_SHOP_DETAILS: ShopDetails = {
   invoiceTerms: '1. Goods once sold will not be taken back without valid batch receipt.\n2. Interest @ 18% p.a. will be charged if not paid within 30 days.',
   authorizedSignatory: '',
   logoBase64: '',
+  upiId: '',
   bankName: '',
   accountName: '',
   accountNumber: '',
@@ -96,6 +99,7 @@ export function getSavedShopDetails(): ShopDetails {
       if (parsed.address && !merged.address) merged.address = parsed.address;
       if (parsed.pesticideLicence) merged.licenseNumber = parsed.pesticideLicence;
       if (parsed.fertilizerLicence) merged.registrationNumber = parsed.fertilizerLicence;
+      if (parsed.upiId) merged.upiId = parsed.upiId;
     }
 
     // 3. Try krushi_settings_tax (saved via /settings)

@@ -127,6 +127,7 @@ export async function getShopProfile(shopId: string): Promise<ShopDetails> {
       contact2: extended.contact2 || '',
       registrationNumber: extended.registrationNumber || '',
       authorizedSignatory: extended.authorizedSignatory || shop?.name || settingRow?.shop_name || '',
+      upiId: (extended.upiId || '').trim(),
       bankName: extended.bankName || '',
       accountName: extended.accountName || extended.ownerName || '',
       accountNumber: extended.accountNumber || '',

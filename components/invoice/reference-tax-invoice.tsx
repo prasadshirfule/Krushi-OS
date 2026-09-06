@@ -11,6 +11,7 @@ import {
 import { getDemoProductsClient } from '@/lib/client-demo-store';
 import { getShopProfileAction } from '@/actions/settings';
 import { formatProductNameWithSize } from '@/lib/validations';
+import { buildUpiUri, generateQrDataUrl } from '@/lib/upi';
 
 export interface InvoiceItemData {
   id?: string;
@@ -154,8 +155,9 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
   const formattedTime = dateObj.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
 
   const isCredit = (s.payment_method || s.payment_mode || s.paymentMethod || '').toUpperCase() === 'CREDIT';
-  const paymentBadge = isCredit ? '[R] Credit Bill' : '[R] Cash Bill';
-  const paymentMode = s.payment_method || s.payment_mode || s.paymentMethod || 'Cash';
+  const isUpi = (s.payment_method || s.payment_mode || s.paymentMethod || s.payments?.[0]?.method || '').toUpperCase() === 'UPI';
+  const paymentBadge = isCredit ? '[R] Credit Bill' : (isUpi ? '[R] UPI Bill' : '[R] Cash Bill');
+  const paymentMode = isUpi ? 'UPI' : (isCredit ? 'CREDIT' : (s.payment_method || s.payment_mode || s.paymentMethod || 'CASH').toUpperCase());
 
   /* ---------- items ---------- */
   const rawItems = customItems || s.items || s.sale_items || [];
@@ -289,6 +291,19 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
   const totalDeductions = adjustments.filter(a => a.type === 'DEDUCT').reduce((sum, a) => sum + (Number(a.amount) || 0), 0);
 
   const netTotal = Math.max(0, productsTotal + totalAdditions - totalDeductions);
+
+  const [qrDataUrl, setQrDataUrl] = useState<string>('');
+
+  useEffect(() => {
+    if (isUpi && shop.upiId && netTotal > 0) {
+      const uri = buildUpiUri(shop.upiId, shop.shopName, netTotal);
+      generateQrDataUrl(uri, { width: 180, margin: 1 })
+        .then(setQrDataUrl)
+        .catch(() => setQrDataUrl(''));
+    } else {
+      setQrDataUrl('');
+    }
+  }, [isUpi, shop.upiId, shop.shopName, netTotal]);
 
   let rawWords = numberToWords(Math.round(netTotal));
   let cleanWords = `${rawWords} Rupees Only`.replace(/Rupees Only\s+Rupees Only/gi, 'Rupees Only').replace(/\s+/g, ' ').trim();
@@ -625,7 +640,14 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
               <tr>
                 <td style={{ width: mm(15), fontWeight: 'bold', verticalAlign: 'top', padding: '0.4px 0' }}>Payment</td>
                 <td style={{ width: mm(3), fontWeight: 'bold', verticalAlign: 'top', padding: '0.4px 0' }}>:</td>
-                <td style={{ fontWeight: 'bold', textTransform: 'uppercase', verticalAlign: 'top', padding: '0.4px 0', fontSize: '10.5px' }}>{paymentMode}</td>
+                <td style={{ fontWeight: 'bold', textTransform: 'uppercase', verticalAlign: 'top', padding: '0.4px 0', fontSize: '10.5px' }}>
+                  {paymentMode}
+                  {isUpi && shop.upiId ? (
+                    <span style={{ fontSize: '9px', fontWeight: 'bold', fontFamily: 'monospace', textTransform: 'none', marginLeft: mm(1.5), color: '#111' }}>
+                      ({shop.upiId})
+                    </span>
+                  ) : null}
+                </td>
               </tr>
             </tbody>
           </table>
@@ -1039,41 +1061,114 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
           </div>
         </div>
 
-        {/* 5C + 5D – Signatures (39%) */}
+        {/* 5C + 5D – Signatures & UPI QR (39%) */}
         <div style={{
           width: '39%',
           display: 'flex',
-          flexDirection: 'column',
+          flexDirection: 'row',
           boxSizing: 'border-box',
           padding: `${mm(1)} ${mm(2)}`,
           position: 'relative',
+          gap: mm(1.5),
         }}>
-          {/* Shop name top-right */}
-          <div style={{
-            textAlign: 'right',
-            paddingRight: mm(2),
-          }}>
-            <span style={{
-              fontWeight: 900,
-              fontSize: '11.5px',
-              textTransform: 'uppercase',
-              letterSpacing: '0.2px',
-            }}>
-              {shop.authorizedSignatory || shop.shopName || ''}
-            </span>
-          </div>
+          {isUpi && shop.upiId ? (
+            <>
+              {/* Dynamic QR Block */}
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: mm(26),
+                flexShrink: 0,
+              }}>
+                {qrDataUrl ? (
+                  <img
+                    src={qrDataUrl}
+                    alt="UPI QR"
+                    style={{ width: mm(17.5), height: mm(17.5), objectFit: 'contain' }}
+                  />
+                ) : (
+                  <div style={{ width: mm(17.5), height: mm(17.5), border: '0.3mm solid #000', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '6.5px', fontWeight: 'bold' }}>
+                    UPI QR
+                  </div>
+                )}
+                <span style={{ fontSize: '6.8px', fontWeight: 'bold', textTransform: 'uppercase', marginTop: '0.5px', whiteSpace: 'nowrap', maxWidth: mm(26), overflow: 'hidden', textOverflow: 'ellipsis' }} title={shop.upiId}>
+                  UPI: {shop.upiId}
+                </span>
+                <span style={{ fontSize: '7.2px', fontWeight: 900, whiteSpace: 'nowrap', fontFamily: 'monospace' }}>
+                  ₹ {netTotal.toFixed(2)}
+                </span>
+              </div>
 
-          {/* Signatures at bottom */}
-          <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'flex-end',
-            flex: 1,
-            paddingBottom: mm(0.5),
-          }}>
-            <span style={{ fontWeight: 'bold', fontSize: '9.5px' }}>Customer sign</span>
-            <span style={{ fontWeight: 'bold', fontSize: '9.5px', paddingRight: mm(2) }}>Authorized Sign</span>
-          </div>
+              {/* Signatures & Shop Signatory Block */}
+              <div style={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+                paddingLeft: mm(1),
+                overflow: 'hidden',
+              }}>
+                <div style={{ textAlign: 'right', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <span style={{
+                    fontWeight: 900,
+                    fontSize: '10px',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.2px',
+                  }}>
+                    {shop.authorizedSignatory || shop.shopName || ''}
+                  </span>
+                </div>
+
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'flex-end',
+                  paddingBottom: mm(0.5),
+                }}>
+                  <span style={{ fontWeight: 'bold', fontSize: '8.5px' }}>Customer sign</span>
+                  <span style={{ fontWeight: 'bold', fontSize: '8.5px' }}>Authorized Sign</span>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div style={{
+              width: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              boxSizing: 'border-box',
+              position: 'relative',
+              justifyContent: 'space-between',
+            }}>
+              {/* Shop name top-right */}
+              <div style={{
+                textAlign: 'right',
+                paddingRight: mm(2),
+              }}>
+                <span style={{
+                  fontWeight: 900,
+                  fontSize: '11.5px',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.2px',
+                }}>
+                  {shop.authorizedSignatory || shop.shopName || ''}
+                </span>
+              </div>
+
+              {/* Signatures at bottom */}
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'flex-end',
+                flex: 1,
+                paddingBottom: mm(0.5),
+              }}>
+                <span style={{ fontWeight: 'bold', fontSize: '9.5px' }}>Customer sign</span>
+                <span style={{ fontWeight: 'bold', fontSize: '9.5px', paddingRight: mm(2) }}>Authorized Sign</span>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

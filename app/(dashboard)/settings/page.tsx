@@ -13,6 +13,7 @@ import { Store, Receipt, Printer, Percent, ShieldCheck, Save, LogOut, Upload, Bu
 import { useRouter, useSearchParams } from "next/navigation";
 import { getShopProfileAction, updateShopProfileAction } from "@/actions/settings";
 import { ShopDetails, DEFAULT_SHOP_DETAILS } from "@/lib/shop-details";
+import { isValidUpiId, normalizeUpiId } from "@/lib/validations";
 import { createClient } from "@/lib/supabase/client";
 
 const DEFAULTS = {
@@ -142,12 +143,23 @@ export default function SettingsPage() {
       return;
     }
 
+    const trimmedUpi = (shopProfile.upiId || '').trim();
+    if (trimmedUpi && !isValidUpiId(trimmedUpi)) {
+      toast.error('Invalid UPI ID / VPA format. Must contain "@" (e.g. maulikrushi@upi)');
+      return;
+    }
+
+    const normalizedProfile = {
+      ...shopProfile,
+      upiId: normalizeUpiId(shopProfile.upiId),
+    };
+
     setIsSaving(true);
     try {
-      const res = await updateShopProfileAction(shopProfile);
+      const res = await updateShopProfileAction(normalizedProfile);
       if (res.success) {
         if (res.data) setShopProfile(res.data);
-        localStorage.setItem('krushi_demo_shop_details', JSON.stringify(res.data || shopProfile));
+        localStorage.setItem('krushi_demo_shop_details', JSON.stringify(res.data || normalizedProfile));
         toast.success('Shop Profile saved successfully in Supabase!');
       } else {
         toast.error(res.error || 'Failed to save shop profile');
@@ -244,6 +256,18 @@ export default function SettingsPage() {
                       onChange={handleShopInputChange}
                       placeholder="e.g. Prasad Mahajan"
                     />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>UPI ID / VPA</Label>
+                    <Input
+                      name="upiId"
+                      value={shopProfile.upiId || ''}
+                      onChange={handleShopInputChange}
+                      placeholder="e.g. maulikrushi@upi"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Used for generating dynamic QR codes for UPI payments during billing
+                    </p>
                   </div>
                   <div className="space-y-2">
                     <Label>GSTIN Number</Label>
