@@ -31,9 +31,9 @@ const customerFormSchema = z.object({
   mobile: z.string()
     .min(1, "Mobile number is required")
     .regex(/^\d{10}$/, "Mobile number must be exactly 10 digits"),
-  aadhaar: z.string()
-    .min(1, "Aadhaar number is required")
-    .regex(/^\d{12}$/, "Aadhaar number must be exactly 12 digits"),
+  aadhaar: z.string().optional().or(z.literal('')).refine(val => !val || /^\d{12}$/.test(val.replace(/\s/g, '')), {
+    message: "Aadhaar number must be exactly 12 digits",
+  }),
   village: z.string().optional(),
   previous_udhari: z.string().optional(),
 });
@@ -91,13 +91,15 @@ export function CustomerForm({ initialData, onSuccess, onCancel }: CustomerFormP
       let savedCust: any = null;
       const udhariAmount = Number(data.previous_udhari || 0);
 
+      const aadhaarTrimmed = (data.aadhaar || '').trim();
+
       if (demoMode) {
         // Save to browser localStorage demo store (one source of truth)
         if (initialData?.id) {
           savedCust = updateDemoCustomerClient(initialData.id, {
             name: data.name.trim(),
             mobile: data.mobile.trim(),
-            aadhaar: data.aadhaar.trim(),
+            aadhaar: aadhaarTrimmed,
             village: data.village?.trim() || null,
           });
         } else {
@@ -105,7 +107,7 @@ export function CustomerForm({ initialData, onSuccess, onCancel }: CustomerFormP
             savedCust = saveDemoCustomerClient({
               name: data.name.trim(),
               mobile: data.mobile.trim(),
-              aadhaar: data.aadhaar.trim(),
+              aadhaar: aadhaarTrimmed,
               village: data.village?.trim() || null,
               previous_udhari: udhariAmount,
             });
@@ -123,14 +125,14 @@ export function CustomerForm({ initialData, onSuccess, onCancel }: CustomerFormP
             updateCustomerAction(initialData.id, {
               name: data.name.trim(),
               mobile: data.mobile.trim(),
-              aadhaar: data.aadhaar.trim(),
+              aadhaar: aadhaarTrimmed,
               village: data.village?.trim() || null,
             }).catch(() => {});
           } else {
             createCustomerAction({
               name: data.name.trim(),
               mobile: data.mobile.trim(),
-              aadhaar: data.aadhaar.trim(),
+              aadhaar: aadhaarTrimmed,
               village: data.village?.trim() || null,
               previous_udhari: udhariAmount,
             }).catch(() => {});
@@ -142,14 +144,14 @@ export function CustomerForm({ initialData, onSuccess, onCancel }: CustomerFormP
           result = await updateCustomerAction(initialData.id, {
             name: data.name.trim(),
             mobile: data.mobile.trim(),
-            aadhaar: data.aadhaar.trim(),
+            aadhaar: aadhaarTrimmed,
             village: data.village?.trim() || null,
           });
         } else {
           result = await createCustomerAction({
             name: data.name.trim(),
             mobile: data.mobile.trim(),
-            aadhaar: data.aadhaar.trim(),
+            aadhaar: aadhaarTrimmed,
             village: data.village?.trim() || null,
             previous_udhari: udhariAmount,
           });
@@ -220,7 +222,7 @@ export function CustomerForm({ initialData, onSuccess, onCancel }: CustomerFormP
             name="aadhaar"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Aadhaar Number <span className="text-destructive">*</span></FormLabel>
+                <FormLabel>Aadhaar Number <span className="text-xs text-muted-foreground font-normal">(Optional)</span></FormLabel>
                 <FormControl>
                   <Input 
                     placeholder="e.g. 1234 5678 9012"

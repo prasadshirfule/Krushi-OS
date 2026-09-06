@@ -9,6 +9,7 @@ export function isPlaceholderMode(): boolean {
 }
 
 export function normalizeCustomer(c: any) {
+  if (!c) return null;
   const phone = c.phone || c.mobile || '';
   const mobile = c.mobile || c.phone || '';
   const outstanding = Number(c.outstanding ?? c.outstanding_balance ?? 0);
@@ -17,13 +18,20 @@ export function normalizeCustomer(c: any) {
   const farmSize = c.farm_size || c.farmSize || (c.land_acres ? `${c.land_acres} Acres` : '');
   const crops = c.crops || c.crop_details || '';
 
+  // Extract Aadhaar from column or notes if stored there
+  let aadhaar = c.aadhaar || '';
+  if (!aadhaar && c.notes && c.notes.includes('Aadhaar:')) {
+    const match = c.notes.match(/Aadhaar:\s*(\d+)/i);
+    if (match) aadhaar = match[1];
+  }
+
   return {
     ...c,
     id: String(c.id),
     name: c.name,
     phone,
     mobile,
-    aadhaar: c.aadhaar || '',
+    aadhaar,
     village: c.village || '',
     address: c.address || '',
     farm_size: farmSize,
@@ -115,7 +123,7 @@ export async function getCustomerById(shopId: string, customerId: string) {
   }
 }
 
-export async function createCustomer(shopId: string, data: CustomerInput) {
+export async function createCustomer(shopId: string, data: CustomerInput, userId?: string) {
   const openingBalance = Number((data as any).previous_udhari || 0);
 
   if (isPlaceholderMode()) {
@@ -130,8 +138,8 @@ export async function createCustomer(shopId: string, data: CustomerInput) {
       aadhaar: (data as any).aadhaar || '',
       village: data.village || '',
       address: data.address || '',
-      farm_size: data.farm_size || data.farmSize || '',
-      farmSize: data.farm_size || data.farmSize || '',
+      farm_size: data.farm_size || (data as any).farmSize || '',
+      farmSize: data.farm_size || (data as any).farmSize || '',
       crops: data.crops || '',
       notes: data.notes || '',
       credit_limit: data.credit_limit || 50000,
@@ -149,25 +157,89 @@ export async function createCustomer(shopId: string, data: CustomerInput) {
   }
 
   const supabase = await createServerSupabaseClient();
-  const insertData: any = {
+  const aadhaarVal = ((data as any).aadhaar || '').trim();
+
+  let notesVal = data.notes?.trim() || null;
+  if (aadhaarVal && (!notesVal || !notesVal.includes('Aadhaar:'))) {
+    notesVal = notesVal ? `${notesVal} | Aadhaar: ${aadhaarVal}` : `Aadhaar: ${aadhaarVal}`;
+  }
+
+  const insertPayload: Record<string, any> = {
     shop_id: shopId,
-    name: data.name,
-    mobile: data.mobile || data.phone || null,
-    aadhaar: (data as any).aadhaar || null,
-    village: data.village || null,
-    address: data.address || null,
-    farm_size: data.farm_size || data.farmSize || null,
-    crops: data.crops || null,
-    notes: data.notes || null,
+    name: data.name.trim(),
+    mobile: (data.mobile || data.phone || '').trim() || null,
+    village: data.village?.trim() || null,
+    address: data.address?.trim() || null,
+    farm_size: (data.farm_size || (data as any).farmSize || '').trim() || null,
+    crops: data.crops?.trim() || null,
+    notes: notesVal,
+    outstanding: openingBalance,
+    total_purchases: 0,
+    total_paid: 0,
+    is_active: true,
   };
-  if (openingBalance > 0) {
-    insertData.outstanding = openingBalance;
+
+  let customer: any = null;
+
+  if (aadhaarVal) {
+    const withAadhaar = { ...insertPayload, aadhaar: aadhaarVal };
+    const { data: resData, error: resError } = await supabase
+      .from('customers')
+      .insert(withAadhaar)
+      .select()
+      .single();
+
+    if (!resError && resData) {
+      customer = resData;
+    } else if (resError && (resError.message?.includes('aadhaar') || resError.code === '42703' || resError.code === 'PGRST204')) {
+      // aadhaar column does not exist in DB schema, insert without aadhaar column
+      const { data: fallbackData, error: fallbackError } = await supabase
+        .from('customers')
+        .insert(insertPayload)
+        .select()
+        .single();
+      if (fallbackError) {
+        console.error("Error creating customer in Supabase:", fallbackError);
+        throw new Error(fallbackError.message || 'Failed to create customer');
+      }
+      customer = fallbackData;
+    } else if (resError) {
+      console.error("Error creating customer in Supabase:", resError);
+      throw new Error(resError.message || 'Failed to create customer');
+    }
+  } else {
+    const { data: resData, error: resError } = await supabase
+      .from('customers')
+      .insert(insertPayload)
+      .select()
+      .single();
+    if (resError) {
+      console.error("Error creating customer in Supabase:", resError);
+      throw new Error(resError.message || 'Failed to create customer');
+    }
+    customer = resData;
   }
-  const { data: customer, error } = await supabase.from('customers').insert(insertData).select().single();
-  if (error) {
-    console.error("Error creating customer:", error);
-    throw error;
+
+  // Create opening ledger record if previous_udhari > 0
+  if (openingBalance > 0 && customer?.id) {
+    try {
+      await supabase.from('customer_ledger').insert({
+        shop_id: shopId,
+        customer_id: customer.id,
+        date: new Date().toISOString(),
+        description: 'Opening Balance (Previous Udhari)',
+        reference_type: 'ADJUSTMENT',
+        debit: openingBalance,
+        credit: 0,
+        balance: openingBalance,
+        notes: 'Initial opening balance',
+        created_by: userId || null,
+      });
+    } catch (ledgerErr) {
+      console.warn("Notice: could not create opening customer_ledger entry:", ledgerErr);
+    }
   }
+
   return normalizeCustomer(customer);
 }
 
@@ -193,20 +265,71 @@ export async function updateCustomer(shopId: string, id: string, data: Partial<C
 
   const supabase = await createServerSupabaseClient();
   const updatePayload: any = {};
-  if (data.name !== undefined) updatePayload.name = data.name;
-  if (data.mobile !== undefined || data.phone !== undefined) updatePayload.mobile = data.mobile || data.phone || null;
-  if (data.village !== undefined) updatePayload.village = data.village;
-  if (data.address !== undefined) updatePayload.address = data.address;
-  if (data.farm_size !== undefined || data.farmSize !== undefined) updatePayload.farm_size = data.farm_size || data.farmSize;
-  if (data.crops !== undefined) updatePayload.crops = data.crops;
-  if (data.notes !== undefined) updatePayload.notes = data.notes;
+  if (data.name !== undefined) updatePayload.name = data.name.trim();
+  if (data.mobile !== undefined || data.phone !== undefined) {
+    updatePayload.mobile = (data.mobile || data.phone || '').trim() || null;
+  }
+  if (data.village !== undefined) updatePayload.village = data.village?.trim() || null;
+  if (data.address !== undefined) updatePayload.address = data.address?.trim() || null;
+  if (data.farm_size !== undefined || data.farmSize !== undefined) {
+    updatePayload.farm_size = (data.farm_size || data.farmSize || '').trim() || null;
+  }
+  if (data.crops !== undefined) updatePayload.crops = data.crops?.trim() || null;
+  if (data.notes !== undefined) updatePayload.notes = data.notes?.trim() || null;
   if (data.is_active !== undefined) updatePayload.is_active = data.is_active;
 
-  const { data: customer, error } = await supabase.from('customers').update(updatePayload).eq('shop_id', shopId).eq('id', id).select().single();
-  if (error) {
-    console.error("Error updating customer:", error);
-    throw error;
+  const aadhaarVal = (data.aadhaar || '').trim();
+  if (aadhaarVal) {
+    if (!updatePayload.notes || !updatePayload.notes.includes('Aadhaar:')) {
+      updatePayload.notes = updatePayload.notes ? `${updatePayload.notes} | Aadhaar: ${aadhaarVal}` : `Aadhaar: ${aadhaarVal}`;
+    }
   }
+
+  let customer: any = null;
+  if (aadhaarVal) {
+    const withAadhaar = { ...updatePayload, aadhaar: aadhaarVal };
+    const { data: resData, error: resError } = await supabase
+      .from('customers')
+      .update(withAadhaar)
+      .eq('shop_id', shopId)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (!resError && resData) {
+      customer = resData;
+    } else if (resError && (resError.message?.includes('aadhaar') || resError.code === '42703' || resError.code === 'PGRST204')) {
+      const { data: fallbackData, error: fallbackError } = await supabase
+        .from('customers')
+        .update(updatePayload)
+        .eq('shop_id', shopId)
+        .eq('id', id)
+        .select()
+        .single();
+      if (fallbackError) {
+        console.error("Error updating customer in Supabase:", fallbackError);
+        throw new Error(fallbackError.message || 'Failed to update customer');
+      }
+      customer = fallbackData;
+    } else if (resError) {
+      console.error("Error updating customer in Supabase:", resError);
+      throw new Error(resError.message || 'Failed to update customer');
+    }
+  } else {
+    const { data: resData, error: resError } = await supabase
+      .from('customers')
+      .update(updatePayload)
+      .eq('shop_id', shopId)
+      .eq('id', id)
+      .select()
+      .single();
+    if (resError) {
+      console.error("Error updating customer in Supabase:", resError);
+      throw new Error(resError.message || 'Failed to update customer');
+    }
+    customer = resData;
+  }
+
   return normalizeCustomer(customer);
 }
 

@@ -234,17 +234,19 @@ export const batchSchema = z.object({
 export const customerSchema = z.object({
   name: z.string().min(1, 'Customer name is required'),
   mobile: z.string().min(1, 'Mobile number is required').regex(/^\d{10}$/, 'Mobile number must be exactly 10 digits'),
-  aadhaar: z.string().min(1, 'Aadhaar number is required').regex(/^\d{12}$/, 'Aadhaar number must be exactly 12 digits'),
-  phone: z.string().regex(phoneRegex, 'Invalid Indian mobile number format').optional().nullable().or(z.literal('')),
+  aadhaar: z.string().optional().nullable().or(z.literal('')).refine(val => !val || /^\d{12}$/.test(val.replace(/\s/g, '')), {
+    message: 'Aadhaar number must be exactly 12 digits',
+  }),
+  phone: z.string().optional().nullable().or(z.literal('')),
   village: z.string().optional().nullable().or(z.literal('')),
   address: z.string().optional().nullable().or(z.literal('')),
   farm_size: z.string().optional().nullable().or(z.literal('')),
   farmSize: z.string().optional().nullable().or(z.literal('')),
   crops: z.string().optional().nullable().or(z.literal('')),
   notes: z.string().optional().nullable().or(z.literal('')),
-  credit_limit: z.number().optional().nullable(),
-  outstanding: z.number().optional().nullable(),
-  previous_udhari: z.number().min(0, 'Previous Udhari cannot be negative').optional().nullable(),
+  credit_limit: z.coerce.number().optional().nullable(),
+  outstanding: z.coerce.number().optional().nullable(),
+  previous_udhari: z.coerce.number().min(0, 'Previous Udhari cannot be negative').optional().nullable(),
 });
 
 export const supplierSchema = z.object({

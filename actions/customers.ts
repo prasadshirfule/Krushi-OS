@@ -46,7 +46,7 @@ export async function createCustomerAction(data: any): Promise<ActionResult<any>
     if (!validated.success) {
       return { success: false, error: validated.error.errors[0]?.message || 'Invalid customer data' };
     }
-    const result = await customersService.createCustomer(userData.shop_id, validated.data);
+    const result = await customersService.createCustomer(userData.shop_id, validated.data, userData.id);
     safeRevalidatePath('/customers');
     safeRevalidatePath('/customers', 'page');
     safeRevalidatePath('/billing');
@@ -55,7 +55,7 @@ export async function createCustomerAction(data: any): Promise<ActionResult<any>
     return { success: true, data: result };
   } catch (error: any) {
     console.error('Error in createCustomerAction:', error);
-    return { success: false, error: 'Unable to save customer. Please try again.' };
+    return { success: false, error: error?.message || 'Unable to save customer. Please try again.' };
   }
 }
 
@@ -77,7 +77,7 @@ export async function updateCustomerAction(id: string, data: any): Promise<Actio
     return { success: true, data: result };
   } catch (error: any) {
     console.error('Error in updateCustomerAction:', error);
-    return { success: false, error: 'Unable to update customer. Please try again.' };
+    return { success: false, error: error?.message || 'Unable to update customer. Please try again.' };
   }
 }
 
