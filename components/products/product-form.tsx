@@ -65,9 +65,9 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
 
   // Categories state
   const [categoriesList, setCategoriesList] = useState<any[]>(() => {
-    if (categories && categories.length > 0) return categories;
+    if (categories && Array.isArray(categories) && categories.length > 0) return categories;
     if (isClientDemoMode()) return getDemoCategoriesClient();
-    return MOCK_CATEGORIES;
+    return Array.isArray(categories) ? categories : [];
   });
 
   // Modal state for Add New Category
@@ -78,9 +78,9 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
 
   // Brands / Manufacturers state
   const [brandsList, setBrandsList] = useState<any[]>(() => {
-    if (brands && brands.length > 0) return brands;
+    if (brands && Array.isArray(brands) && brands.length > 0) return brands;
     if (isClientDemoMode()) return getDemoBrandsClient();
-    return MOCK_BRANDS;
+    return Array.isArray(brands) ? brands : [];
   });
 
   // Modal state for Add New Manufacturer
@@ -107,7 +107,7 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
     resolver: zodResolver(productSchema),
     defaultValues: {
       name: initialData?.name || '',
-      category_id: initialData?.category_id || (categoriesList[0]?.id || ''),
+      category_id: initialData?.category_id || (categories && categories.length > 0 ? categories[0].id : ''),
       brand_id: initialData?.brand_id || '',
       sku: initialData?.sku || '',
       barcode: initialData?.barcode || '',
@@ -232,15 +232,15 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
           name: trimmed,
           description: newCategoryDescription.trim(),
         });
-        if (res.success) {
+        if (res.success && res.data) {
           createdCat = res.data;
         } else {
-          throw new Error(res.error || 'Failed to create category');
+          throw new Error(!res.success ? res.error : 'Failed to create category');
         }
       }
 
-      if (!createdCat) {
-        createdCat = { id: `cat-${Date.now()}`, name: trimmed, description: newCategoryDescription.trim() };
+      if (!createdCat || !createdCat.id) {
+        throw new Error('Category could not be created');
       }
 
       setCategoriesList(prev => {
@@ -292,15 +292,15 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
           name: trimmed,
           manufacturer: newBrandCompany.trim() || trimmed,
         });
-        if (res.success) {
+        if (res.success && res.data) {
           createdBrand = res.data;
         } else {
-          throw new Error(res.error || 'Failed to create manufacturer');
+          throw new Error(!res.success ? res.error : 'Failed to create manufacturer');
         }
       }
 
-      if (!createdBrand) {
-        createdBrand = { id: `b-${Date.now()}`, name: trimmed };
+      if (!createdBrand || !createdBrand.id) {
+        throw new Error('Manufacturer could not be created');
       }
 
       setBrandsList(prev => {
@@ -482,7 +482,7 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
                 </button>
               </div>
               <Select
-                value={form.watch('category_id')}
+                value={form.watch('category_id') || ''}
                 onValueChange={(val) => {
                   if (val === '__add_new__') {
                     setIsAddCategoryOpen(true);
@@ -495,9 +495,15 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
                   <SelectValue placeholder="Select Category" />
                 </SelectTrigger>
                 <SelectContent className="max-h-72">
-                  {categoriesList.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                  ))}
+                  {categoriesList.length === 0 ? (
+                    <div className="px-3 py-3 text-center text-xs text-muted-foreground">
+                      No categories found for your shop yet.
+                    </div>
+                  ) : (
+                    categoriesList.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                    ))
+                  )}
                   <div className="px-2 py-1.5 border-t border-border mt-1 bg-muted/20">
                     <button
                       type="button"
@@ -512,6 +518,19 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
                   </div>
                 </SelectContent>
               </Select>
+              {categoriesList.length === 0 && (
+                <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">
+                  No categories in your shop yet. Click{' '}
+                  <button
+                    type="button"
+                    onClick={() => setIsAddCategoryOpen(true)}
+                    className="underline font-bold hover:text-amber-700 cursor-pointer"
+                  >
+                    + Add New Category
+                  </button>{' '}
+                  to create one.
+                </p>
+              )}
               {form.formState.errors.category_id && (
                 <p className="text-xs text-destructive font-medium">{form.formState.errors.category_id.message}</p>
               )}

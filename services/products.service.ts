@@ -21,22 +21,22 @@ export function normalizeProduct(p: any): ProductWithRelations {
 
   let category = p.category;
   if (typeof category === 'string') {
-    category = { id: p.category_id || 'cat-1', name: category };
+    category = { id: p.category_id || '', name: category };
   } else if (!category && p.category_id) {
     category = { id: p.category_id, name: 'General' };
   }
 
   let brand = p.brand;
   if (typeof brand === 'string') {
-    brand = { id: p.brand_id || 'brand-1', name: brand };
+    brand = { id: p.brand_id || '', name: brand };
   }
 
   return {
     ...p,
     id: String(p.id),
     name: p.name,
-    category_id: p.category_id || category?.id || 'cat-1',
-    category: category || { id: 'cat-1', name: 'General' },
+    category_id: p.category_id || category?.id || '',
+    category: category || (p.category_id ? { id: p.category_id, name: 'General' } : null),
     brand_id: p.brand_id || brand?.id || null,
     brand: brand || null,
     sku: p.sku || '',
@@ -189,7 +189,7 @@ export async function createProduct(shopId: string, data: CreateProductInput, us
 
     // Find category info
     const allCats = [...MOCK_CATEGORIES, ...demoCategories];
-    const cat = allCats.find(c => c.id === data.category_id) || { id: data.category_id || 'cat-1', name: 'General' };
+    const cat = allCats.find(c => c.id === data.category_id) || { id: data.category_id || '', name: 'General' };
 
     const dbExpiry = formatDDMMYYYYtoDB(data.expiry_date) || data.expiry_date || null;
     const batchNumber = data.batch_number || `BAT-${Date.now().toString().slice(-4)}`;
