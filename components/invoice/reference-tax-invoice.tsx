@@ -939,25 +939,49 @@ export function printInvoiceDirectly(elementId: string) {
         ${styles}
         <style>
           @page {
-            size: A5 landscape;
-            margin: 0;
+            size: A5 landscape !important;
+            margin: 0 !important;
+          }
+          *, *::before, *::after {
+            box-sizing: border-box !important;
           }
           html, body {
-            width: 210mm;
-            height: 148mm;
+            width: 210mm !important;
+            height: 148mm !important;
             background-color: #ffffff !important;
             color: #000000 !important;
             margin: 0 !important;
             padding: 0 !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            overflow: hidden !important;
           }
-          * {
-            box-sizing: border-box;
+          .invoice-page {
+            width: 210mm !important;
+            height: 148mm !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            box-sizing: border-box !important;
+            background-color: #ffffff !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+          }
+          #printable-tax-invoice,
+          .invoice {
+            width: 204mm !important;
+            height: 142mm !important;
+            margin: 0 auto !important;
+            position: relative !important;
+            box-sizing: border-box !important;
+            background-color: #ffffff !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
           }
         </style>
       </head>

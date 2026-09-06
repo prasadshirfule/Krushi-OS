@@ -48,22 +48,13 @@
     margin: 0;
   }
   
-  /* Table styles for print */
-  table { 
-    border-collapse: collapse; 
-    width: 100%; 
-  }
-  
-  th, td { 
-    padding: 4px 8px; 
-  }
-  
   /* Page breaks */
   .page-break { 
     page-break-before: always; 
   }
   
   @page {
+    size: A5 landscape;
     margin: 0;
   }
 }
