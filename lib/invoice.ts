@@ -70,12 +70,12 @@ export function generateInvoicePDF(sale: any, customSettings?: any) {
   // ─── 1. SHOP HEADER ───
   currentY += 5;
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(14);
+  doc.setFontSize(16);
   doc.setTextColor(0, 0, 0);
   doc.text(shop.shopName || 'KRUSHI SEVA KENDRA', marginX + 4, currentY + 2);
 
   // License and TAX INVOICE Badge on top right
-  doc.setFontSize(7.5);
+  doc.setFontSize(8.2);
   doc.setFont('helvetica', 'normal');
   if (shop.licenseNumber) {
     doc.text(`Lic No: ${shop.licenseNumber}`, marginX + contentWidth - 4, currentY - 1, { align: 'right' });
@@ -88,15 +88,15 @@ export function generateInvoicePDF(sale: any, customSettings?: any) {
   doc.setFillColor(0, 0, 0);
   doc.rect(marginX + contentWidth - 36, currentY + 5, 32, 5.5, 'F');
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
+  doc.setFontSize(8.5);
   doc.setTextColor(255, 255, 255);
   doc.text('TAX INVOICE', marginX + contentWidth - 20, currentY + 9, { align: 'center' });
 
   // Shop Address & Contacts
   currentY += 6;
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(50, 50, 50);
+  doc.setFontSize(8.8);
+  doc.setTextColor(40, 40, 40);
   if (dynamicAddress) {
     doc.text(dynamicAddress, marginX + 4, currentY);
   }
@@ -141,13 +141,14 @@ export function generateInvoicePDF(sale: any, customSettings?: any) {
   const infoStartY = currentY + 4;
 
   // Left: Customer details
-  doc.setFontSize(8);
+  doc.setFontSize(8.5);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(70, 70, 70);
+  doc.setTextColor(60, 60, 60);
   doc.text('CUSTOMER DETAILS:', marginX + 4, infoStartY);
-  doc.setFont('helvetica', 'normal');
+  doc.setFont('helvetica', 'bold');
   doc.setTextColor(0, 0, 0);
   doc.text(`Name: ${customerName}`, marginX + 4, infoStartY + 4);
+  doc.setFont('helvetica', 'normal');
   if (customerAddress) {
     doc.text(`Address: ${customerAddress}`, marginX + 4, infoStartY + 8);
   }
@@ -158,7 +159,7 @@ export function generateInvoicePDF(sale: any, customSettings?: any) {
 
   // Right: Bill details
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(70, 70, 70);
+  doc.setTextColor(60, 60, 60);
   doc.text('INVOICE DETAILS:', midX, infoStartY);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(0, 0, 0);
@@ -185,7 +186,7 @@ export function generateInvoicePDF(sale: any, customSettings?: any) {
     tableRows = rawItems.map((item: any, idx: number) => {
       const p = item.product || {};
       const qty = Number(item.quantity || 1);
-      const gst = Number(item.gst_rate ?? item.gstRate ?? p.gst_rate ?? 0);
+      const gst = Number(item.gst_rate ?? item.gstRate ?? p.gst_rate ?? 18);
       const lineTotal = Number(item.total_amount ?? item.totalAmount ?? item.total_price ?? (qty * Number(item.unit_price ?? item.selling_price ?? 0)));
 
       // Exact reverse GST math
@@ -262,11 +263,11 @@ export function generateInvoicePDF(sale: any, customSettings?: any) {
       fontStyle: 'bold',
       lineWidth: 0.2,
       lineColor: [0, 0, 0],
-      fontSize: 7.5,
+      fontSize: 8.5,
       halign: 'center',
     },
     styles: {
-      fontSize: 7.2,
+      fontSize: 8,
       cellPadding: 1.5,
       lineColor: [0, 0, 0],
       lineWidth: 0.2,
@@ -300,22 +301,23 @@ export function generateInvoicePDF(sale: any, customSettings?: any) {
   doc.rect(marginX + summaryLeftWidth, finalY, summaryRightWidth, summaryHeight);
 
   // Left Content:
-  doc.setFontSize(7.5);
+  doc.setFontSize(8.5);
   doc.setFont('helvetica', 'bold');
   doc.text('Amount in Words:', marginX + 3, finalY + 5);
   doc.setFont('helvetica', 'italic');
+  doc.setFontSize(8);
   const amountWords = `${numberToWords(grandTotal)} Rupees Only`;
   const splitWords = doc.splitTextToSize(amountWords, summaryLeftWidth - 6);
   doc.text(splitWords, marginX + 3, finalY + 9);
 
-  // OWNER BANK DETAILS SECTION (Replaced QR code as requested)
+  // OWNER BANK DETAILS SECTION
   doc.setDrawColor(0, 0, 0);
-  doc.setFontSize(7.5);
+  doc.setFontSize(8.5);
   doc.setFont('helvetica', 'bold');
   doc.text('BANK DETAILS', marginX + 3, finalY + 16);
   doc.line(marginX + 3, finalY + 17.5, marginX + summaryLeftWidth - 6, finalY + 17.5);
 
-  doc.setFontSize(6.8);
+  doc.setFontSize(7.8);
   doc.setFont('helvetica', 'bold');
   doc.text('A/C Holder:', marginX + 3, finalY + 22);
   doc.setFont('helvetica', 'normal');
@@ -352,7 +354,7 @@ export function generateInvoicePDF(sale: any, customSettings?: any) {
   }
 
   // Terms & Conditions at bottom left
-  doc.setFontSize(6);
+  doc.setFontSize(6.8);
   doc.setFont('helvetica', 'bold');
   doc.text('Terms & Conditions:', marginX + 3, finalY + 36);
   doc.setFont('helvetica', 'normal');
@@ -393,7 +395,7 @@ export function generateInvoicePDF(sale: any, customSettings?: any) {
     doc.line(rightX, lineY + rightRowHeight, rightX + summaryRightWidth, lineY + rightRowHeight);
 
     doc.setFont('helvetica', row.isBold ? 'bold' : 'normal');
-    doc.setFontSize(row.isHighlight ? 8 : (rows.length > 6 ? 6.5 : 7.2));
+    doc.setFontSize(row.isHighlight ? 9 : (rows.length > 6 ? 7.2 : 8));
     const textOffsetY = rightRowHeight * 0.65;
     doc.text(row.label, rightX + 3, lineY + textOffsetY);
     doc.text(row.val, rightX + summaryRightWidth - 3, lineY + textOffsetY, { align: 'right' });
@@ -404,7 +406,7 @@ export function generateInvoicePDF(sale: any, customSettings?: any) {
   const signHeight = 22;
   doc.rect(marginX, signY, contentWidth, signHeight);
 
-  doc.setFontSize(7.5);
+  doc.setFontSize(8.5);
   doc.setFont('helvetica', 'bold');
   doc.text('Customer Signature', marginX + 25, signY + signHeight - 3, { align: 'center' });
   doc.line(marginX + 10, signY + signHeight - 6, marginX + 40, signY + signHeight - 6);
@@ -418,7 +420,7 @@ export function generateInvoicePDF(sale: any, customSettings?: any) {
   doc.setFillColor(245, 245, 245);
   doc.rect(marginX, footerY, contentWidth, 7, 'FD');
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7);
+  doc.setFontSize(7.8);
   doc.setTextColor(60, 60, 60);
   doc.text('This Is Computer Generated Tax Invoice', marginX + 4, footerY + 4.5);
   doc.text(`Subject To ${shop.district ? `${shop.district} ` : ''}Jurisdiction`, marginX + (contentWidth / 2), footerY + 4.5, { align: 'center' });
