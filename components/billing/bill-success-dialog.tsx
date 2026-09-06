@@ -124,7 +124,7 @@ export default function BillSuccessDialog({ saleId, invoiceNumber, totals, onClo
         aria-hidden="true"
       >
         <div id="bill-success-invoice">
-          <ReferenceTaxInvoice sale={saleData || { id: saleId, invoice_number: displayInv, total_amount: displayTotal, grand_total: displayTotal }} />
+          <ReferenceTaxInvoice sale={saleData || { id: saleId, invoice_number: displayInv, total_amount: displayTotal, grand_total: displayTotal, adjustments: totals?.adjustments || [] }} />
         </div>
       </div>
 

@@ -248,13 +248,31 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
     ];
   }
 
-  /* ---------- totals ---------- */
+  /* ---------- totals & adjustments ---------- */
   const taxableTotal = items.reduce((sum, item) => sum + item.taxableAmount, 0);
   const cgstTotal = items.reduce((sum, item) => sum + item.cgstAmount, 0);
   const sgstTotal = items.reduce((sum, item) => sum + item.sgstAmount, 0);
   const productsTotal = items.reduce((sum, item) => sum + item.total, 0);
 
-  const adjustments: any[] = Array.isArray(s.adjustments) ? s.adjustments : [];
+  let rawAdjustments: any[] = Array.isArray(s.adjustments) ? s.adjustments : [];
+  if (rawAdjustments.length === 0 && s.notes && typeof s.notes === 'string') {
+    try {
+      const trimmed = s.notes.trim();
+      if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed.adjustments)) {
+          rawAdjustments = parsed.adjustments;
+        }
+      } else if (trimmed.includes('__ADJUSTMENTS__:')) {
+        const parts = trimmed.split('__ADJUSTMENTS__:');
+        const parsed = JSON.parse(parts[1]);
+        if (Array.isArray(parsed)) {
+          rawAdjustments = parsed;
+        }
+      }
+    } catch {}
+  }
+  const adjustments = rawAdjustments;
   const totalAdditions = adjustments.filter(a => a.type === 'ADD').reduce((sum, a) => sum + (Number(a.amount) || 0), 0);
   const totalDeductions = adjustments.filter(a => a.type === 'DEDUCT').reduce((sum, a) => sum + (Number(a.amount) || 0), 0);
 
@@ -269,9 +287,14 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
   const drInvoice = netTotal;
   const closingBalance = openingBal + drInvoice - amountPaid;
 
+  /* ---------- dynamic heights for A5 single-page fit ---------- */
+  const hasAdjustments = adjustments.length > 0;
+  const currentHTotals = hasAdjustments ? 11.5 : 7.5;
+  const currentHTblBody = 142 - H_HEADER - H_CUSTOMER - H_TBL_HEAD - currentHTotals - H_BOTTOM - H_FOOTER;
+
   /* ---------- row count for table ---------- */
   const ROW_HEIGHT_MM = 8.5;
-  const maxRowsInBody = Math.floor(H_TBL_BODY / ROW_HEIGHT_MM);
+  const maxRowsInBody = Math.floor(currentHTblBody / ROW_HEIGHT_MM);
   const displayItems = items.slice(0, maxRowsInBody);
   const emptyRowsCount = Math.max(0, maxRowsInBody - displayItems.length);
 
@@ -635,7 +658,7 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
 
       {/* 3B – Table body */}
       <div style={{
-        height: mm(H_TBL_BODY),
+        height: mm(currentHTblBody),
         boxSizing: 'border-box',
         overflow: 'hidden',
       }}>
@@ -712,67 +735,188 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
       </div>
 
       {/* ════════════════════════════════════════════════════════
-          4. TOTALS – 7.5 mm
+          4. TOTALS & ADJUSTMENTS – 7.5 mm (or 11.5 mm if adjustments exist)
           ════════════════════════════════════════════════════════ */}
-      <div style={{
-        height: mm(H_TOTALS),
-        borderTop: BORDER_MAJOR,
-        borderBottom: BORDER_MAJOR,
-        display: 'flex',
-        boxSizing: 'border-box',
-      }}>
-        {/* Taxable (20%) */}
+      {hasAdjustments ? (
         <div style={{
-          width: '20%',
-          borderRight: BORDER_INNER,
+          height: mm(currentHTotals),
+          borderTop: BORDER_MAJOR,
+          borderBottom: BORDER_MAJOR,
           display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: `0 ${mm(1.5)}`,
           boxSizing: 'border-box',
         }}>
-          <span style={{ fontSize: '9.2px', fontWeight: 'bold', textTransform: 'uppercase' }}>Taxable</span>
-          <span style={{ fontWeight: 'bold', fontFamily: 'monospace', fontSize: '10.5px' }}>₹ {taxableTotal.toFixed(2)}</span>
+          {/* Left side: Tax Breakdown & Adjustments (61%) */}
+          <div style={{
+            width: '61%',
+            borderRight: BORDER_MAJOR,
+            display: 'flex',
+            flexDirection: 'column',
+            boxSizing: 'border-box',
+          }}>
+            {/* Sub-row 1: Taxable + CGST + SGST (height: 5.5mm) */}
+            <div style={{
+              height: mm(5.5),
+              borderBottom: BORDER_INNER,
+              display: 'flex',
+              boxSizing: 'border-box',
+            }}>
+              <div style={{
+                width: '33.33%',
+                borderRight: BORDER_INNER,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: `0 ${mm(1.5)}`,
+                boxSizing: 'border-box',
+              }}>
+                <span style={{ fontSize: '8.5px', fontWeight: 'bold', textTransform: 'uppercase' }}>Taxable</span>
+                <span style={{ fontWeight: 'bold', fontFamily: 'monospace', fontSize: '9.5px' }}>₹ {taxableTotal.toFixed(2)}</span>
+              </div>
+              <div style={{
+                width: '33.33%',
+                borderRight: BORDER_INNER,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: `0 ${mm(1.5)}`,
+                boxSizing: 'border-box',
+              }}>
+                <span style={{ fontSize: '8.5px', fontWeight: 'bold', textTransform: 'uppercase' }}>CGST</span>
+                <span style={{ fontWeight: 'bold', fontFamily: 'monospace', fontSize: '9.5px' }}>₹ {cgstTotal.toFixed(2)}</span>
+              </div>
+              <div style={{
+                width: '33.34%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: `0 ${mm(1.5)}`,
+                boxSizing: 'border-box',
+              }}>
+                <span style={{ fontSize: '8.5px', fontWeight: 'bold', textTransform: 'uppercase' }}>SGST</span>
+                <span style={{ fontWeight: 'bold', fontFamily: 'monospace', fontSize: '9.5px' }}>₹ {sgstTotal.toFixed(2)}</span>
+              </div>
+            </div>
+
+            {/* Sub-row 2: Adjustments breakdown (height: 6mm) */}
+            <div style={{
+              height: mm(6),
+              display: 'flex',
+              alignItems: 'center',
+              padding: `0 ${mm(1.5)}`,
+              gap: mm(2),
+              overflow: 'hidden',
+              boxSizing: 'border-box',
+              fontSize: '9px',
+            }}>
+              <span style={{ fontWeight: 'bold', textTransform: 'uppercase', fontSize: '8.2px', color: '#222' }}>
+                Adjustments:
+              </span>
+              <div style={{ display: 'flex', gap: mm(2), flexWrap: 'nowrap', overflow: 'hidden', alignItems: 'center' }}>
+                {adjustments.map((adj, i) => {
+                  const isAdd = adj.type === 'ADD';
+                  const sign = isAdd ? '+' : '-';
+                  const amt = Number(adj.amount || 0).toFixed(2);
+                  return (
+                    <span 
+                      key={adj.id || i}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: mm(0.5),
+                        fontWeight: 'bold',
+                        fontSize: '8.8px',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      <span>{adj.reason || 'Adjustment'}</span>
+                      <span style={{ fontFamily: 'monospace', fontSize: '9.2px' }}>
+                        ({sign}₹{amt})
+                      </span>
+                      {i < adjustments.length - 1 && <span style={{ color: '#888', marginLeft: mm(1) }}>|</span>}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Right side: Net Total (39%) */}
+          <div style={{
+            width: '39%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: `0 ${mm(3)}`,
+            boxSizing: 'border-box',
+          }}>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <span style={{ fontWeight: 900, fontSize: '12px', textTransform: 'uppercase', lineHeight: 1.1 }}>Net total</span>
+              <span style={{ fontSize: '8px', color: '#555', fontWeight: 'bold' }}>(Incl. Adjustments)</span>
+            </div>
+            <span style={{ fontWeight: 900, fontFamily: 'monospace', fontSize: '15px' }}>₹ {netTotal.toFixed(2)}</span>
+          </div>
         </div>
-        {/* CGST (14%) */}
+      ) : (
         <div style={{
-          width: '14%',
-          borderRight: BORDER_INNER,
+          height: mm(currentHTotals),
+          borderTop: BORDER_MAJOR,
+          borderBottom: BORDER_MAJOR,
           display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: `0 ${mm(1.5)}`,
           boxSizing: 'border-box',
         }}>
-          <span style={{ fontSize: '9.2px', fontWeight: 'bold', textTransform: 'uppercase' }}>CGST</span>
-          <span style={{ fontWeight: 'bold', fontFamily: 'monospace', fontSize: '10.5px' }}>₹ {cgstTotal.toFixed(2)}</span>
+          {/* Taxable (20%) */}
+          <div style={{
+            width: '20%',
+            borderRight: BORDER_INNER,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: `0 ${mm(1.5)}`,
+            boxSizing: 'border-box',
+          }}>
+            <span style={{ fontSize: '9.2px', fontWeight: 'bold', textTransform: 'uppercase' }}>Taxable</span>
+            <span style={{ fontWeight: 'bold', fontFamily: 'monospace', fontSize: '10.5px' }}>₹ {taxableTotal.toFixed(2)}</span>
+          </div>
+          {/* CGST (14%) */}
+          <div style={{
+            width: '14%',
+            borderRight: BORDER_INNER,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: `0 ${mm(1.5)}`,
+            boxSizing: 'border-box',
+          }}>
+            <span style={{ fontSize: '9.2px', fontWeight: 'bold', textTransform: 'uppercase' }}>CGST</span>
+            <span style={{ fontWeight: 'bold', fontFamily: 'monospace', fontSize: '10.5px' }}>₹ {cgstTotal.toFixed(2)}</span>
+          </div>
+          {/* SGST (27%) */}
+          <div style={{
+            width: '27%',
+            borderRight: BORDER_INNER,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: `0 ${mm(1.5)}`,
+            boxSizing: 'border-box',
+          }}>
+            <span style={{ fontSize: '9.2px', fontWeight: 'bold', textTransform: 'uppercase' }}>SGST</span>
+            <span style={{ fontWeight: 'bold', fontFamily: 'monospace', fontSize: '10.5px' }}>₹ {sgstTotal.toFixed(2)}</span>
+          </div>
+          {/* Net Total (39%) */}
+          <div style={{
+            width: '39%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: `0 ${mm(3)}`,
+            boxSizing: 'border-box',
+          }}>
+            <span style={{ fontWeight: 900, fontSize: '12px', textTransform: 'uppercase' }}>Net total</span>
+            <span style={{ fontWeight: 900, fontFamily: 'monospace', fontSize: '15px' }}>₹ {netTotal.toFixed(2)}</span>
+          </div>
         </div>
-        {/* SGST (27%) */}
-        <div style={{
-          width: '27%',
-          borderRight: BORDER_INNER,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: `0 ${mm(1.5)}`,
-          boxSizing: 'border-box',
-        }}>
-          <span style={{ fontSize: '9.2px', fontWeight: 'bold', textTransform: 'uppercase' }}>SGST</span>
-          <span style={{ fontWeight: 'bold', fontFamily: 'monospace', fontSize: '10.5px' }}>₹ {sgstTotal.toFixed(2)}</span>
-        </div>
-        {/* Net Total (39%) */}
-        <div style={{
-          width: '39%',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: `0 ${mm(3)}`,
-          boxSizing: 'border-box',
-        }}>
-          <span style={{ fontWeight: 900, fontSize: '12px', textTransform: 'uppercase' }}>Net total</span>
-          <span style={{ fontWeight: 900, fontFamily: 'monospace', fontSize: '15px' }}>₹ {netTotal.toFixed(2)}</span>
-        </div>
-      </div>
+      )}
 
       {/* ════════════════════════════════════════════════════════
           5. BOTTOM SECTION – 29 mm

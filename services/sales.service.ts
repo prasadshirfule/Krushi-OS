@@ -64,7 +64,32 @@ export function normalizeSale(sale: any) {
     };
   });
 
-  const rawAdjustments = Array.isArray(sale.adjustments) ? sale.adjustments : [];
+  // Extract adjustments from sale.adjustments or serialized notes
+  let rawAdjustments = Array.isArray(sale.adjustments) ? sale.adjustments : [];
+  let userNotes = sale.notes || '';
+
+  if (rawAdjustments.length === 0 && sale.notes && typeof sale.notes === 'string') {
+    try {
+      const trimmed = sale.notes.trim();
+      if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed.adjustments)) {
+          rawAdjustments = parsed.adjustments;
+          userNotes = parsed.userNote || parsed.notes || '';
+        }
+      } else if (trimmed.includes('__ADJUSTMENTS__:')) {
+        const parts = trimmed.split('__ADJUSTMENTS__:');
+        userNotes = parts[0].trim();
+        const parsed = JSON.parse(parts[1]);
+        if (Array.isArray(parsed)) {
+          rawAdjustments = parsed;
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
+
   const totalAdditions = rawAdjustments.filter((a: any) => a.type === 'ADD').reduce((sum: number, a: any) => sum + (Number(a.amount) || 0), 0);
   const totalDeductions = rawAdjustments.filter((a: any) => a.type === 'DEDUCT').reduce((sum: number, a: any) => sum + (Number(a.amount) || 0), 0);
 
@@ -88,6 +113,11 @@ export function normalizeSale(sale: any) {
 
   return {
     ...sale,
+    adjustments: rawAdjustments,
+    notes: userNotes,
+    raw_notes: sale.notes,
+    total_additions: totalAdditions,
+    total_deductions: totalDeductions,
     grand_total: effectiveTotal,
     total_amount: effectiveTotal,
     totalAmount: effectiveTotal,
@@ -250,12 +280,6 @@ export async function completeSale(shopId: string, data: any, userId: string) {
     };
   });
 
-  // Clean payments
-  const cleanPayments = (data.payments || []).map((p: any) => ({
-    method: p.method,
-    amount: Number(p.amount) || 0
-  }));
-
   // Pre-calculate verified GST-inclusive totals
   let verifiedSubtotal = 0;
   let verifiedTotalTax = 0;
@@ -283,13 +307,31 @@ export async function completeSale(shopId: string, data: any, userId: string) {
   const totalDeductions = rawAdjustments.filter((a: any) => a.type === 'DEDUCT').reduce((sum: number, a: any) => sum + (Number(a.amount) || 0), 0);
   const verifiedGrandTotal = Math.max(0, verifiedProductsTotal + totalAdditions - totalDeductions);
 
+  // Clean payments - ensure full payment amount reflects final total including adjustments if not credit
+  const cleanPayments = (data.payments || []).map((p: any) => {
+    const isCreditPayment = String(p.method).toUpperCase() === 'CREDIT';
+    return {
+      method: p.method,
+      amount: isCreditPayment ? (Number(p.amount) || 0) : verifiedGrandTotal
+    };
+  });
+
+  // Format notes to include adjustments metadata so it persists in Supabase
+  let notesPayload = data.notes || null;
+  if (rawAdjustments.length > 0) {
+    notesPayload = JSON.stringify({
+      userNote: data.notes || null,
+      adjustments: rawAdjustments,
+    });
+  }
+
   const { data: saleRes, error } = await supabase.rpc('process_sale', {
     p_shop_id: shopId,
     p_user_id: userId,
     p_customer_id: realCustomerId,
     p_items: cleanItems,
     p_payments: cleanPayments,
-    p_notes: data.notes || null,
+    p_notes: notesPayload,
     p_idempotency_key: data.idempotency_key || null
   });
 
@@ -301,7 +343,7 @@ export async function completeSale(shopId: string, data: any, userId: string) {
   const realSaleId = saleRes?.sale_id || saleRes?.id;
   const invoiceNum = saleRes?.invoice_number || saleRes?.invoiceNumber;
 
-  // Post-sale sync to ensure stored database record strictly matches GST-inclusive accounting
+  // Post-sale sync to ensure stored database record strictly matches GST-inclusive accounting and adjustments
   if (realSaleId) {
     try {
       await supabase
@@ -311,8 +353,32 @@ export async function completeSale(shopId: string, data: any, userId: string) {
           tax_amount: verifiedTotalTax,
           discount_amount: verifiedTotalDiscount,
           total_amount: verifiedGrandTotal,
+          notes: notesPayload,
         })
         .eq('id', realSaleId);
+
+      // Sync customer ledger if registered customer and adjustment modified the grand total
+      if (realCustomerId && verifiedGrandTotal !== verifiedProductsTotal) {
+        const netAdjustment = totalAdditions - totalDeductions;
+        await supabase
+          .from('customer_ledger')
+          .update({ debit: verifiedGrandTotal })
+          .eq('reference_id', realSaleId)
+          .eq('reference_type', 'SALE');
+
+        const { data: custRow } = await supabase
+          .from('customers')
+          .select('balance')
+          .eq('id', realCustomerId)
+          .single();
+
+        if (custRow) {
+          await supabase
+            .from('customers')
+            .update({ balance: (Number(custRow.balance) || 0) + netAdjustment })
+            .eq('id', realCustomerId);
+        }
+      }
 
       const { data: dbItems } = await supabase
         .from('sale_items')
@@ -355,9 +421,11 @@ export async function completeSale(shopId: string, data: any, userId: string) {
     saleId: realSaleId,
     invoice_number: invoiceNum,
     invoiceNumber: invoiceNum,
+    adjustments: rawAdjustments,
     total_amount: verifiedGrandTotal,
     grand_total: verifiedGrandTotal,
     payableAmount: verifiedGrandTotal,
+    subtotal: verifiedSubtotal,
   };
 }
 
