@@ -80,11 +80,11 @@ const FONT_BASE: React.CSSProperties = {
 const H_HEADER   = 19;
 const H_CUSTOMER = 19;
 const H_TBL_HEAD = 9;
-const H_TOTALS   = 10.5;
+const H_TOTALS   = 7.5;
 const H_BOTTOM   = 29;
 const H_FOOTER   = 4.5;
-// Table body gets the rest:
-const H_TBL_BODY = 142 - H_HEADER - H_CUSTOMER - H_TBL_HEAD - H_TOTALS - H_BOTTOM - H_FOOTER; // ≈ 51 mm
+// Table body gets the rest (expanded with saved totals height):
+const H_TBL_BODY = 142 - H_HEADER - H_CUSTOMER - H_TBL_HEAD - H_TOTALS - H_BOTTOM - H_FOOTER; // ≈ 54 mm
 
 /* ================================================================
    COMPONENT
@@ -663,7 +663,7 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
       </div>
 
       {/* ════════════════════════════════════════════════════════
-          4. TOTALS – 10.5 mm
+          4. TOTALS – 7.5 mm
           ════════════════════════════════════════════════════════ */}
       <div style={{
         height: mm(H_TOTALS),
@@ -677,39 +677,39 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
           width: '20%',
           borderRight: BORDER_INNER,
           display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center',
-          padding: `${mm(0.5)} ${mm(1.5)}`,
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: `0 ${mm(1.5)}`,
           boxSizing: 'border-box',
         }}>
-          <span style={{ fontSize: '7.5px', lineHeight: 1.2, textTransform: 'uppercase' }}>Taxable</span>
-          <span style={{ fontWeight: 'bold', fontFamily: 'monospace', fontSize: '9px' }}>₹ {taxableTotal.toFixed(2)}</span>
+          <span style={{ fontSize: '7.5px', fontWeight: 'bold', textTransform: 'uppercase' }}>Taxable</span>
+          <span style={{ fontWeight: 'bold', fontFamily: 'monospace', fontSize: '8.5px' }}>₹ {taxableTotal.toFixed(2)}</span>
         </div>
         {/* CGST (14%) */}
         <div style={{
           width: '14%',
           borderRight: BORDER_INNER,
           display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center',
-          padding: `${mm(0.5)} ${mm(1.5)}`,
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: `0 ${mm(1.5)}`,
           boxSizing: 'border-box',
         }}>
-          <span style={{ fontSize: '7.5px', lineHeight: 1.2, textTransform: 'uppercase' }}>CGST</span>
-          <span style={{ fontWeight: 'bold', fontFamily: 'monospace', fontSize: '9px' }}>₹ {cgstTotal.toFixed(2)}</span>
+          <span style={{ fontSize: '7.5px', fontWeight: 'bold', textTransform: 'uppercase' }}>CGST</span>
+          <span style={{ fontWeight: 'bold', fontFamily: 'monospace', fontSize: '8.5px' }}>₹ {cgstTotal.toFixed(2)}</span>
         </div>
         {/* SGST (27%) */}
         <div style={{
           width: '27%',
           borderRight: BORDER_INNER,
           display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center',
-          padding: `${mm(0.5)} ${mm(1.5)}`,
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: `0 ${mm(1.5)}`,
           boxSizing: 'border-box',
         }}>
-          <span style={{ fontSize: '7.5px', lineHeight: 1.2, textTransform: 'uppercase' }}>SGST</span>
-          <span style={{ fontWeight: 'bold', fontFamily: 'monospace', fontSize: '9px' }}>₹ {sgstTotal.toFixed(2)}</span>
+          <span style={{ fontSize: '7.5px', fontWeight: 'bold', textTransform: 'uppercase' }}>SGST</span>
+          <span style={{ fontWeight: 'bold', fontFamily: 'monospace', fontSize: '8.5px' }}>₹ {sgstTotal.toFixed(2)}</span>
         </div>
         {/* Net Total (39%) */}
         <div style={{
@@ -720,8 +720,8 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
           padding: `0 ${mm(3)}`,
           boxSizing: 'border-box',
         }}>
-          <span style={{ fontWeight: 'bold', fontSize: '11px' }}>Net total</span>
-          <span style={{ fontWeight: 900, fontFamily: 'monospace', fontSize: '13px' }}>₹ {netTotal.toFixed(2)}</span>
+          <span style={{ fontWeight: 'bold', fontSize: '10.5px' }}>Net total</span>
+          <span style={{ fontWeight: 900, fontFamily: 'monospace', fontSize: '12.5px' }}>₹ {netTotal.toFixed(2)}</span>
         </div>
       </div>
 
