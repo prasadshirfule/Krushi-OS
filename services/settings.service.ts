@@ -128,6 +128,7 @@ export async function getShopProfile(shopId: string): Promise<ShopDetails> {
       registrationNumber: extended.registrationNumber || '',
       authorizedSignatory: extended.authorizedSignatory || shop?.name || settingRow?.shop_name || '',
       upiId: (extended.upiId || '').trim(),
+      defaultBillFormat: (extended.defaultBillFormat === 'THERMAL_80MM' || (extended.defaultBillFormat as any) === '80mm' ? 'THERMAL_80MM' : 'A5'),
       bankName: extended.bankName || '',
       accountName: extended.accountName || extended.ownerName || '',
       accountNumber: extended.accountNumber || '',

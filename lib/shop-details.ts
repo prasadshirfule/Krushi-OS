@@ -18,6 +18,8 @@ export interface ShopDetails {
   logoBase64?: string;
   // UPI Details
   upiId?: string;
+  // Print Format Preference ('A5' or 'THERMAL_80MM')
+  defaultBillFormat?: 'A5' | 'THERMAL_80MM';
   // Owner Bank Details
   bankName?: string;
   accountName?: string;
@@ -46,6 +48,7 @@ export const DEFAULT_SHOP_DETAILS: ShopDetails = {
   authorizedSignatory: '',
   logoBase64: '',
   upiId: '',
+  defaultBillFormat: 'A5',
   bankName: '',
   accountName: '',
   accountNumber: '',
@@ -107,6 +110,17 @@ export function getSavedShopDetails(): ShopDetails {
     if (rawSettingsTax) {
       const parsed = JSON.parse(rawSettingsTax);
       if (parsed.gstin) merged.gstNumber = parsed.gstin;
+    }
+
+    // 4. Try krushi_settings_print (saved via /settings)
+    const rawSettingsPrint = localStorage.getItem('krushi_settings_print');
+    if (rawSettingsPrint) {
+      const parsed = JSON.parse(rawSettingsPrint);
+      if (parsed.format === '80mm' || parsed.format === 'THERMAL_80MM') {
+        merged.defaultBillFormat = 'THERMAL_80MM';
+      } else if (parsed.format === 'A5') {
+        merged.defaultBillFormat = 'A5';
+      }
     }
 
     return merged;

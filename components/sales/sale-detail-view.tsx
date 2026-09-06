@@ -5,12 +5,16 @@ import { Button } from '@/components/ui/button';
 import { ArrowLeft, Printer, RotateCcw, Download, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { 
-  ReferenceTaxInvoice, 
+  InvoiceRenderer, 
+  InvoicePrintFormat, 
   printInvoiceDirectly, 
-  downloadInvoiceAsPDF 
-} from '@/components/invoice/reference-tax-invoice';
+  downloadInvoicePDF 
+} from '@/components/invoice/invoice-renderer';
+import { InvoiceFormatSelector } from '@/components/invoice/invoice-format-selector';
 import { isClientDemoMode, getDemoSalesClient, cancelDemoSaleClient } from '@/lib/client-demo-store';
 import { cancelSaleAction } from '@/actions/sales';
+import { getShopProfileAction } from '@/actions/settings';
+import { getSavedShopDetails } from '@/lib/shop-details';
 import SaleReturnDialog from '@/components/billing/sale-return-dialog';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
@@ -28,6 +32,22 @@ export function SaleDetailView({ initialSale, saleId, sale: directSale }: SaleDe
   const [isReturnOpen, setIsReturnOpen] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
 
+  // Temporary format view state for this invoice session (defaults to shop saved default)
+  const [viewFormat, setViewFormat] = useState<InvoicePrintFormat>('A5');
+
+  useEffect(() => {
+    const saved = getSavedShopDetails();
+    if (saved?.defaultBillFormat) {
+      setViewFormat(saved.defaultBillFormat);
+    }
+
+    getShopProfileAction().then((res) => {
+      if (res.success && res.data?.defaultBillFormat) {
+        setViewFormat(res.data.defaultBillFormat);
+      }
+    }).catch(() => {});
+  }, []);
+
   useEffect(() => {
     if (!currentSale && isClientDemoMode() && saleId) {
       const demoSales = getDemoSalesClient();
@@ -41,14 +61,16 @@ export function SaleDetailView({ initialSale, saleId, sale: directSale }: SaleDe
   const activeSale = currentSale || { id: saleId || '1' };
   const invNo = activeSale.invoice_number || activeSale.invoiceNumber || (activeSale.id ? (activeSale.id.startsWith('KOS-') ? activeSale.id : `KOS-${activeSale.id.substring(0, 8).toUpperCase()}`) : '1');
 
+  const containerId = viewFormat === 'THERMAL_80MM' ? 'printable-thermal-receipt' : 'printable-tax-invoice';
+
   const handlePrint = () => {
-    printInvoiceDirectly('printable-tax-invoice');
+    printInvoiceDirectly(containerId, viewFormat);
   };
 
   const handleDownload = async () => {
     setIsDownloading(true);
     try {
-      await downloadInvoiceAsPDF('printable-tax-invoice', `Invoice-${invNo}.pdf`);
+      await downloadInvoicePDF(containerId, `Invoice-${invNo}.pdf`, viewFormat);
     } finally {
       setIsDownloading(false);
     }
@@ -89,13 +111,13 @@ export function SaleDetailView({ initialSale, saleId, sale: directSale }: SaleDe
   return (
     <div className="bg-muted/30 min-h-screen pb-12 print:bg-white print:p-0">
       {/* ─── ACTION BAR (NO PRINT) ─── */}
-      <div className="max-w-[210mm] mx-auto p-4 no-print flex justify-between items-center gap-3 flex-wrap bg-background shadow-sm border-b mb-6 rounded-b-xl">
+      <div className="max-w-[210mm] mx-auto p-4 no-print flex justify-between items-center gap-3 flex-wrap bg-background shadow-sm border-b mb-4 rounded-b-xl">
         <Link href="/sales">
           <Button variant="outline" className="border-border shadow-sm">
             <ArrowLeft className="h-4 w-4 mr-2" /> Back to Sales
           </Button>
         </Link>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {activeSale?.status !== 'CANCELLED' && activeSale?.status !== 'REFUNDED' && (
             <>
               <Button 
@@ -145,9 +167,29 @@ export function SaleDetailView({ initialSale, saleId, sale: directSale }: SaleDe
         </div>
       </div>
 
-      {/* ─── A4 PHYSICAL INVOICE (SCREEN PREVIEW & PRINT) ─── */}
+      {/* ─── FORMAT TOGGLE (TEMPORARY VIEW SWITCHER) ─── */}
+      <div className="max-w-[210mm] mx-auto mb-4 no-print px-4">
+        <div className="bg-background p-3.5 rounded-lg border shadow-sm flex items-center justify-between gap-4 flex-wrap">
+          <div className="text-xs font-medium text-muted-foreground">
+            Switch layout to preview & print in <strong className="text-foreground">A5</strong> or <strong className="text-foreground">80mm Thermal</strong>:
+          </div>
+          <div className="w-full sm:w-auto">
+            <InvoiceFormatSelector
+              value={viewFormat}
+              onChange={(newFmt) => setViewFormat(newFmt)}
+              showDescriptions={false}
+              className="space-y-1"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* ─── PHYSICAL INVOICE RENDERER (SCREEN PREVIEW & PRINT) ─── */}
       <div className="max-w-[210mm] mx-auto flex justify-center print:m-0 print:p-0 print:w-full">
-        <ReferenceTaxInvoice sale={activeSale} />
+        <InvoiceRenderer 
+          format={viewFormat}
+          sale={activeSale} 
+        />
       </div>
 
       {/* ─── SALE RETURN DIALOG ─── */}

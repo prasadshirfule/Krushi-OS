@@ -15,6 +15,8 @@ import { getShopProfileAction, updateShopProfileAction } from "@/actions/setting
 import { ShopDetails, DEFAULT_SHOP_DETAILS } from "@/lib/shop-details";
 import { isValidUpiId, normalizeUpiId } from "@/lib/validations";
 import { createClient } from "@/lib/supabase/client";
+import { InvoiceFormatSelector } from "@/components/invoice/invoice-format-selector";
+import { InvoicePrintFormat } from "@/components/invoice/invoice-renderer";
 
 const DEFAULTS = {
   invoice: {
@@ -172,18 +174,36 @@ export default function SettingsPage() {
     }
   };
 
-  const handleSave = (section: string) => {
+  const handleSave = async (section: string) => {
     setIsSaving(true);
     try {
       switch (section) {
-        case 'Invoice': saveSetting('invoice', invoiceSettings); break;
-        case 'Print Layout': saveSetting('print', printSettings); break;
-        case 'GST & Tax': saveSetting('tax', taxSettings); break;
-        case 'Account': saveSetting('account', accountSettings); break;
+        case 'Invoice':
+          saveSetting('invoice', invoiceSettings);
+          // Save defaultBillFormat and invoice terms to Supabase
+          await updateShopProfileAction({
+            defaultBillFormat: shopProfile.defaultBillFormat || 'A5',
+            invoiceTerms: invoiceSettings.terms,
+          });
+          break;
+        case 'Print Layout':
+          saveSetting('print', printSettings);
+          // Save defaultBillFormat to Supabase
+          await updateShopProfileAction({
+            defaultBillFormat: shopProfile.defaultBillFormat || 'A5',
+          });
+          break;
+        case 'GST & Tax':
+          saveSetting('tax', taxSettings);
+          break;
+        case 'Account':
+          saveSetting('account', accountSettings);
+          break;
       }
-      toast.success(`${section} settings saved successfully!`);
-    } catch {
-      toast.error(`Failed to save ${section} settings`);
+      toast.success(`${section} settings saved successfully in Supabase!`);
+    } catch (err: any) {
+      console.error(`Failed to save ${section} settings:`, err);
+      toast.error(`Failed to save ${section} settings: ${err?.message || ''}`);
     } finally {
       setIsSaving(false);
     }
@@ -618,6 +638,22 @@ export default function SettingsPage() {
               />
             </div>
 
+            <div className="pt-4 border-t space-y-3">
+              <div className="space-y-1">
+                <Label className="text-base font-semibold text-foreground">Default Bill Print Format</Label>
+                <p className="text-xs text-muted-foreground">
+                  Saved default for your authenticated shop. During billing, you can still temporarily select a different format for any individual bill.
+                </p>
+              </div>
+              <InvoiceFormatSelector
+                value={shopProfile.defaultBillFormat || 'A5'}
+                onChange={(newFormat) => {
+                  setShopProfile((prev) => ({ ...prev, defaultBillFormat: newFormat }));
+                  setPrintSettings((prev) => ({ ...prev, format: newFormat === 'THERMAL_80MM' ? '80mm' : 'A5' }));
+                }}
+              />
+            </div>
+
             <Button className="bg-green-600 hover:bg-green-700 font-semibold" onClick={() => handleSave("Invoice")} disabled={isSaving}>
               <Save className="h-4 w-4 mr-2" /> Save Invoice Settings
             </Button>
@@ -631,25 +667,18 @@ export default function SettingsPage() {
               <Printer className="h-5 w-5" /> Thermal Printer & Bill Layout
             </h2>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Paper Size Selection</Label>
-                <Select
-                  value={printSettings.format}
-                  onValueChange={(val) => setPrintSettings({ ...printSettings, format: val })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select paper size" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="A5">A5 Landscape (Tax Invoice)</SelectItem>
-                    <SelectItem value="A4">A4 Full Sheet</SelectItem>
-                    <SelectItem value="80mm">80mm Thermal Receipt (POS)</SelectItem>
-                    <SelectItem value="58mm">58mm Mini Thermal Receipt</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="space-y-3">
+              <Label className="text-base font-semibold text-foreground">Default Bill Print Format</Label>
+              <InvoiceFormatSelector
+                value={shopProfile.defaultBillFormat || (printSettings.format === '80mm' ? 'THERMAL_80MM' : 'A5')}
+                onChange={(newFormat) => {
+                  setShopProfile((prev) => ({ ...prev, defaultBillFormat: newFormat }));
+                  setPrintSettings((prev) => ({ ...prev, format: newFormat === 'THERMAL_80MM' ? '80mm' : 'A5' }));
+                }}
+              />
+            </div>
 
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Default Print Copies</Label>
                 <Select

@@ -6,15 +6,18 @@ import { Button } from '@/components/ui/button';
 import { formatCurrency } from '@/lib/utils';
 import { CheckCircle2, Printer, FileText, PlusCircle, Loader2 } from 'lucide-react';
 import Link from 'next/link';
-import { generateInvoicePDF } from '@/lib/invoice';
 import { isClientDemoMode } from '@/lib/client-demo-store';
 import { getSaleAction } from '@/actions/sales';
+import { getShopProfileAction } from '@/actions/settings';
+import { getSavedShopDetails } from '@/lib/shop-details';
 import { toast } from 'sonner';
 import { 
-  ReferenceTaxInvoice, 
+  InvoiceRenderer, 
+  InvoicePrintFormat, 
   printInvoiceDirectly, 
-  downloadInvoiceAsPDF 
-} from '@/components/invoice/reference-tax-invoice';
+  downloadInvoicePDF 
+} from '@/components/invoice/invoice-renderer';
+import { InvoiceFormatSelector } from '@/components/invoice/invoice-format-selector';
 
 interface BillSuccessDialogProps {
   saleId: string;
@@ -28,7 +31,22 @@ export default function BillSuccessDialog({ saleId, invoiceNumber, totals, onClo
   const [isGenerating, setIsGenerating] = useState(false);
   const [saleData, setSaleData] = useState<any>(null);
 
+  // Temporary print format state for THIS current bill only (NOT saved to Supabase or localStorage)
+  const [selectedFormat, setSelectedFormat] = useState<InvoicePrintFormat>('A5');
+
   useEffect(() => {
+    // 1. Initialise temporary format with shop's saved default preference
+    const saved = getSavedShopDetails();
+    if (saved?.defaultBillFormat) {
+      setSelectedFormat(saved.defaultBillFormat);
+    }
+
+    getShopProfileAction().then((res) => {
+      if (res.success && res.data?.defaultBillFormat) {
+        setSelectedFormat(res.data.defaultBillFormat);
+      }
+    }).catch(() => {});
+
     // Auto-focus New Bill button
     setTimeout(() => {
       newBillBtnRef.current?.focus();
@@ -56,7 +74,7 @@ export default function BillSuccessDialog({ saleId, invoiceNumber, totals, onClo
     loadSale();
   }, [saleId]);
 
-  const handlePrint = async (type: string) => {
+  const handlePrint = async (type: 'print' | 'pdf') => {
     setIsGenerating(true);
     try {
       let currentSale = saleData;
@@ -90,16 +108,18 @@ export default function BillSuccessDialog({ saleId, invoiceNumber, totals, onClo
 
       if (type === 'pdf') {
         if (invoiceElement) {
-          await downloadInvoiceAsPDF('bill-success-invoice', `Invoice-${currentSale.invoice_number || displayInv}.pdf`);
+          await downloadInvoicePDF('bill-success-invoice', `Invoice-${currentSale.invoice_number || displayInv}.pdf`, selectedFormat);
         } else {
+          const { generateInvoicePDF } = await import('@/lib/invoice');
           const pdf = generateInvoicePDF(currentSale);
           pdf.save(`${currentSale.invoice_number || displayInv}.pdf`);
         }
       } else {
         // Direct print
         if (invoiceElement) {
-          printInvoiceDirectly('bill-success-invoice');
+          printInvoiceDirectly('bill-success-invoice', selectedFormat);
         } else {
+          const { generateInvoicePDF } = await import('@/lib/invoice');
           const pdf = generateInvoicePDF(currentSale);
           const blobUrl = pdf.output('bloburl');
           window.open(blobUrl, '_blank');
@@ -118,6 +138,17 @@ export default function BillSuccessDialog({ saleId, invoiceNumber, totals, onClo
   const rawPayment = saleData?.payment_method || saleData?.payment_mode || totals?.payment_method || saleData?.payments?.[0]?.method || 'Cash';
   const displayPayment = String(rawPayment).toUpperCase() === 'UPI' ? 'UPI' : String(rawPayment).toUpperCase();
 
+  const preparedSale = saleData || {
+    id: saleId,
+    invoice_number: displayInv,
+    total_amount: displayTotal,
+    grand_total: displayTotal,
+    adjustments: totals?.adjustments || [],
+    customer_name: totals?.customer_name,
+    customer_phone: totals?.customer_phone,
+    payment_method: displayPayment,
+  };
+
   return (
     <>
       {/* Hidden invoice container in DOM for instant printing & canvas PDF capture */}
@@ -126,15 +157,18 @@ export default function BillSuccessDialog({ saleId, invoiceNumber, totals, onClo
         aria-hidden="true"
       >
         <div id="bill-success-invoice">
-          <ReferenceTaxInvoice sale={saleData || { id: saleId, invoice_number: displayInv, total_amount: displayTotal, grand_total: displayTotal, adjustments: totals?.adjustments || [] }} />
+          <InvoiceRenderer 
+            format={selectedFormat} 
+            sale={preparedSale} 
+          />
         </div>
       </div>
 
       <Dialog open={true} onOpenChange={onClose}>
         <DialogContent className="sm:max-w-md text-center">
           <DialogHeader>
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100 mb-4">
-              <CheckCircle2 className="h-10 w-10 text-green-600" />
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-green-100 mb-3">
+              <CheckCircle2 className="h-9 w-9 text-green-600" />
             </div>
             <DialogTitle className="text-2xl font-bold text-center">Sale Completed Successfully!</DialogTitle>
             <DialogDescription className="text-center font-mono font-bold text-foreground text-sm">
@@ -142,42 +176,61 @@ export default function BillSuccessDialog({ saleId, invoiceNumber, totals, onClo
             </DialogDescription>
           </DialogHeader>
 
-          <div className="bg-muted p-4 rounded-md my-4 space-y-2">
+          {/* Amount & Payment Info */}
+          <div className="bg-muted/80 p-3.5 rounded-lg my-2 space-y-1.5 border">
             <div>
-              <div className="text-sm text-muted-foreground mb-1">Total Amount</div>
-              <div className="text-3xl font-bold text-primary">{formatCurrency(displayTotal)}</div>
+              <div className="text-xs text-muted-foreground">Total Amount</div>
+              <div className="text-2xl font-black text-primary">{formatCurrency(displayTotal)}</div>
             </div>
-            <div className="pt-2 border-t border-border flex items-center justify-between text-xs">
-              <span className="text-muted-foreground font-semibold">Payment:</span>
+            <div className="pt-1.5 border-t border-border flex items-center justify-between text-xs">
+              <span className="text-muted-foreground font-semibold">Payment Method:</span>
               <span className="font-bold text-foreground uppercase tracking-wider">{displayPayment}</span>
             </div>
           </div>
 
+          {/* Print Format Selector (Temporary Choice for this Bill) */}
+          <div className="text-left bg-card p-3 rounded-lg border my-2">
+            <InvoiceFormatSelector
+              value={selectedFormat}
+              onChange={(newFormat) => setSelectedFormat(newFormat)}
+            />
+          </div>
+
+          {/* Print / Download Action Buttons */}
           <div className="grid grid-cols-2 gap-3 mb-2">
-            <Button variant="outline" onClick={() => handlePrint('a4')} className="w-full" disabled={isGenerating}>
+            <Button 
+              onClick={() => handlePrint('print')} 
+              className="w-full bg-primary hover:bg-primary/90 font-bold" 
+              disabled={isGenerating}
+            >
               {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Printer className="mr-2 h-4 w-4" />} Print Bill
             </Button>
-            <Button variant="outline" onClick={() => handlePrint('pdf')} className="w-full" disabled={isGenerating}>
+            <Button 
+              variant="outline" 
+              onClick={() => handlePrint('pdf')} 
+              className="w-full font-bold" 
+              disabled={isGenerating}
+            >
               {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />} Download PDF
             </Button>
           </div>
 
-          <DialogFooter className="flex-col sm:flex-col gap-2 mt-4">
+          <DialogFooter className="flex-col sm:flex-col gap-2 mt-3">
             <Button 
               ref={newBillBtnRef}
               onClick={onClose} 
-              className="w-full h-12 text-lg bg-green-600 hover:bg-green-700"
+              className="w-full h-11 text-base bg-green-600 hover:bg-green-700 font-bold"
             >
               <PlusCircle className="mr-2 h-5 w-5" /> New Bill (Enter)
             </Button>
             <div className="grid grid-cols-2 gap-2 w-full">
               <Link href={`/sales/${saleId}`} className="w-full">
-                <Button variant="outline" className="w-full">
+                <Button variant="outline" size="sm" className="w-full">
                   View Invoice
                 </Button>
               </Link>
               <Link href="/sales" className="w-full">
-                <Button variant="outline" className="w-full border-primary/50 text-primary hover:bg-primary/10">
+                <Button variant="outline" size="sm" className="w-full border-primary/50 text-primary hover:bg-primary/10">
                   Sales History
                 </Button>
               </Link>
