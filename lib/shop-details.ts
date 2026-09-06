@@ -44,7 +44,7 @@ export const DEFAULT_SHOP_DETAILS: ShopDetails = {
   gstNumber: '',
   licenseNumber: '',
   registrationNumber: '',
-  invoiceTerms: '1. Goods once sold will not be taken back without valid batch receipt.\n2. Interest @ 18% p.a. will be charged if not paid within 30 days.',
+  invoiceTerms: '',
   authorizedSignatory: '',
   logoBase64: '',
   upiId: '',

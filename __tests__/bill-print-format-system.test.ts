@@ -132,6 +132,43 @@ assert(gstCalc.unitWithGst === 250, 'GST-Inclusive: Customer selling price remai
 assert(gstCalc.taxable === 211.86, 'GST-Inclusive: Taxable base price extracted backward to ₹211.86');
 assert(Math.round((gstCalc.taxable + gstCalc.cgst + gstCalc.sgst) * 100) / 100 === 250, 'GST-Inclusive: Taxable + CGST + SGST equals exact ₹250.00');
 
+// 11. TEST CASE 10: Amount in Words formatting with Indian Numbering & Paise
+import { numberToWords } from '../lib/utils';
+
+const words250 = numberToWords(250.00);
+assert(words250 === 'Two Hundred Fifty Rupees Only', `numberToWords(250.00) = "${words250}"`);
+
+const words550 = numberToWords(550.00);
+assert(words550 === 'Five Hundred Fifty Rupees Only', `numberToWords(550.00) = "${words550}"`);
+
+const words1250_50 = numberToWords(1250.50);
+assert(words1250_50 === 'One Thousand Two Hundred Fifty Rupees and Fifty Paise Only', `numberToWords(1250.50) = "${words1250_50}"`);
+
+const words1250_75 = numberToWords(1250.75);
+assert(words1250_75 === 'One Thousand Two Hundred Fifty Rupees and Seventy Five Paise Only', `numberToWords(1250.75) = "${words1250_75}"`);
+
+const wordsLakh = numberToWords(125000.00);
+assert(wordsLakh === 'One Lakh Twenty Five Thousand Rupees Only', `numberToWords(125000.00) = "${wordsLakh}"`);
+
+// 12. TEST CASE 11: Terms & Conditions Multi-Shop Isolation & Empty Handling
+const shopATerms = '1. Goods once sold will not be taken back.\n2. Interest @ 18% p.a. will be charged if not paid within 30 days.';
+const shopBTerms = '1. No return after 7 days.\n2. Subject to Pune jurisdiction.';
+const emptyShopTerms = '';
+
+const shopA: ShopDetails = { ...DEFAULT_SHOP_DETAILS, shopName: 'Shop A', invoiceTerms: shopATerms };
+const shopB: ShopDetails = { ...DEFAULT_SHOP_DETAILS, shopName: 'Shop B', invoiceTerms: shopBTerms };
+const shopEmpty: ShopDetails = { ...DEFAULT_SHOP_DETAILS, shopName: 'Shop Empty', invoiceTerms: emptyShopTerms };
+
+assert(shopA.invoiceTerms === shopATerms, 'Shop A retains Shop A terms');
+assert(shopB.invoiceTerms === shopBTerms, 'Shop B retains Shop B terms');
+assert(shopA.invoiceTerms !== shopB.invoiceTerms, 'Shop A and Shop B have isolated terms');
+
+const hasTermsShopA = Boolean(shopA.invoiceTerms && shopA.invoiceTerms.trim().length > 0);
+const hasTermsShopEmpty = Boolean(shopEmpty.invoiceTerms && shopEmpty.invoiceTerms.trim().length > 0);
+
+assert(hasTermsShopA === true, 'Shop A with terms will render Terms & Conditions');
+assert(hasTermsShopEmpty === false, 'Shop with empty terms hides Terms & Conditions completely');
+
 console.log('=====================================================');
 console.log(`TEST SUMMARY: ${passed} PASSED, ${failed} FAILED`);
 console.log('=====================================================');

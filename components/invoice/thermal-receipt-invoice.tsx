@@ -9,6 +9,7 @@ import {
 } from '@/lib/shop-details';
 import { getDemoProductsClient } from '@/lib/client-demo-store';
 import { getShopProfileAction } from '@/actions/settings';
+import { numberToWords } from '@/lib/utils';
 import { formatProductNameWithSize } from '@/lib/validations';
 import { buildUpiUri, generateQrDataUrl } from '@/lib/upi';
 import { InvoiceItemData, InvoiceProps, formatInvoiceExpiry } from './reference-tax-invoice';
@@ -223,6 +224,10 @@ export function ThermalReceiptInvoice({ sale, shopDetails: customShopDetails, cu
 
   // Determine UPI QR amount: for full UPI = netTotal; for Partial Payment = ONLY UPI portion (if > 0)
   const upiQrAmount = isPartial ? partialUpi : (isUpi ? netTotal : 0);
+
+  const amountInWords = numberToWords(netTotal);
+  const cleanTerms = (shop.invoiceTerms || '').trim();
+  const hasTerms = cleanTerms.length > 0;
 
   useEffect(() => {
     if (upiQrAmount > 0 && shop.upiId) {
@@ -477,8 +482,21 @@ export function ThermalReceiptInvoice({ sale, shopDetails: customShopDetails, cu
             <span style={{ fontSize: '15px', fontWeight: 900, fontFamily: 'monospace' }}>₹{netTotal.toFixed(2)}</span>
           </div>
 
+          {/* Amount in Words */}
+          <div style={{ margin: '1.5mm 0 1.5mm 0', fontSize: '9.2px', lineHeight: 1.25 }}>
+            <div style={{ fontWeight: 800, textTransform: 'uppercase', fontSize: '8px', color: '#333' }}>
+              Amount in Words:
+            </div>
+            <div style={{ fontWeight: 800, fontStyle: 'italic', textTransform: 'capitalize', wordBreak: 'break-word', marginTop: '0.3mm' }}>
+              {amountInWords}
+            </div>
+          </div>
+
+          {/* Divider */}
+          <div style={{ borderTop: '0.5px dashed #000000', margin: '1.5mm 0' }} />
+
           {/* Payment Method & Partial Breakdown */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, marginTop: '1mm' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, marginTop: '0.5mm' }}>
             <span>Payment Mode:</span>
             <span style={{ textTransform: 'uppercase' }}>{paymentMode}</span>
           </div>
@@ -546,8 +564,20 @@ export function ThermalReceiptInvoice({ sale, shopDetails: customShopDetails, cu
           </div>
         )}
 
+        {/* ─── 5B. TERMS & CONDITIONS (Shown ONLY if saved in shop settings) ─── */}
+        {hasTerms && (
+          <div style={{ marginTop: '2.5mm', borderTop: '0.5px dashed #000000', paddingTop: '1.5mm', fontSize: '8px', lineHeight: 1.25, textAlign: 'left' }}>
+            <div style={{ fontWeight: 900, textTransform: 'uppercase', fontSize: '8px', marginBottom: '0.5mm' }}>
+              TERMS & CONDITIONS
+            </div>
+            <div style={{ whiteSpace: 'pre-line', wordBreak: 'break-word', color: '#111' }}>
+              {cleanTerms}
+            </div>
+          </div>
+        )}
+
         {/* ─── 6. RECEIPT FOOTER ─── */}
-        <div style={{ textAlign: 'center', marginTop: '3mm', fontSize: '9px', fontWeight: 600, lineHeight: 1.3 }}>
+        <div style={{ textAlign: 'center', marginTop: '2.5mm', fontSize: '9px', fontWeight: 600, lineHeight: 1.3 }}>
           <div style={{ borderTop: '1px dashed #000000', paddingTop: '2mm', marginBottom: '1mm' }}>
             *** THANK YOU! VISIT AGAIN ***
           </div>

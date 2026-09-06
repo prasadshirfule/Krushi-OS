@@ -344,8 +344,7 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
     }
   }, [upiQrAmount, shop.upiId, shop.shopName]);
 
-  let rawWords = numberToWords(Math.round(netTotal));
-  let cleanWords = `${rawWords} Rupees Only`.replace(/Rupees Only\s+Rupees Only/gi, 'Rupees Only').replace(/\s+/g, ' ').trim();
+  const cleanWords = numberToWords(netTotal);
 
   // Ledger calculation
   const amountPaid = isPartial 
@@ -356,9 +355,12 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
   const closingBalance = openingBal + drInvoice - amountPaid;
 
   /* ---------- dynamic heights for A5 single-page fit ---------- */
+  const cleanTerms = (shop.invoiceTerms || '').trim();
+  const hasTerms = cleanTerms.length > 0;
+  const H_TERMS = hasTerms ? 7.5 : 0;
   const hasAdjustments = adjustments.length > 0;
   const currentHTotals = hasAdjustments ? 11.5 : 7.5;
-  const currentHTblBody = 142 - H_HEADER - H_CUSTOMER - H_TBL_HEAD - currentHTotals - H_BOTTOM - H_FOOTER;
+  const currentHTblBody = 142 - H_HEADER - H_CUSTOMER - H_TBL_HEAD - currentHTotals - H_BOTTOM - H_TERMS - H_FOOTER;
 
   /* ---------- row count for table ---------- */
   const ROW_HEIGHT_MM = 8.5;
@@ -1231,6 +1233,31 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
           )}
         </div>
       </div>
+
+      {/* ════════════════════════════════════════════════════════
+          5E. TERMS & CONDITIONS – (Shown ONLY if configured in settings)
+          ════════════════════════════════════════════════════════ */}
+      {hasTerms && (
+        <div style={{
+          height: mm(H_TERMS),
+          borderBottom: BORDER_MAJOR,
+          padding: `${mm(0.5)} ${mm(2)}`,
+          boxSizing: 'border-box',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          fontSize: '7.8px',
+          lineHeight: 1.2,
+          overflow: 'hidden',
+        }}>
+          <div style={{ fontWeight: 'bold', textTransform: 'uppercase', fontSize: '8px', marginBottom: '0.2mm' }}>
+            TERMS & CONDITIONS:
+          </div>
+          <div style={{ whiteSpace: 'pre-line', overflow: 'hidden', textOverflow: 'ellipsis', color: '#111' }}>
+            {cleanTerms}
+          </div>
+        </div>
+      )}
 
       {/* ════════════════════════════════════════════════════════
           6. FOOTER – 4.5 mm

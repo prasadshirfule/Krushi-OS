@@ -10,7 +10,7 @@ const DEFAULT_SETTINGS: Record<string, any> = {
   shop_gst: '',
   invoice_prefix: 'KOS',
   default_gst_rate: 18,
-  invoice_terms: '1. Goods once sold will not be taken back without valid batch receipt.\n2. Interest @ 18% p.a. will be charged if not paid within 30 days.'
+  invoice_terms: ''
 };
 
 export async function getSettings(shopId: string) {
@@ -116,7 +116,7 @@ export async function getShopProfile(shopId: string): Promise<ShopDetails> {
       email: shop?.email || settingRow?.shop_email || extended.email || '',
       gstNumber: shop?.gst_number || settingRow?.shop_gst || extended.gstNumber || '',
       licenseNumber: extended.licenseNumber || settingRow?.shop_license || (shop?.license_info && !shop.license_info.startsWith('{') ? shop.license_info : '') || '',
-      invoiceTerms: shop?.terms_and_conditions || settingRow?.invoice_terms || extended.invoiceTerms || DEFAULT_SHOP_DETAILS.invoiceTerms,
+      invoiceTerms: shop?.terms_and_conditions !== undefined && shop?.terms_and_conditions !== null ? shop.terms_and_conditions : (settingRow?.invoice_terms || extended.invoiceTerms || ''),
       logoBase64: shop?.logo_url || settingRow?.logo_url || extended.logoBase64 || '',
       ownerName: extended.ownerName || '',
       village: extended.village || '',

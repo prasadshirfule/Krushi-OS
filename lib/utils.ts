@@ -29,33 +29,60 @@ export function generateId(): string {
   return crypto.randomUUID();
 }
 
-export function numberToWords(numInput: number): string {
-  const num = Math.floor(Math.abs(numInput || 0));
-  if (num === 0) return 'Zero Rupees Only';
+const ONES = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+const TENS = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
 
-  const a = ['', 'One ', 'Two ', 'Three ', 'Four ', 'Five ', 'Six ', 'Seven ', 'Eight ', 'Nine ', 'Ten ', 'Eleven ', 'Twelve ', 'Thirteen ', 'Fourteen ', 'Fifteen ', 'Sixteen ', 'Seventeen ', 'Eighteen ', 'Nineteen '];
-  const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+function convertUnderHundred(n: number): string {
+  if (n === 0) return '';
+  if (n < 20) return ONES[n];
+  const ten = Math.floor(n / 10);
+  const unit = n % 10;
+  return `${TENS[ten]}${unit > 0 ? ' ' + ONES[unit] : ''}`;
+}
 
+function convertIntegerToWords(num: number): string {
+  if (num === 0) return '';
   const numStr = num.toString();
-  if (numStr.length > 9) return `${formatCurrency(numInput)} Only`;
+  if (numStr.length > 9) return num.toLocaleString('en-IN');
 
   const n = ('000000000' + numStr).slice(-9).match(/^(\d{2})(\d{2})(\d{2})(\d{1})(\d{2})$/);
   if (!n) return '';
 
-  let str = '';
-  const n1 = parseInt(n[1], 10);
-  const n2 = parseInt(n[2], 10);
-  const n3 = parseInt(n[3], 10);
-  const n4 = parseInt(n[4], 10);
-  const n5 = parseInt(n[5], 10);
+  const crores = parseInt(n[1], 10);
+  const lakhs = parseInt(n[2], 10);
+  const thousands = parseInt(n[3], 10);
+  const hundreds = parseInt(n[4], 10);
+  const units = parseInt(n[5], 10);
 
-  str += (n1 !== 0) ? (a[n1] || b[parseInt(n[1][0], 10)] + ' ' + a[parseInt(n[1][1], 10)]) + 'Crore ' : '';
-  str += (n2 !== 0) ? (a[n2] || b[parseInt(n[2][0], 10)] + ' ' + a[parseInt(n[2][1], 10)]) + 'Lakh ' : '';
-  str += (n3 !== 0) ? (a[n3] || b[parseInt(n[3][0], 10)] + ' ' + a[parseInt(n[3][1], 10)]) + 'Thousand ' : '';
-  str += (n4 !== 0) ? (a[n4] || b[parseInt(n[4][0], 10)] + ' ' + a[parseInt(n[4][1], 10)]) + 'Hundred ' : '';
-  str += (n5 !== 0) ? ((str !== '') ? 'and ' : '') + (a[n5] || b[parseInt(n[5][0], 10)] + ' ' + a[parseInt(n[5][1], 10)]) + 'Rupees ' : '';
+  const parts: string[] = [];
+  if (crores > 0) parts.push(`${convertUnderHundred(crores)} Crore`);
+  if (lakhs > 0) parts.push(`${convertUnderHundred(lakhs)} Lakh`);
+  if (thousands > 0) parts.push(`${convertUnderHundred(thousands)} Thousand`);
+  if (hundreds > 0) parts.push(`${convertUnderHundred(hundreds)} Hundred`);
+  if (units > 0) parts.push(convertUnderHundred(units));
 
-  return (str.trim() || 'Zero') + ' Only';
+  return parts.join(' ').trim();
+}
+
+export function numberToWords(numInput: number): string {
+  if (numInput === undefined || numInput === null || isNaN(numInput)) return 'Zero Rupees Only';
+  const rounded = Math.round(Number(numInput) * 100) / 100;
+  const absVal = Math.abs(rounded);
+  const rupees = Math.floor(absVal);
+  const paise = Math.round((absVal - rupees) * 100);
+
+  if (rupees === 0 && paise === 0) return 'Zero Rupees Only';
+
+  const rupeesWords = rupees > 0 ? convertIntegerToWords(rupees) : '';
+  const paiseWords = paise > 0 ? convertUnderHundred(paise).trim() : '';
+
+  if (rupees > 0 && paise > 0) {
+    return `${rupeesWords} Rupees and ${paiseWords} Paise Only`.replace(/\s+/g, ' ').trim();
+  } else if (rupees > 0) {
+    return `${rupeesWords} Rupees Only`.replace(/\s+/g, ' ').trim();
+  } else {
+    return `${paiseWords} Paise Only`.replace(/\s+/g, ' ').trim();
+  }
 }
 
 export function truncate(str: string, length: number): string {
