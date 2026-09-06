@@ -278,7 +278,7 @@ export const purchaseSchema = z.object({
 
 export const paymentSplitSchema = z.object({
   method: z.enum(['CASH', 'UPI', 'CARD', 'BANK_TRANSFER', 'CREDIT']),
-  amount: z.number().min(0.01),
+  amount: z.number().min(0),
 });
 
 export const adjustmentSchema = z.object({

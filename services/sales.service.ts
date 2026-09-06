@@ -14,6 +14,20 @@ export function isPlaceholderMode(): boolean {
 export function normalizeSale(sale: any) {
   const items = sale.items || sale.sale_items || [];
   const total = Number(sale.total_amount ?? sale.grand_total ?? sale.totalAmount ?? 0);
+  const rawStatus = (sale.status || '').toString().toUpperCase();
+  const rawPaymentStatus = (sale.payment_status || '').toString().toUpperCase();
+
+  let resolvedStatus = 'COMPLETED';
+  if (rawStatus === 'CANCELLED') {
+    resolvedStatus = 'CANCELLED';
+  } else if (rawStatus === 'REFUNDED' || rawStatus === 'RETURNED') {
+    resolvedStatus = 'REFUNDED';
+  } else if (rawPaymentStatus === 'CREDIT' || rawPaymentStatus === 'UNPAID') {
+    resolvedStatus = 'PENDING';
+  } else if (rawPaymentStatus === 'PAID' || rawStatus === 'COMPLETED') {
+    resolvedStatus = 'COMPLETED';
+  }
+
   return {
     ...sale,
     grand_total: total,
@@ -45,7 +59,7 @@ export function normalizeSale(sale: any) {
       };
     }),
     sale_items: items,
-    status: sale.status || (sale.payment_status === 'PAID' ? 'COMPLETED' : (sale.payment_status === 'UNPAID' ? 'PENDING' : 'COMPLETED')),
+    status: resolvedStatus,
     sale_date: sale.sale_date || sale.created_at,
     created_at: sale.created_at || sale.sale_date,
   };
@@ -297,11 +311,11 @@ export async function getSales(
 
     let query = supabase
       .from('sales')
-      .select('*, customer:customers(id, name, mobile, address, village, gstin, aadhaar), items:sale_items(*, product:products(*, brand:brands(*), batches:product_batches(*)), batch:product_batches(*), item_batches:sale_item_batches(*, batch:product_batches(*)))', { count: 'exact' })
+      .select('*, customer:customers(id, name, mobile, address, village, gstin, aadhaar), items:sale_items(*, product:products(id, name, unit, hsn_code, gst_rate, pack_size, brand:brands(id, name, manufacturer)))', { count: 'exact' })
       .eq('shop_id', shopId);
     
     if (options.customerId) query = query.eq('customer_id', options.customerId);
-    if (options.status) query = query.eq('status', options.status);
+    if (options.status) query = query.ilike('status', options.status);
     if (options.dateFrom) query = query.gte('sale_date', options.dateFrom);
     if (options.dateTo) query = query.lte('sale_date', options.dateTo);
     if (options.search) query = query.ilike('invoice_number', `%${options.search}%`);
@@ -310,7 +324,7 @@ export async function getSales(
 
     const { data, count, error } = await query.range(offset, offset + limit - 1);
     if (error) {
-      console.error("Error fetching sales:", error);
+      console.error("Error fetching sales from Supabase:", error);
       return { sales: [], total: 0 };
     }
     
@@ -334,7 +348,7 @@ export async function getSaleById(shopId: string, saleId: string) {
     
     let query = supabase
       .from('sales')
-      .select('*, customer:customers(*), items:sale_items(*, product:products(*, brand:brands(*), batches:product_batches(*)), batch:product_batches(*), item_batches:sale_item_batches(*, batch:product_batches(*)))')
+      .select('*, customer:customers(*), items:sale_items(*, product:products(id, name, unit, hsn_code, gst_rate, pack_size, brand:brands(id, name, manufacturer)))')
       .eq('shop_id', shopId);
 
     if (isUuid) {
@@ -366,7 +380,7 @@ export async function getSaleByInvoice(shopId: string, invoiceNumber: string) {
     const supabase = await createServerSupabaseClient();
     const { data, error } = await supabase
       .from('sales')
-      .select('*, customer:customers(*), items:sale_items(*, product:products(*, brand:brands(*), batches:product_batches(*)), batch:product_batches(*), item_batches:sale_item_batches(*, batch:product_batches(*)))')
+      .select('*, customer:customers(*), items:sale_items(*, product:products(id, name, unit, hsn_code, gst_rate, pack_size, brand:brands(id, name, manufacturer)))')
       .eq('shop_id', shopId)
       .eq('invoice_number', invoiceNumber)
       .maybeSingle();

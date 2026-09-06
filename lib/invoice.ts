@@ -226,7 +226,7 @@ export function generateInvoicePDF(sale: any, customSettings?: any) {
         batch,
         expiry,
         qty,
-        taxableRate.toFixed(2),
+        rateWithGst.toFixed(2),
         `${gst}%`,
         rateWithGst.toFixed(2),
         lineTotal.toFixed(2),

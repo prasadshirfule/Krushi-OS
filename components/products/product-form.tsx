@@ -648,7 +648,7 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
             {/* Selling Price */}
             <div className="space-y-2">
               <Label htmlFor="selling_price" className="text-sm font-semibold text-foreground">
-                Selling Price <span className="text-destructive font-bold">*</span>
+                Selling Price (Including GST) <span className="text-destructive font-bold">*</span>
               </Label>
               <div className="relative">
                 <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-primary font-bold text-base">₹</span>
@@ -662,6 +662,7 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
                   {...form.register('selling_price')}
                 />
               </div>
+              <p className="text-[11px] text-muted-foreground">Final customer price per piece (GST included)</p>
               {form.formState.errors.selling_price && (
                 <p className="text-xs text-destructive font-medium">{form.formState.errors.selling_price.message}</p>
               )}

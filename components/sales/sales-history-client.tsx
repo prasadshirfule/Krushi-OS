@@ -49,7 +49,7 @@ export function SalesHistoryClient({ initialSales = [] }: SalesHistoryClientProp
 
   // Dynamic calculations from actual persisted sales
   const todaySales = sales.filter((s: any) => {
-    if (s.status === 'CANCELLED') return false;
+    if (s.status?.toString().toUpperCase() === 'CANCELLED') return false;
     const val = s.sale_date || s.created_at;
     return val ? isSameDay(val) : false;
   });
@@ -120,7 +120,13 @@ export function SalesHistoryClient({ initialSales = [] }: SalesHistoryClientProp
                   const invNo = sale.invoice_number || sale.invoiceNumber || (sale.id ? sale.id.substring(0, 8).toUpperCase() : 'INV');
                   const custName = sale.customer?.name || (typeof sale.customer === 'string' ? sale.customer : null) || sale.customer_name || 'Walk-in Customer';
                   const totalAmt = Number(sale.grand_total ?? sale.total_amount ?? sale.totalAmount ?? sale.payableAmount ?? 0);
-                  const isCompleted = (sale.status || sale.payment_status) === 'COMPLETED' || sale.payment_status === 'PAID';
+                  const statusUpper = (sale.status || '').toString().toUpperCase();
+                  const paymentUpper = (sale.payment_status || '').toString().toUpperCase();
+                  const isCompleted = statusUpper === 'COMPLETED' || paymentUpper === 'PAID';
+                  const isPending = paymentUpper === 'CREDIT' || paymentUpper === 'UNPAID' || statusUpper === 'PENDING';
+                  const isCancelled = statusUpper === 'CANCELLED';
+                  const isRefunded = statusUpper === 'REFUNDED';
+                  const displayStatus = isCancelled ? 'CANCELLED' : (isRefunded ? 'REFUNDED' : (isPending ? 'PENDING' : 'COMPLETED'));
 
                   return (
                     <tr key={sale.id} className="hover:bg-accent/30 transition-colors">
@@ -131,9 +137,17 @@ export function SalesHistoryClient({ initialSales = [] }: SalesHistoryClientProp
                       <td className="p-4 text-center">
                         <Badge 
                           variant={isCompleted ? 'default' : 'secondary'} 
-                          className={isCompleted ? 'bg-primary text-primary-foreground font-semibold' : 'bg-muted text-muted-foreground'}
+                          className={
+                            isCancelled 
+                              ? 'bg-destructive/20 text-destructive border-destructive/30 font-semibold' 
+                              : isPending 
+                              ? 'bg-amber-500/20 text-amber-500 border-amber-500/30 font-semibold'
+                              : isCompleted 
+                              ? 'bg-primary text-primary-foreground font-semibold' 
+                              : 'bg-muted text-muted-foreground'
+                          }
                         >
-                          {sale.status || (isCompleted ? 'COMPLETED' : 'PENDING')}
+                          {displayStatus}
                         </Badge>
                       </td>
                       <td className="p-4 text-right">
