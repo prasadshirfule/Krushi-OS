@@ -53,6 +53,33 @@
     page-break-before: always; 
   }
   
+  /* A5 Landscape */
+  .invoice-page {
+    width: 210mm;
+    height: 148mm;
+    margin: 0;
+    padding: 3mm;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #ffffff;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  
+  #printable-tax-invoice,
+  .invoice {
+    width: 204mm;
+    height: 142mm;
+    margin: 0 auto;
+    position: relative;
+    box-sizing: border-box;
+    background-color: #ffffff;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
   @page {
     size: A5 landscape;
     margin: 0;

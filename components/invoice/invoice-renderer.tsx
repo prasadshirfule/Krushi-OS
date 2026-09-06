@@ -94,6 +94,10 @@ export function printInvoiceDirectly(elementId: string, format: InvoicePrintForm
     `);
   } else {
     // A5 Landscape
+    const a5Html = element.classList.contains('invoice-page')
+      ? invoiceHtml
+      : `<div class="invoice-page" style="width: 210mm; height: 148mm; margin: 0; padding: 3mm; box-sizing: border-box; display: flex; align-items: center; justify-content: center; background-color: #ffffff;">${invoiceHtml}</div>`;
+
     doc.write(`
       <!DOCTYPE html>
       <html>
@@ -104,20 +108,19 @@ export function printInvoiceDirectly(elementId: string, format: InvoicePrintForm
               size: A5 landscape !important;
               margin: 0 !important;
             }
-            * {
+            *, *::before, *::after {
               box-sizing: border-box !important;
             }
-            body {
+            html, body {
               font-family: Arial, Helvetica, sans-serif !important;
               background-color: #ffffff !important;
               color: #000000 !important;
               margin: 0 !important;
               padding: 0 !important;
+              width: 210mm !important;
+              height: 148mm !important;
               -webkit-print-color-adjust: exact !important;
               print-color-adjust: exact !important;
-              display: flex !important;
-              align-items: center !important;
-              justify-content: center !important;
               overflow: hidden !important;
             }
             .invoice-page {
@@ -127,7 +130,7 @@ export function printInvoiceDirectly(elementId: string, format: InvoicePrintForm
               align-items: center !important;
               justify-content: center !important;
               margin: 0 !important;
-              padding: 0 !important;
+              padding: 3mm !important;
               box-sizing: border-box !important;
               background-color: #ffffff !important;
               page-break-inside: avoid !important;
@@ -147,7 +150,7 @@ export function printInvoiceDirectly(elementId: string, format: InvoicePrintForm
           </style>
         </head>
         <body>
-          ${invoiceHtml}
+          ${a5Html}
         </body>
       </html>
     `);

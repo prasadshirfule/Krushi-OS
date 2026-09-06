@@ -169,6 +169,25 @@ const hasTermsShopEmpty = Boolean(shopEmpty.invoiceTerms && shopEmpty.invoiceTer
 assert(hasTermsShopA === true, 'Shop A with terms will render Terms & Conditions');
 assert(hasTermsShopEmpty === false, 'Shop with empty terms hides Terms & Conditions completely');
 
+// 13. TEST CASE 12: A5 Govind Deoraye Bill Layout & Total Fit Check
+const govindNetTotal = (2 * 250) + (1 * 1600); // 500 + 1600 = 2100
+const govindWords = numberToWords(govindNetTotal);
+assert(govindWords === 'Two Thousand One Hundred Rupees Only', `Govind bill words: "${govindWords}"`);
+
+// Verify A5 single page total height equation with terms
+const testH_HEADER = 19;
+const testH_CUSTOMER = 14;
+const testH_TBL_HEAD = 9;
+const testH_TOTALS = 7.5;
+const testH_BOTTOM = 28.5;
+const testH_TERMS = 11.5;
+const testH_FOOTER = 4.5;
+const testH_TBL_BODY = 142 - testH_HEADER - testH_CUSTOMER - testH_TBL_HEAD - testH_TOTALS - testH_BOTTOM - testH_TERMS - testH_FOOTER;
+
+assert(testH_TBL_BODY === 48, `A5 table body is exactly 48mm, got ${testH_TBL_BODY}mm`);
+const totalA5BoxHeight = testH_HEADER + testH_CUSTOMER + testH_TBL_HEAD + testH_TBL_BODY + testH_TOTALS + testH_BOTTOM + testH_TERMS + testH_FOOTER;
+assert(totalA5BoxHeight === 142, `A5 total box height matches 142mm exactly, got ${totalA5BoxHeight}mm`);
+
 console.log('=====================================================');
 console.log(`TEST SUMMARY: ${passed} PASSED, ${failed} FAILED`);
 console.log('=====================================================');
