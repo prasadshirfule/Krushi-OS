@@ -13,7 +13,65 @@ export function isPlaceholderMode(): boolean {
 
 export function normalizeSale(sale: any) {
   const items = sale.items || sale.sale_items || [];
-  const total = Number(sale.total_amount ?? sale.grand_total ?? sale.totalAmount ?? 0);
+  
+  let calculatedGrandTotal = 0;
+  const normalizedItems = items.map((it: any) => {
+    const p = it.product || {};
+    const b = it.batch || it.item_batches?.[0]?.batch || p.batches?.[0] || {};
+
+    const hsnCode = it.hsn_code || p.hsn_code || p.hsnCode || null;
+    const batchNumber = it.batch_number || b.batch_number || p.batch_number || p.batches?.[0]?.batch_number || null;
+    const expiryDate = it.expiry_date || b.expiry_date || p.expiry_date || p.batches?.[0]?.expiry_date || null;
+    const mfg = it.manufacturer || p.manufacturer || p.brand?.manufacturer || p.brand?.name || null;
+
+    const qty = Math.max(1, Number(it.quantity || 1));
+    const unitPrice = Number(it.unit_price ?? it.unitPrice ?? it.selling_price ?? it.rate ?? 0);
+    const discPercent = Number(it.discount_percent ?? it.discountPercent ?? 0);
+    const discAmt = Number(
+      it.discount_amount !== undefined 
+        ? it.discount_amount 
+        : (it.discount !== undefined ? it.discount : (qty * unitPrice * discPercent / 100))
+    );
+    const lineTotal = Math.max(0, (qty * unitPrice) - discAmt);
+    const gstRate = Number(it.gst_rate ?? it.gstRate ?? it.gst ?? p.gst_rate ?? 0);
+    
+    const taxable = Math.round((lineTotal / (1 + gstRate / 100)) * 100) / 100;
+    const totalTax = Math.round((lineTotal - taxable) * 100) / 100;
+    const cgst = Math.round((totalTax / 2) * 100) / 100;
+    const sgst = Math.round((totalTax - cgst) * 100) / 100;
+
+    calculatedGrandTotal += lineTotal;
+
+    return {
+      ...it,
+      hsn_code: hsnCode,
+      batch_number: batchNumber,
+      expiry_date: expiryDate,
+      manufacturer: mfg,
+      unit_price: unitPrice,
+      selling_price: unitPrice,
+      rate: unitPrice,
+      discount_percent: discPercent,
+      discount_amount: discAmt,
+      discount: discAmt,
+      gst_rate: gstRate,
+      taxable_amount: taxable,
+      cgst,
+      sgst,
+      total_tax: totalTax,
+      total_amount: lineTotal,
+      total_price: lineTotal,
+    };
+  });
+
+  const rawAdjustments = Array.isArray(sale.adjustments) ? sale.adjustments : [];
+  const totalAdditions = rawAdjustments.filter((a: any) => a.type === 'ADD').reduce((sum: number, a: any) => sum + (Number(a.amount) || 0), 0);
+  const totalDeductions = rawAdjustments.filter((a: any) => a.type === 'DEDUCT').reduce((sum: number, a: any) => sum + (Number(a.amount) || 0), 0);
+
+  const effectiveTotal = normalizedItems.length > 0
+    ? Math.max(0, calculatedGrandTotal + totalAdditions - totalDeductions)
+    : Number(sale.total_amount ?? sale.grand_total ?? sale.totalAmount ?? 0);
+
   const rawStatus = (sale.status || '').toString().toUpperCase();
   const rawPaymentStatus = (sale.payment_status || '').toString().toUpperCase();
 
@@ -30,35 +88,12 @@ export function normalizeSale(sale: any) {
 
   return {
     ...sale,
-    grand_total: total,
-    total_amount: total,
-    totalAmount: total,
-    payableAmount: total,
-    items: items.map((it: any) => {
-      const p = it.product || {};
-      const b = it.batch || it.item_batches?.[0]?.batch || p.batches?.[0] || {};
-
-      const hsnCode = it.hsn_code || p.hsn_code || p.hsnCode || null;
-      const batchNumber = it.batch_number || b.batch_number || p.batch_number || p.batches?.[0]?.batch_number || null;
-      const expiryDate = it.expiry_date || b.expiry_date || p.expiry_date || p.batches?.[0]?.expiry_date || null;
-      const mfg = it.manufacturer || p.manufacturer || p.brand?.manufacturer || p.brand?.name || null;
-
-      return {
-        ...it,
-        hsn_code: hsnCode,
-        batch_number: batchNumber,
-        expiry_date: expiryDate,
-        manufacturer: mfg,
-        unit_price: Number(it.unit_price ?? it.unitPrice ?? it.selling_price ?? it.rate ?? 0),
-        selling_price: Number(it.selling_price ?? it.unit_price ?? it.unitPrice ?? it.rate ?? 0),
-        rate: Number(it.rate ?? it.unit_price ?? it.selling_price ?? 0),
-        discount_percent: Number(it.discount_percent ?? it.discountPercent ?? it.discount ?? 0),
-        gst_rate: Number(it.gst_rate ?? it.gstRate ?? it.gst ?? 0),
-        total_amount: Number(it.total_amount ?? it.totalAmount ?? it.total_price ?? ((it.quantity || 1) * (it.unit_price || 0))),
-        total_price: Number(it.total_price ?? it.total_amount ?? it.totalAmount ?? ((it.quantity || 1) * (it.unit_price || 0))),
-      };
-    }),
-    sale_items: items,
+    grand_total: effectiveTotal,
+    total_amount: effectiveTotal,
+    totalAmount: effectiveTotal,
+    payableAmount: effectiveTotal,
+    items: normalizedItems,
+    sale_items: normalizedItems,
     status: resolvedStatus,
     sale_date: sale.sale_date || sale.created_at,
     created_at: sale.created_at || sale.sale_date,
@@ -221,6 +256,33 @@ export async function completeSale(shopId: string, data: any, userId: string) {
     amount: Number(p.amount) || 0
   }));
 
+  // Pre-calculate verified GST-inclusive totals
+  let verifiedSubtotal = 0;
+  let verifiedTotalTax = 0;
+  let verifiedTotalDiscount = 0;
+  let verifiedProductsTotal = 0;
+
+  for (const it of cleanItems) {
+    const q = it.quantity;
+    const up = it.unit_price;
+    const dp = it.discount_percent || 0;
+    const disc = (q * up * dp) / 100;
+    const lt = Math.max(0, (q * up) - disc);
+    const gst = it.gst_rate;
+    const taxable = Math.round((lt / (1 + gst / 100)) * 100) / 100;
+    const tax = Math.round((lt - taxable) * 100) / 100;
+
+    verifiedSubtotal += taxable;
+    verifiedTotalTax += tax;
+    verifiedTotalDiscount += disc;
+    verifiedProductsTotal += lt;
+  }
+
+  const rawAdjustments = Array.isArray(data.adjustments) ? data.adjustments : [];
+  const totalAdditions = rawAdjustments.filter((a: any) => a.type === 'ADD').reduce((sum: number, a: any) => sum + (Number(a.amount) || 0), 0);
+  const totalDeductions = rawAdjustments.filter((a: any) => a.type === 'DEDUCT').reduce((sum: number, a: any) => sum + (Number(a.amount) || 0), 0);
+  const verifiedGrandTotal = Math.max(0, verifiedProductsTotal + totalAdditions - totalDeductions);
+
   const { data: saleRes, error } = await supabase.rpc('process_sale', {
     p_shop_id: shopId,
     p_user_id: userId,
@@ -238,7 +300,53 @@ export async function completeSale(shopId: string, data: any, userId: string) {
 
   const realSaleId = saleRes?.sale_id || saleRes?.id;
   const invoiceNum = saleRes?.invoice_number || saleRes?.invoiceNumber;
-  const grandTotal = Number(saleRes?.grand_total ?? saleRes?.total_amount ?? data.totals?.payableAmount ?? 0);
+
+  // Post-sale sync to ensure stored database record strictly matches GST-inclusive accounting
+  if (realSaleId) {
+    try {
+      await supabase
+        .from('sales')
+        .update({
+          subtotal: verifiedSubtotal,
+          tax_amount: verifiedTotalTax,
+          discount_amount: verifiedTotalDiscount,
+          total_amount: verifiedGrandTotal,
+        })
+        .eq('id', realSaleId);
+
+      const { data: dbItems } = await supabase
+        .from('sale_items')
+        .select('id, product_id, quantity, unit_price, gst_rate, discount_percent')
+        .eq('sale_id', realSaleId);
+
+      if (Array.isArray(dbItems) && dbItems.length > 0) {
+        for (const dbIt of dbItems) {
+          const q = Math.max(1, Number(dbIt.quantity || 1));
+          const up = Number(dbIt.unit_price || 0);
+          const dp = Number(dbIt.discount_percent || 0);
+          const disc = (q * up * dp) / 100;
+          const lt = Math.max(0, (q * up) - disc);
+          const gst = Number(dbIt.gst_rate || 0);
+          const taxVal = Math.round((lt / (1 + gst / 100)) * 100) / 100;
+          const taxAmt = Math.round((lt - taxVal) * 100) / 100;
+          const cgstAmt = Math.round((taxAmt / 2) * 100) / 100;
+          const sgstAmt = Math.round((taxAmt - cgstAmt) * 100) / 100;
+
+          await supabase
+            .from('sale_items')
+            .update({
+              total_amount: lt,
+              tax_amount: taxAmt,
+              cgst_amount: cgstAmt,
+              sgst_amount: sgstAmt,
+            })
+            .eq('id', dbIt.id);
+        }
+      }
+    } catch (syncErr) {
+      console.warn('Post-sale tax sync warning:', syncErr);
+    }
+  }
 
   return {
     ...saleRes,
@@ -247,9 +355,9 @@ export async function completeSale(shopId: string, data: any, userId: string) {
     saleId: realSaleId,
     invoice_number: invoiceNum,
     invoiceNumber: invoiceNum,
-    total_amount: grandTotal,
-    grand_total: grandTotal,
-    payableAmount: grandTotal,
+    total_amount: verifiedGrandTotal,
+    grand_total: verifiedGrandTotal,
+    payableAmount: verifiedGrandTotal,
   };
 }
 

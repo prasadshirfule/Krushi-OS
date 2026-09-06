@@ -185,17 +185,23 @@ export function generateInvoicePDF(sale: any, customSettings?: any) {
   if (rawItems.length > 0) {
     tableRows = rawItems.map((item: any, idx: number) => {
       const p = item.product || {};
-      const qty = Number(item.quantity || 1);
+      const qty = Math.max(1, Number(item.quantity || 1));
       const gst = Number(item.gst_rate ?? item.gstRate ?? p.gst_rate ?? 18);
-      const lineTotal = Number(item.total_amount ?? item.totalAmount ?? item.total_price ?? (qty * Number(item.unit_price ?? item.selling_price ?? 0)));
+      
+      const unitPrice = Number(item.unit_price ?? item.selling_price ?? item.rate ?? (item.total_amount && qty ? item.total_amount / qty : 0));
+      const discAmt = Number(
+        item.discount_amount !== undefined 
+          ? item.discount_amount 
+          : (item.discount !== undefined ? item.discount : (item.discount_percent ? (qty * unitPrice * item.discount_percent / 100) : 0))
+      );
+      const lineTotal = Math.max(0, (qty * unitPrice) - discAmt);
 
       // Exact reverse GST math
       const taxable = Math.round((lineTotal / (1 + gst / 100)) * 100) / 100;
       const totalTax = Math.round((lineTotal - taxable) * 100) / 100;
       const cgst = Math.round((totalTax / 2) * 100) / 100;
       const sgst = Math.round((totalTax - cgst) * 100) / 100;
-      const taxableRate = Math.round((taxable / qty) * 100) / 100;
-      const rateWithGst = Math.round((lineTotal / qty) * 100) / 100;
+      const rateWithGst = unitPrice;
 
       totalTaxable += taxable;
       totalCgst += cgst;
@@ -239,11 +245,7 @@ export function generateInvoicePDF(sale: any, customSettings?: any) {
   const totalAdditions = adjustments.filter(a => a.type === 'ADD').reduce((sum, a) => sum + (Number(a.amount) || 0), 0);
   const totalDeductions = adjustments.filter(a => a.type === 'DEDUCT').reduce((sum, a) => sum + (Number(a.amount) || 0), 0);
 
-  if (s.total_amount !== undefined && s.total_amount !== null) {
-    grandTotal = Number(s.total_amount);
-  } else {
-    grandTotal = Math.max(0, grandTotal + totalAdditions - totalDeductions);
-  }
+  grandTotal = Math.max(0, grandTotal + totalAdditions - totalDeductions);
 
   // Pad table rows if few items to maintain realistic physical bill height
   while (tableRows.length < 5) {

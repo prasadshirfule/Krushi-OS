@@ -163,9 +163,17 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
   if (rawItems.length > 0) {
     items = rawItems.map((item: any, idx: number) => {
       const p = item.product || {};
-      const qty = Number(item.quantity || 1);
+      const qty = Math.max(1, Number(item.quantity || 1));
       const gst = Number(item.gst_rate ?? item.gstRate ?? p.gst_rate ?? 18);
-      const lineTotal = Number(item.total_amount ?? item.totalAmount ?? item.total_price ?? (qty * Number(item.unit_price ?? item.selling_price ?? 0)));
+      
+      // Selling price entered by shop owner already includes GST
+      const unitPrice = Number(item.unit_price ?? item.selling_price ?? item.rate ?? (item.total_amount && qty ? item.total_amount / qty : 0));
+      const discAmt = Number(
+        item.discount_amount !== undefined 
+          ? item.discount_amount 
+          : (item.discount !== undefined ? item.discount : (item.discount_percent ? (qty * unitPrice * item.discount_percent / 100) : 0))
+      );
+      const lineTotal = Math.max(0, (qty * unitPrice) - discAmt);
       
       const { taxable, cgst, sgst, taxableUnitRate, unitWithGst } = calculateItemGst(lineTotal, qty, gst);
 
@@ -210,9 +218,9 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
         batch: batch,
         expiry: expiry,
         quantity: qty,
-        rate: item.rate !== undefined ? Number(item.rate) : unitWithGst,
+        rate: unitPrice,
         gstRate: gst,
-        rateWithGst: item.rateWithGst !== undefined ? Number(item.rateWithGst) : unitWithGst,
+        rateWithGst: unitPrice,
         taxableAmount: taxable,
         cgstAmount: cgst,
         sgstAmount: sgst,
@@ -250,9 +258,7 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
   const totalAdditions = adjustments.filter(a => a.type === 'ADD').reduce((sum, a) => sum + (Number(a.amount) || 0), 0);
   const totalDeductions = adjustments.filter(a => a.type === 'DEDUCT').reduce((sum, a) => sum + (Number(a.amount) || 0), 0);
 
-  const netTotal = s.total_amount !== undefined && s.total_amount !== null
-    ? Number(s.total_amount)
-    : Math.max(0, productsTotal + totalAdditions - totalDeductions);
+  const netTotal = Math.max(0, productsTotal + totalAdditions - totalDeductions);
 
   let rawWords = numberToWords(Math.round(netTotal));
   let cleanWords = `${rawWords} Rupees Only`.replace(/Rupees Only\s+Rupees Only/gi, 'Rupees Only').replace(/\s+/g, ' ').trim();

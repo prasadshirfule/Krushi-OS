@@ -33,9 +33,8 @@ export default function SaleReturnDialog({ sale, onClose, onSuccess }: SaleRetur
 
   const totalRefund = returnItems.reduce((acc, item) => {
     const rate = item.selling_price ?? item.unitPrice ?? item.rate ?? 0;
-    const gst = item.gst_rate ?? item.gstRate ?? 0;
     const disc = item.discount_percent ?? item.discountPercent ?? item.discount ?? 0;
-    return acc + (item.return_qty * rate * (1 + gst / 100) * (1 - disc / 100));
+    return acc + (item.return_qty * rate * (1 - disc / 100));
   }, 0);
 
   const hasReturns = returnItems.some(item => item.return_qty > 0);
@@ -121,7 +120,7 @@ export default function SaleReturnDialog({ sale, onClose, onSuccess }: SaleRetur
                         />
                       </td>
                       <td className="p-2 text-right font-medium">
-                        {formatCurrency(item.return_qty * rate * (1 + gst/100) * (1 - disc/100))}
+                        {formatCurrency(item.return_qty * rate * (1 - disc/100))}
                       </td>
                     </tr>
                   );
