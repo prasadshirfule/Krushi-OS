@@ -421,10 +421,45 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
           borderRadius: 0,
         }}
       >
+        {/* ─── WATERMARK (SUBTLE SHOP LOGO IN BACKGROUND) ─── */}
+        {shop.logoBase64 && (
+          <div
+            style={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              pointerEvents: 'none',
+              zIndex: 0,
+              opacity: 0.06,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '100%',
+              height: '100%',
+              overflow: 'hidden',
+            }}
+          >
+            <img
+              src={shop.logoBase64}
+              alt="Watermark"
+              style={{
+                maxWidth: mm(85),
+                maxHeight: mm(85),
+                objectFit: 'contain',
+                WebkitPrintColorAdjust: 'exact',
+                printColorAdjust: 'exact',
+              }}
+            />
+          </div>
+        )}
+
         {/* ════════════════════════════════════════════════════════
             1. HEADER – 19 mm
             ════════════════════════════════════════════════════════ */}
         <div style={{
+          position: 'relative',
+          zIndex: 1,
           height: mm(H_HEADER),
           borderBottom: BORDER_MAJOR,
           display: 'flex',

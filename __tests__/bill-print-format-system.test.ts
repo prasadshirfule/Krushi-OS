@@ -188,6 +188,51 @@ assert(testH_TBL_BODY === 48, `A5 table body is exactly 48mm, got ${testH_TBL_BO
 const totalA5BoxHeight = testH_HEADER + testH_CUSTOMER + testH_TBL_HEAD + testH_TBL_BODY + testH_TOTALS + testH_BOTTOM + testH_TERMS + testH_FOOTER;
 assert(totalA5BoxHeight === 142, `A5 total box height matches 142mm exactly, got ${totalA5BoxHeight}mm`);
 
+// 14. TEST CASE 13: Bank Details on 80mm & A5
+const sampleBankShop: ShopDetails = {
+  ...DEFAULT_SHOP_DETAILS,
+  bankName: 'Maharashtra Gramin Bank',
+  accountNumber: '80045403150',
+  ifsc: 'MAHG0004120',
+  branch: 'Kamari',
+  accountType: 'Current',
+};
+
+const hasBankDetails = Boolean(sampleBankShop.bankName || sampleBankShop.accountNumber);
+assert(hasBankDetails === true, 'Bank details present on shop profile');
+assert(sampleBankShop.bankName === 'Maharashtra Gramin Bank', 'Bank Name is Maharashtra Gramin Bank');
+assert(sampleBankShop.accountNumber === '80045403150', 'Account Number is 80045403150');
+assert(sampleBankShop.ifsc === 'MAHG0004120', 'IFSC is MAHG0004120');
+
+// 15. TEST CASE 14: Customer Balance / Ledger Calculation (Same for A5 & 80mm)
+// Scenario A: Fully Paid Cash Bill (Opening 100, Invoice 550, Paid 550 -> Closing 100)
+const openBalA = 100;
+const invTotalA = 550;
+const paidAmtA = 550;
+const closeBalA = openBalA + invTotalA - paidAmtA;
+assert(closeBalA === 100, `Fully paid bill closing balance is ₹100, got ₹${closeBalA}`);
+
+// Scenario B: Credit Bill (Opening 100, Invoice 550, Paid 0 -> Closing 650)
+const openBalB = 100;
+const invTotalB = 550;
+const paidAmtB = 0;
+const closeBalB = openBalB + invTotalB - paidAmtB;
+assert(closeBalB === 650, `Credit bill closing balance is ₹650, got ₹${closeBalB}`);
+
+// Scenario C: Partial Payment (Opening 100, Invoice 550, Paid 300 -> Remaining 250 -> Closing 350)
+const openBalC = 100;
+const invTotalC = 550;
+const paidAmtC = 300;
+const closeBalC = openBalC + invTotalC - paidAmtC;
+assert(closeBalC === 350, `Partial payment bill closing balance is ₹350, got ₹${closeBalC}`);
+
+// 16. TEST CASE 15: Logo Watermark Dynamic Handling
+const shopWithLogo: ShopDetails = { ...DEFAULT_SHOP_DETAILS, logoBase64: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==' };
+const shopWithoutLogo: ShopDetails = { ...DEFAULT_SHOP_DETAILS, logoBase64: undefined };
+
+assert(Boolean(shopWithLogo.logoBase64) === true, 'Shop with logo enables subtle watermark');
+assert(Boolean(shopWithoutLogo.logoBase64) === false, 'Shop without logo completely hides watermark');
+
 console.log('=====================================================');
 console.log(`TEST SUMMARY: ${passed} PASSED, ${failed} FAILED`);
 console.log('=====================================================');

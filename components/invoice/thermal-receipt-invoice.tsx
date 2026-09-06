@@ -229,6 +229,18 @@ export function ThermalReceiptInvoice({ sale, shopDetails: customShopDetails, cu
   const cleanTerms = (shop.invoiceTerms || '').trim();
   const hasTerms = cleanTerms.length > 0;
 
+  // Ledger calculation (exact match with A5 invoice)
+  const amountPaid = isPartial 
+    ? partialPaidTotal 
+    : (s.paid_amount !== undefined ? Number(s.paid_amount) : (isCredit ? 0 : netTotal));
+  const openingBal = s.customer?.opening_balance ? Number(s.customer.opening_balance) : 0;
+  const drInvoice = netTotal;
+  const closingBalance = openingBal + drInvoice - amountPaid;
+
+  const hasBankDetails = Boolean(
+    shop.bankName || shop.accountNumber || shop.ifsc || shop.branch || shop.accountType
+  );
+
   useEffect(() => {
     if (upiQrAmount > 0 && shop.upiId) {
       const uri = buildUpiUri(shop.upiId, shop.shopName, upiQrAmount);
@@ -267,8 +279,44 @@ export function ThermalReceiptInvoice({ sale, shopDetails: customShopDetails, cu
         style={{
           width: '100%',
           boxSizing: 'border-box',
+          position: 'relative',
+          overflow: 'hidden',
         }}
       >
+        {/* ─── WATERMARK (SUBTLE SHOP LOGO IN BACKGROUND) ─── */}
+        {shop.logoBase64 && (
+          <div
+            style={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              pointerEvents: 'none',
+              zIndex: 0,
+              opacity: 0.06,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '100%',
+              height: '100%',
+              overflow: 'hidden',
+            }}
+          >
+            <img
+              src={shop.logoBase64}
+              alt="Watermark"
+              style={{
+                maxWidth: '45mm',
+                maxHeight: '45mm',
+                objectFit: 'contain',
+                WebkitPrintColorAdjust: 'exact',
+                printColorAdjust: 'exact',
+              }}
+            />
+          </div>
+        )}
+
+        <div style={{ position: 'relative', zIndex: 1 }}>
         {/* ─── 1. SHOP HEADER ─── */}
         <div style={{ textAlign: 'center', marginBottom: '2.5mm' }}>
           <div style={{ fontSize: '15px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.3px', lineHeight: 1.15 }}>
@@ -482,21 +530,8 @@ export function ThermalReceiptInvoice({ sale, shopDetails: customShopDetails, cu
             <span style={{ fontSize: '15px', fontWeight: 900, fontFamily: 'monospace' }}>₹{netTotal.toFixed(2)}</span>
           </div>
 
-          {/* Amount in Words */}
-          <div style={{ margin: '1.5mm 0 1.5mm 0', fontSize: '9.2px', lineHeight: 1.25 }}>
-            <div style={{ fontWeight: 800, textTransform: 'uppercase', fontSize: '8px', color: '#333' }}>
-              Amount in Words:
-            </div>
-            <div style={{ fontWeight: 800, fontStyle: 'italic', textTransform: 'capitalize', wordBreak: 'break-word', marginTop: '0.3mm' }}>
-              {amountInWords}
-            </div>
-          </div>
-
-          {/* Divider */}
-          <div style={{ borderTop: '0.5px dashed #000000', margin: '1.5mm 0' }} />
-
           {/* Payment Method & Partial Breakdown */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, marginTop: '0.5mm' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, marginTop: '1mm' }}>
             <span>Payment Mode:</span>
             <span style={{ textTransform: 'uppercase' }}>{paymentMode}</span>
           </div>
@@ -538,9 +573,90 @@ export function ThermalReceiptInvoice({ sale, shopDetails: customShopDetails, cu
           )}
         </div>
 
-        {/* ─── 5. DYNAMIC UPI QR CODE (FOR FULL UPI OR PARTIAL UPI PORTION > 0) ─── */}
+        {/* ─── 4B. BANK DETAILS & BALANCE DETAILS (COMPACT 80MM LAYOUT) ─── */}
+        {(hasBankDetails || Boolean(customerName)) && (
+          <div style={{ marginTop: '1.5mm', fontSize: '9px', lineHeight: 1.3 }}>
+            {/* Divider */}
+            <div style={{ borderTop: '0.5px dashed #000000', margin: '1.5mm 0' }} />
+
+            {hasBankDetails && (
+              <div style={{ marginBottom: '1.5mm' }}>
+                <div style={{ fontWeight: 900, textTransform: 'uppercase', fontSize: '8.5px', marginBottom: '0.5mm', letterSpacing: '0.2px' }}>
+                  BANK DETAILS
+                </div>
+                <table style={{ width: '100%', fontSize: '8.8px', borderCollapse: 'collapse', lineHeight: 1.25 }}>
+                  <tbody>
+                    {shop.bankName && (
+                      <tr>
+                        <td style={{ width: '28%', fontWeight: 700, padding: '0.2px 0' }}>Bank Name</td>
+                        <td style={{ width: '4%', fontWeight: 700, padding: '0.2px 0' }}>:</td>
+                        <td style={{ fontWeight: 700, padding: '0.2px 0' }}>{shop.bankName}</td>
+                      </tr>
+                    )}
+                    {shop.accountNumber && (
+                      <tr>
+                        <td style={{ fontWeight: 700, padding: '0.2px 0' }}>A/C No</td>
+                        <td style={{ fontWeight: 700, padding: '0.2px 0' }}>:</td>
+                        <td style={{ fontWeight: 700, fontFamily: 'monospace', padding: '0.2px 0' }}>{shop.accountNumber}</td>
+                      </tr>
+                    )}
+                    {shop.ifsc && (
+                      <tr>
+                        <td style={{ fontWeight: 700, padding: '0.2px 0' }}>IFSC</td>
+                        <td style={{ fontWeight: 700, padding: '0.2px 0' }}>:</td>
+                        <td style={{ fontWeight: 700, fontFamily: 'monospace', padding: '0.2px 0' }}>{shop.ifsc}</td>
+                      </tr>
+                    )}
+                    {shop.branch && (
+                      <tr>
+                        <td style={{ fontWeight: 700, padding: '0.2px 0' }}>Branch</td>
+                        <td style={{ fontWeight: 700, padding: '0.2px 0' }}>:</td>
+                        <td style={{ fontWeight: 600, padding: '0.2px 0' }}>{shop.branch}</td>
+                      </tr>
+                    )}
+                    {shop.accountType && (
+                      <tr>
+                        <td style={{ fontWeight: 700, padding: '0.2px 0' }}>A/C Type</td>
+                        <td style={{ fontWeight: 700, padding: '0.2px 0' }}>:</td>
+                        <td style={{ fontWeight: 600, padding: '0.2px 0' }}>{shop.accountType}</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Balance Details */}
+            <div style={{ marginTop: hasBankDetails ? '1.5mm' : '0' }}>
+              <div style={{ fontWeight: 900, textTransform: 'uppercase', fontSize: '8.5px', marginBottom: '0.5mm', letterSpacing: '0.2px' }}>
+                BALANCE DETAILS
+              </div>
+              <table style={{ width: '100%', fontSize: '8.8px', borderCollapse: 'collapse', lineHeight: 1.25 }}>
+                <tbody>
+                  <tr>
+                    <td style={{ width: '38%', fontWeight: 700, padding: '0.2px 0' }}>Opening Bal</td>
+                    <td style={{ width: '4%', fontWeight: 700, padding: '0.2px 0' }}>:</td>
+                    <td style={{ fontWeight: 700, fontFamily: 'monospace', textAlign: 'right', padding: '0.2px 0' }}>₹{openingBal.toFixed(2)}</td>
+                  </tr>
+                  <tr>
+                    <td style={{ fontWeight: 700, padding: '0.2px 0' }}>Dr Invoice</td>
+                    <td style={{ fontWeight: 700, padding: '0.2px 0' }}>:</td>
+                    <td style={{ fontWeight: 700, fontFamily: 'monospace', textAlign: 'right', padding: '0.2px 0' }}>₹{drInvoice.toFixed(2)}</td>
+                  </tr>
+                  <tr>
+                    <td style={{ fontWeight: 700, padding: '0.2px 0' }}>Closing Bal</td>
+                    <td style={{ fontWeight: 700, padding: '0.2px 0' }}>:</td>
+                    <td style={{ fontWeight: 800, fontFamily: 'monospace', textAlign: 'right', padding: '0.2px 0' }}>₹{closingBalance.toFixed(2)}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* ─── 4C. DYNAMIC UPI QR CODE (FOR FULL UPI OR PARTIAL UPI PORTION > 0) ─── */}
         {upiQrAmount > 0 && shop.upiId && (
-          <div style={{ textAlign: 'center', marginTop: '2.5mm', padding: '2mm', border: '1px dashed #000000' }}>
+          <div style={{ textAlign: 'center', marginTop: '2mm', padding: '2mm', border: '1px dashed #000000' }}>
             <div style={{ fontSize: '9px', fontWeight: 800, textTransform: 'uppercase', marginBottom: '1mm' }}>
               {isPartial ? `Scan to Pay UPI (₹${upiQrAmount.toFixed(2)})` : 'Scan to Pay (UPI)'}
             </div>
@@ -564,9 +680,21 @@ export function ThermalReceiptInvoice({ sale, shopDetails: customShopDetails, cu
           </div>
         )}
 
+        {/* ─── 4D. AMOUNT IN WORDS ─── */}
+        <div style={{ margin: '2mm 0 1.5mm 0', fontSize: '9.2px', lineHeight: 1.25 }}>
+          {/* Divider */}
+          <div style={{ borderTop: '0.5px dashed #000000', margin: '1.5mm 0' }} />
+          <div style={{ fontWeight: 800, textTransform: 'uppercase', fontSize: '8px', color: '#333' }}>
+            Amount in Words:
+          </div>
+          <div style={{ fontWeight: 800, fontStyle: 'italic', textTransform: 'capitalize', wordBreak: 'break-word', marginTop: '0.3mm' }}>
+            {amountInWords}
+          </div>
+        </div>
+
         {/* ─── 5B. TERMS & CONDITIONS (Shown ONLY if saved in shop settings) ─── */}
         {hasTerms && (
-          <div style={{ marginTop: '2.5mm', borderTop: '0.5px dashed #000000', paddingTop: '1.5mm', fontSize: '8px', lineHeight: 1.25, textAlign: 'left' }}>
+          <div style={{ marginTop: '2mm', borderTop: '0.5px dashed #000000', paddingTop: '1.5mm', fontSize: '8px', lineHeight: 1.25, textAlign: 'left' }}>
             <div style={{ fontWeight: 900, textTransform: 'uppercase', fontSize: '8px', marginBottom: '0.5mm' }}>
               TERMS & CONDITIONS
             </div>
@@ -584,6 +712,7 @@ export function ThermalReceiptInvoice({ sale, shopDetails: customShopDetails, cu
           <div style={{ fontSize: '8px', color: '#444' }}>
             Computer Generated Receipt | Krushi OS
           </div>
+        </div>
         </div>
       </div>
     </div>
