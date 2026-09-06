@@ -697,11 +697,9 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
                   <div style={{ fontWeight: 'bold', textTransform: 'uppercase', fontSize: '10.2px', lineHeight: 1.18, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {item.name}
                   </div>
-                  {item.manufacturer && (
-                    <div style={{ fontSize: '8.2px', fontWeight: 600, color: '#222', lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      Mfg: {item.manufacturer}
-                    </div>
-                  )}
+                  <div style={{ fontSize: '8.2px', fontWeight: 600, color: '#222', lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    Mfg: {item.manufacturer || '-'}
+                  </div>
                 </td>
                 <td style={{ borderRight: BORDER_INNER, textAlign: 'center', fontFamily: 'monospace', padding: `${mm(0.2)} ${mm(0.5)}`, verticalAlign: 'middle', fontSize: '9.5px' }}>{item.hsn}</td>
                 <td style={{ borderRight: BORDER_INNER, textAlign: 'center', fontFamily: 'monospace', fontWeight: 'bold', padding: `${mm(0.2)} ${mm(0.5)}`, verticalAlign: 'middle', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '9.5px' }}>{item.batch}</td>

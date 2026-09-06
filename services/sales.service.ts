@@ -421,12 +421,102 @@ export async function completeSale(shopId: string, data: any, userId: string) {
     saleId: realSaleId,
     invoice_number: invoiceNum,
     invoiceNumber: invoiceNum,
+    items: data.items || cleanItems,
+    sale_items: data.items || cleanItems,
     adjustments: rawAdjustments,
     total_amount: verifiedGrandTotal,
     grand_total: verifiedGrandTotal,
     payableAmount: verifiedGrandTotal,
     subtotal: verifiedSubtotal,
   };
+}
+
+async function enrichSaleItemsWithMetadata(supabase: any, items: any[]) {
+  if (!Array.isArray(items) || items.length === 0) return items;
+
+  const productIds = Array.from(new Set(items.map(it => it.product_id).filter(Boolean)));
+  const batchIds = Array.from(new Set(items.map(it => it.batch_id).filter(Boolean)));
+  const saleItemIds = items.map(it => it.id).filter(Boolean);
+
+  let productsMap = new Map<string, any>();
+  let batchesMap = new Map<string, any>();
+  let saleItemBatchesMap = new Map<string, any[]>();
+
+  // 1. Fetch products with brands and their batches
+  if (productIds.length > 0) {
+    try {
+      const { data: prods } = await supabase
+        .from('products')
+        .select('id, name, hsn_code, unit, pack_size, brand_id, brand:brands(id, name, manufacturer), batches:product_batches(id, batch_number, expiry_date)')
+        .in('id', productIds);
+      if (Array.isArray(prods)) {
+        for (const p of prods) {
+          productsMap.set(p.id, p);
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to enrich products for sale items:', e);
+    }
+  }
+
+  // 2. Fetch specific batches if referenced directly
+  if (batchIds.length > 0) {
+    try {
+      const { data: dbBatches } = await supabase
+        .from('product_batches')
+        .select('id, product_id, batch_number, expiry_date')
+        .in('id', batchIds);
+      if (Array.isArray(dbBatches)) {
+        for (const b of dbBatches) {
+          batchesMap.set(b.id, b);
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to enrich batches for sale items:', e);
+    }
+  }
+
+  // 3. Fetch sale_item_batches if present
+  if (saleItemIds.length > 0) {
+    try {
+      const { data: sibs } = await supabase
+        .from('sale_item_batches')
+        .select('sale_item_id, batch:product_batches(id, batch_number, expiry_date)')
+        .in('sale_item_id', saleItemIds);
+      if (Array.isArray(sibs)) {
+        for (const sib of sibs) {
+          const list = saleItemBatchesMap.get(sib.sale_item_id) || [];
+          list.push(sib);
+          saleItemBatchesMap.set(sib.sale_item_id, list);
+        }
+      }
+    } catch {
+      // optional
+    }
+  }
+
+  return items.map(it => {
+    const prod = productsMap.get(it.product_id) || it.product || {};
+    const directBatch = it.batch_id ? batchesMap.get(it.batch_id) : null;
+    const sibBatch = saleItemBatchesMap.get(it.id)?.[0]?.batch;
+    const prodBatch = prod.batches?.[0];
+    const resolvedBatch = directBatch || sibBatch || it.batch || prodBatch || null;
+
+    const hsn = it.hsn_code || prod.hsn_code || null;
+    const batchNo = it.batch_number || resolvedBatch?.batch_number || null;
+    const expDate = it.expiry_date || resolvedBatch?.expiry_date || null;
+    const mfg = it.manufacturer || prod.brand?.manufacturer || prod.brand?.name || prod.manufacturer || null;
+
+    return {
+      ...it,
+      product: prod,
+      batch: resolvedBatch,
+      hsn_code: hsn,
+      batch_number: batchNo,
+      expiry_date: expDate,
+      manufacturer: mfg,
+    };
+  });
 }
 
 export async function getSales(
@@ -536,6 +626,22 @@ export async function getSales(
           }));
         }
       }
+
+      // Batch enrich items with product and batch metadata
+      const allItemsList = data.flatMap((s: any) => s.items || s.sale_items || []);
+      if (allItemsList.length > 0) {
+        const enrichedList = await enrichSaleItemsWithMetadata(supabase, allItemsList);
+        const itemsBySale = new Map<string, any[]>();
+        for (const it of enrichedList) {
+          const list = itemsBySale.get(it.sale_id) || [];
+          list.push(it);
+          itemsBySale.set(it.sale_id, list);
+        }
+        data = data.map((s: any) => ({
+          ...s,
+          items: itemsBySale.get(s.id) || s.items || s.sale_items || [],
+        }));
+      }
     }
     
     return { sales: (data || []).map(normalizeSale), total: count || 0 };
@@ -582,21 +688,27 @@ export async function getSaleById(shopId: string, saleId: string) {
       data = res.data;
     }
 
-    if (data && (!data.items || data.items.length === 0)) {
-      const { data: dbItems } = await supabase
-        .from('sale_items')
-        .select('*')
-        .eq('sale_id', data.id);
-      if (dbItems) data.items = dbItems;
-    }
+    if (data) {
+      if (!data.items || data.items.length === 0) {
+        const { data: dbItems } = await supabase
+          .from('sale_items')
+          .select('*')
+          .eq('sale_id', data.id);
+        if (dbItems) data.items = dbItems;
+      }
 
-    if (data && data.customer_id && !data.customer) {
-      const { data: dbCust } = await supabase
-        .from('customers')
-        .select('*')
-        .eq('id', data.customer_id)
-        .maybeSingle();
-      if (dbCust) data.customer = dbCust;
+      if (Array.isArray(data.items) && data.items.length > 0) {
+        data.items = await enrichSaleItemsWithMetadata(supabase, data.items);
+      }
+
+      if (data.customer_id && !data.customer) {
+        const { data: dbCust } = await supabase
+          .from('customers')
+          .select('*')
+          .eq('id', data.customer_id)
+          .maybeSingle();
+        if (dbCust) data.customer = dbCust;
+      }
     }
 
     return data ? normalizeSale(data) : null;
@@ -632,21 +744,27 @@ export async function getSaleByInvoice(shopId: string, invoiceNumber: string) {
       data = fallbackRes.data;
     }
 
-    if (data && (!data.items || data.items.length === 0)) {
-      const { data: dbItems } = await supabase
-        .from('sale_items')
-        .select('*')
-        .eq('sale_id', data.id);
-      if (dbItems) data.items = dbItems;
-    }
+    if (data) {
+      if (!data.items || data.items.length === 0) {
+        const { data: dbItems } = await supabase
+          .from('sale_items')
+          .select('*')
+          .eq('sale_id', data.id);
+        if (dbItems) data.items = dbItems;
+      }
 
-    if (data && data.customer_id && !data.customer) {
-      const { data: dbCust } = await supabase
-        .from('customers')
-        .select('*')
-        .eq('id', data.customer_id)
-        .maybeSingle();
-      if (dbCust) data.customer = dbCust;
+      if (Array.isArray(data.items) && data.items.length > 0) {
+        data.items = await enrichSaleItemsWithMetadata(supabase, data.items);
+      }
+
+      if (data.customer_id && !data.customer) {
+        const { data: dbCust } = await supabase
+          .from('customers')
+          .select('*')
+          .eq('id', data.customer_id)
+          .maybeSingle();
+        if (dbCust) data.customer = dbCust;
+      }
     }
 
     return data ? normalizeSale(data) : null;

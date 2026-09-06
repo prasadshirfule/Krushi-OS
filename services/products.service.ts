@@ -126,7 +126,7 @@ export async function getProducts(
 
     let query = supabase
       .from('products')
-      .select('*, category:categories(id, name), brand:brands(id, name), batches:product_batches(*)', { count: 'exact' })
+      .select('*, category:categories(id, name), brand:brands(id, name, manufacturer), batches:product_batches(*)', { count: 'exact' })
       .eq('shop_id', shopId)
       .eq('is_active', true);
     
@@ -515,7 +515,7 @@ export async function searchProducts(shopId: string, queryText: string, limit = 
 
     let queryBuilder = supabase
       .from('products')
-      .select('*, category:categories(id, name), brand:brands(id, name), batches:product_batches(*)')
+      .select('*, category:categories(id, name), brand:brands(id, name, manufacturer), batches:product_batches(*)')
       .eq('shop_id', shopId)
       .eq('is_active', true);
 

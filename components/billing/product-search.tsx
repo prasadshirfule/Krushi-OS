@@ -202,6 +202,7 @@ export default function ProductSearch({ onAddToCart }: ProductSearchProps) {
       batch_number: activeBatch?.batch_number || product.batch_number || null,
       expiry_date: activeBatch?.expiry_date || activeBatch?.exp_date || product.expiry_date || null,
       hsn_code: product.hsn_code || product.hsnCode || null,
+      manufacturer: product.manufacturer || product.brand?.manufacturer || product.brand?.name || product.brand || '',
       unit: product.unit || undefined,
       pack_size: product.pack_size || undefined,
       product_size_value: product.product_size_value ?? undefined,

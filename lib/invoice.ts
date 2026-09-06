@@ -223,7 +223,7 @@ export function generateInvoicePDF(sale: any, customSettings?: any) {
 
       const mfg = item.manufacturer || p.manufacturer || p.brand?.manufacturer || p.brand?.name || '';
       const prodName = item.product_name || item.name || p.name || `Item ${idx + 1}`;
-      const nameWithMfg = mfg ? `${prodName}\nMfg: ${mfg}` : prodName;
+      const nameWithMfg = `${prodName}\nMfg: ${mfg || '-'}`;
 
       return [
         idx + 1,
