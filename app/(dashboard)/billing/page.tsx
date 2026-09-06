@@ -11,9 +11,12 @@ import { BillingCartItem, BillAdjustment } from '@/types/sales';
 import { generateId } from '@/lib/utils';
 import { calculateBillTotal } from '@/lib/calculations';
 import { getCustomersAction } from '@/actions/customers';
-import { User, X, UserPlus, Wifi, Phone, MapPin, Search } from 'lucide-react';
+import { getShopProfileAction } from '@/actions/settings';
+import { isShopProfileComplete, ShopDetails } from '@/lib/shop-details';
+import { User, X, UserPlus, Wifi, Phone, MapPin, Search, AlertCircle, Store, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import Link from 'next/link';
 
 import { 
   isClientDemoMode, 
@@ -45,6 +48,8 @@ export default function BillingPage() {
   const [lastInvoiceNumber, setLastInvoiceNumber] = useState<string | null>(null);
   const [lastSaleTotals, setLastSaleTotals] = useState<any>(null);
   const [showNewCustomerDialog, setShowNewCustomerDialog] = useState(false);
+  const [shopProfile, setShopProfile] = useState<ShopDetails | null>(null);
+  const [isProfileLoaded, setIsProfileLoaded] = useState(false);
 
   /* ─── Fetch customers dynamically ─── */
   const loadCustomers = useCallback(async () => {
@@ -104,6 +109,16 @@ export default function BillingPage() {
 
   useEffect(() => {
     loadCustomers();
+
+    // Check shop profile completeness
+    getShopProfileAction().then(res => {
+      if (res.success && res.data) {
+        setShopProfile(res.data);
+      }
+      setIsProfileLoaded(true);
+    }).catch(() => {
+      setIsProfileLoaded(true);
+    });
 
     if (isClientDemoMode()) {
       const handleCustomersUpdated = () => {
@@ -252,6 +267,32 @@ export default function BillingPage() {
           </span>
         </div>
       </div>
+
+      {/* ════════ SETUP NOTICE IF PROFILE / BANK DETAILS INCOMPLETE ════════ */}
+      {isProfileLoaded && !isShopProfileComplete(shopProfile) && (
+        <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 md:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
+          <div className="flex items-start gap-3">
+            <div className="h-9 w-9 rounded-full bg-amber-500/20 flex items-center justify-center shrink-0 mt-0.5 sm:mt-0">
+              <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+            </div>
+            <div>
+              <h3 className="text-sm md:text-base font-bold text-foreground">
+                Complete Your Shop &amp; Bank Details
+              </h3>
+              <p className="text-xs md:text-sm text-muted-foreground mt-0.5">
+                {!shopProfile?.shopName 
+                  ? 'Please enter your shop details and bank account in Settings before printing invoices.' 
+                  : 'Please complete your bank account details (Bank Name, A/C No, IFSC) in Settings for official invoices.'}
+              </p>
+            </div>
+          </div>
+          <Link href="/settings?tab=shop" className="shrink-0 w-full sm:w-auto">
+            <Button size="sm" className="w-full bg-amber-600 hover:bg-amber-700 text-white font-semibold flex items-center gap-1.5">
+              <Store className="h-4 w-4" /> Complete Setup <ArrowRight className="h-4 w-4" />
+            </Button>
+          </Link>
+        </div>
+      )}
 
       {/* ════════ SECTION 1: CUSTOMER (Dark Card) ════════ */}
       <section className="rounded-xl border border-border bg-card p-5 md:p-6 shadow-sm text-card-foreground">

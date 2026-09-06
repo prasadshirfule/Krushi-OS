@@ -98,14 +98,21 @@ export async function getShopProfile(shopId: string): Promise<ShopDetails> {
     return {
       ...DEFAULT_SHOP_DETAILS,
       ...extended,
-      shopName: shop.name || extended.shopName || DEFAULT_SHOP_DETAILS.shopName,
-      address: shop.address || extended.address || DEFAULT_SHOP_DETAILS.address,
-      contact1: shop.phone || extended.contact1 || DEFAULT_SHOP_DETAILS.contact1,
-      email: shop.email || extended.email || DEFAULT_SHOP_DETAILS.email,
-      gstNumber: shop.gst_number || extended.gstNumber || DEFAULT_SHOP_DETAILS.gstNumber,
-      licenseNumber: shop.license_info || extended.licenseNumber || DEFAULT_SHOP_DETAILS.licenseNumber,
+      shopName: shop.name || extended.shopName || '',
+      address: shop.address || extended.address || '',
+      contact1: shop.phone || extended.contact1 || '',
+      email: shop.email || extended.email || '',
+      gstNumber: shop.gst_number || extended.gstNumber || '',
+      licenseNumber: shop.license_info || extended.licenseNumber || '',
       invoiceTerms: shop.terms_and_conditions || extended.invoiceTerms || DEFAULT_SHOP_DETAILS.invoiceTerms,
-      logoBase64: shop.logo_url || extended.logoBase64 || DEFAULT_SHOP_DETAILS.logoBase64,
+      logoBase64: shop.logo_url || extended.logoBase64 || '',
+      ownerName: extended.ownerName || '',
+      bankName: extended.bankName || '',
+      accountName: extended.accountName || extended.ownerName || '',
+      accountNumber: extended.accountNumber || '',
+      ifsc: extended.ifsc || '',
+      branch: extended.branch || '',
+      accountType: extended.accountType || '',
     };
   } catch (err) {
     console.error("Failed to get shop profile from Supabase:", err);
@@ -142,13 +149,32 @@ export async function updateShopProfile(shopId: string, data: Partial<ShopDetail
     }
   }
 
-  // 2. Persist extended profile in settings table
+  // 2. Load existing settings payload and merge
+  let currentSettings: Partial<ShopDetails> = {};
+  const { data: existingRow } = await supabase
+    .from('settings')
+    .select('value')
+    .eq('shop_id', shopId)
+    .eq('key', 'shop_profile')
+    .maybeSingle();
+
+  if (existingRow?.value) {
+    try {
+      currentSettings = JSON.parse(existingRow.value);
+    } catch {}
+  }
+
+  const mergedSettings = {
+    ...currentSettings,
+    ...data,
+  };
+
   const { error: settingError } = await supabase
     .from('settings')
     .upsert({
       shop_id: shopId,
       key: 'shop_profile',
-      value: JSON.stringify(data),
+      value: JSON.stringify(mergedSettings),
       updated_at: new Date().toISOString()
     }, { onConflict: 'shop_id, key' });
 

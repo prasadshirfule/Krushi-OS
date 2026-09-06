@@ -453,7 +453,7 @@ export default function SettingsPage() {
                           name="authorizedSignatory"
                           value={shopProfile.authorizedSignatory || ''}
                           onChange={handleShopInputChange}
-                          placeholder={shopProfile.shopName || "e.g. MAULI KRUSHI SEVA KENDRA"}
+                          placeholder={shopProfile.shopName || "e.g. KRUSHI SEVA KENDRA"}
                         />
                       </div>
                     </div>

@@ -26,30 +26,49 @@ export interface ShopDetails {
 }
 
 export const DEFAULT_SHOP_DETAILS: ShopDetails = {
-  shopName: 'MAULI KRUSHI SEVA KENDRA',
-  ownerName: 'PRAMOD SHIRFULE',
-  address: 'At kamari, Himayatnagar, NANDED, MAHARASHTRA - 431802',
-  village: 'Kamari',
-  taluka: 'Himayatnagar',
-  district: 'Nanded',
-  state: 'Maharashtra',
-  pincode: '431802',
-  contact1: '9767631543',
+  shopName: '',
+  ownerName: '',
+  address: '',
+  village: '',
+  taluka: '',
+  district: '',
+  state: '',
+  pincode: '',
+  contact1: '',
   contact2: '',
   email: '',
-  gstNumber: 'DLGPS9782B2ZJ',
+  gstNumber: '',
   licenseNumber: '',
   registrationNumber: '',
-  invoiceTerms: '1. Goods once sold will not be taken back.\n2. Interest @ 18% p.a. will be charged if not paid within 30 days.',
-  authorizedSignatory: 'MAULI KRUSHI SEVA KENDRA',
+  invoiceTerms: '1. Goods once sold will not be taken back without valid batch receipt.\n2. Interest @ 18% p.a. will be charged if not paid within 30 days.',
+  authorizedSignatory: '',
   logoBase64: '',
-  bankName: 'Maharastra Gramin Bank',
-  accountName: 'PRAMOD SHIRFULE',
-  accountNumber: '80045403150',
-  ifsc: 'MAHG0004120',
-  branch: 'Kamari',
-  accountType: 'Current',
+  bankName: '',
+  accountName: '',
+  accountNumber: '',
+  ifsc: '',
+  branch: '',
+  accountType: '',
 };
+
+export function isShopProfileComplete(shop?: Partial<ShopDetails> | null): boolean {
+  if (!shop) return false;
+  return Boolean(
+    shop.shopName?.trim() &&
+    (shop.address?.trim() || shop.village?.trim()) &&
+    shop.contact1?.trim() &&
+    shop.bankName?.trim() &&
+    shop.accountNumber?.trim()
+  );
+}
+
+export function isBankDetailsComplete(shop?: Partial<ShopDetails> | null): boolean {
+  if (!shop) return false;
+  return Boolean(
+    shop.bankName?.trim() &&
+    shop.accountNumber?.trim()
+  );
+}
 
 export function getSavedShopDetails(): ShopDetails {
   if (typeof window === 'undefined') {
@@ -59,7 +78,7 @@ export function getSavedShopDetails(): ShopDetails {
   try {
     let merged: ShopDetails = { ...DEFAULT_SHOP_DETAILS };
 
-    // 1. Try krushi_demo_shop_details (saved via /shop-details)
+    // 1. Try krushi_demo_shop_details (saved via /settings)
     const rawShopDetails = localStorage.getItem('krushi_demo_shop_details');
     if (rawShopDetails) {
       const parsed = JSON.parse(rawShopDetails);
