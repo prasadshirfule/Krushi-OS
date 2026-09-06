@@ -249,6 +249,11 @@ export async function createProduct(shopId: string, data: CreateProductInput, us
 
   const supabase = await createServerSupabaseClient();
   const normalizedProductName = (data.name || '').trim().toUpperCase();
+  const rawBatch = (data.batch_number || '').trim();
+  const rawExpStr = (data.expiry_date || '').trim();
+  const dbExpiry = rawExpStr ? (formatDDMMYYYYtoDB(rawExpStr) || rawExpStr) : null;
+  const hasBatch = Boolean(rawBatch);
+  const hasExpiry = Boolean(dbExpiry);
 
   const rpcParams = {
     p_shop_id: shopId,
@@ -267,11 +272,11 @@ export async function createProduct(shopId: string, data: CreateProductInput, us
     p_hsn_code: data.hsn_code || null,
     p_min_stock: Number(data.min_stock || 0),
     p_opening_stock: Number(data.opening_stock || 0),
-    p_batch_tracking: Boolean(data.batch_tracking),
-    p_expiry_tracking: Boolean(data.expiry_tracking),
-    p_batch_number: data.batch_number || null,
+    p_batch_tracking: hasBatch,
+    p_expiry_tracking: hasExpiry,
+    p_batch_number: hasBatch ? rawBatch : null,
     p_mfd_date: data.mfd_date || null,
-    p_expiry_date: formatDDMMYYYYtoDB(data.expiry_date) || data.expiry_date || null,
+    p_expiry_date: dbExpiry,
     p_product_type: data.product_type || null,
     p_active_ingredient: data.active_ingredient || null,
     p_formulation: data.formulation || null,
@@ -521,7 +526,7 @@ export async function searchProducts(shopId: string, queryText: string, limit = 
       .eq('is_active', true);
 
     if (cleanQuery) {
-      queryBuilder = queryBuilder.or(`name.ilike.%${cleanQuery}%,sku.ilike.%${cleanQuery}%,barcode.ilike.%${cleanQuery}%`);
+      queryBuilder = queryBuilder.or(`name.ilike.%${cleanQuery}%,sku.ilike.%${cleanQuery}%,barcode.ilike.%${cleanQuery}%,pack_size.ilike.%${cleanQuery}%`);
     }
 
     const { data, error } = await queryBuilder

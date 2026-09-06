@@ -22,6 +22,7 @@ interface PaymentPanelProps {
   customerId?: string;
   customerName?: string;
   customerPhone?: string;
+  customerVillage?: string;
   onComplete: (saleId: string, invoiceNumber?: string, completedTotals?: any) => void;
 }
 
@@ -41,7 +42,7 @@ const METHOD_TO_ENUM: Record<string, 'CASH' | 'UPI' | 'CARD' | 'BANK_TRANSFER' |
   Credit: 'CREDIT',
 };
 
-export default function PaymentPanel({ cart, adjustments = [], totals, customerId, customerName, customerPhone, onComplete }: PaymentPanelProps) {
+export default function PaymentPanel({ cart, adjustments = [], totals, customerId, customerName, customerPhone, customerVillage, onComplete }: PaymentPanelProps) {
   const router = useRouter();
   const [paymentMethod, setPaymentMethod] = useState<string>(PAYMENT_METHODS[0]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -168,16 +169,19 @@ export default function PaymentPanel({ cart, adjustments = [], totals, customerI
       ];
 
       const customerDisplayName = effectiveCustomerName ? effectiveCustomerName.toUpperCase() : (hasCustomer ? 'CUSTOMER' : 'WALK-IN CUSTOMER');
+      const cleanVillage = (customerVillage || '').toUpperCase().trim();
 
       const isUuidCustomer = customerId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(customerId);
       const saleData = {
         customer_id: hasCustomer && isUuidCustomer ? customerId : null,
         customer_name: customerDisplayName,
         customer_phone: customerPhone || '',
+        customer_village: cleanVillage,
         customer: {
           id: customerId || (hasCustomer ? `cust-${Date.now()}` : 'walk-in'),
           name: customerDisplayName,
           phone: customerPhone || '',
+          village: cleanVillage,
         },
         items: formattedItems,
         adjustments: formattedAdjustments,

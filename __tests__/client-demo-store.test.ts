@@ -223,17 +223,17 @@ async function runTests() {
   console.log('Created product Name:', newProduct.name);
   console.log('Created product Price:', newProduct.selling_price);
 
-  if (newProduct.name !== 'Test Urea') throw new Error('Product name mismatch');
+  if (newProduct.name !== 'TEST UREA') throw new Error('Product name mismatch');
   if (newProduct.selling_price !== 500) throw new Error('Product price mismatch');
 
   // Verify in Products list
   const prodsAfterCreate = getDemoProductsClient();
   if (prodsAfterCreate.length !== 6) throw new Error(`Expected 6 products, got ${prodsAfterCreate.length}`);
-  if (prodsAfterCreate[0].name !== 'Test Urea') throw new Error('New product should be at top');
+  if (prodsAfterCreate[0].name !== 'TEST UREA') throw new Error('New product should be at top');
 
   // Verify in Billing search
   const billingSearch = searchDemoProductsClient('Test Urea');
-  if (billingSearch.length === 0 || billingSearch[0].name !== 'Test Urea') {
+  if (billingSearch.length === 0 || billingSearch[0].name !== 'TEST UREA') {
     throw new Error('Billing search could not find newly created product');
   }
   console.log('Billing search found:', billingSearch[0].name, '₹' + billingSearch[0].selling_price);
@@ -309,11 +309,11 @@ async function runTests() {
   });
   console.log('Created Brand ID:', newBrand.id);
   console.log('Created Brand Name:', newBrand.name);
-  if (newBrand.name !== 'Krushi Chemicals') throw new Error('Brand name mismatch');
+  if (newBrand.name !== 'KRUSHI CHEMICALS') throw new Error('Brand name mismatch');
 
   // Verify persistence in getDemoBrandsClient
   const brandsAfterAdd = getDemoBrandsClient();
-  const foundBrand = brandsAfterAdd.find(b => b.name === 'Krushi Chemicals');
+  const foundBrand = brandsAfterAdd.find(b => b.name === 'KRUSHI CHEMICALS');
   if (!foundBrand) throw new Error('Krushi Chemicals not found in brands list');
   console.log('Brand verified in brands list:', foundBrand.name);
 
@@ -347,12 +347,10 @@ async function runTests() {
     expiry_date: '04/09/2027',
     batch_number: '',
   });
-  if (missingBatchRes.success) throw new Error('Expected validation error for missing batch number');
-  const batchErr = missingBatchRes.error.issues.find(i => i.path.includes('batch_number'))?.message;
-  console.log('Missing batch error message:', batchErr);
-  if (batchErr !== 'Batch number is required.') throw new Error(`Expected "Batch number is required.", got "${batchErr}"`);
+  if (!missingBatchRes.success) throw new Error('Batch number should be optional');
+  console.log('Batch number is optional: save succeeds with empty batch');
 
-  // 15b: Missing Expiry Date
+  // 15b: Missing Expiry Date is ALLOWED (Optional)
   const missingExpRes = productSchema.safeParse({
     name: 'Test Product',
     category_id: 'cat-1',
@@ -364,10 +362,8 @@ async function runTests() {
     batch_number: 'BATCH-123',
     expiry_date: '',
   });
-  if (missingExpRes.success) throw new Error('Expected validation error for missing expiry date');
-  const expErr = missingExpRes.error.issues.find(i => i.path.includes('expiry_date'))?.message;
-  console.log('Missing expiry error message:', expErr);
-  if (expErr !== 'Expiry date is required.') throw new Error(`Expected "Expiry date is required.", got "${expErr}"`);
+  if (!missingExpRes.success) throw new Error('Expiry date should be optional');
+  console.log('Expiry date is optional: save succeeds with empty expiry');
 
   // 15c: Invalid Expiry Date: 31/02/2027
   const invalidFebRes = productSchema.safeParse({
@@ -441,7 +437,7 @@ async function runTests() {
   console.log('Expiry Date (stored):', testUrea.expiry_date);
   console.log('Expiry Date (formatted):', formatToDDMMYYYY(testUrea.expiry_date));
 
-  if (testUrea.name !== 'Test Urea') throw new Error('Name mismatch');
+  if (testUrea.name !== 'TEST UREA') throw new Error('Name mismatch');
   if (testUrea.selling_price !== 500) throw new Error('Price mismatch');
   if (testUrea.current_stock !== 50) throw new Error('Stock mismatch');
   if (testUrea.unit !== 'KG') throw new Error('Unit mismatch');
@@ -597,11 +593,11 @@ async function runTests() {
     description: 'Products used to regulate plant growth',
   });
   console.log('Created Category ID:', newCat.id, 'Name:', newCat.name);
-  if (newCat.name !== 'Plant Growth Regulators') throw new Error('Category name mismatch');
+  if (newCat.name !== 'PLANT GROWTH REGULATORS') throw new Error('Category name mismatch');
 
   // Step 2: Verify category is available in getDemoCategoriesClient()
   const allCats = getDemoCategoriesClient();
-  const foundCat = allCats.find(c => c.name === 'Plant Growth Regulators');
+  const foundCat = allCats.find(c => c.name === 'PLANT GROWTH REGULATORS');
   console.log('Found category in all categories list:', foundCat?.name);
   if (!foundCat) throw new Error('Category not found in categories list');
 
@@ -619,12 +615,12 @@ async function runTests() {
   });
   console.log('Created PGR Product:', pgrProduct.name, 'Category ID:', pgrProduct.category_id, 'Category Name:', pgrProduct.category?.name);
   if (pgrProduct.category_id !== newCat.id) throw new Error('Product category ID mismatch');
-  if (pgrProduct.category?.name !== 'Plant Growth Regulators') throw new Error('Product category name mismatch');
+  if (pgrProduct.category?.name !== 'PLANT GROWTH REGULATORS') throw new Error('Product category name mismatch');
 
   // Step 4: Search product in billing by category filter
   const categorySearchResults = searchDemoProductsClient('', newCat.id);
   console.log('Billing category search returned matches:', categorySearchResults.length);
-  if (categorySearchResults.length === 0 || categorySearchResults[0].name !== 'Bio-Zyme PGR') {
+  if (categorySearchResults.length === 0 || categorySearchResults[0].name !== 'BIO-ZYME PGR') {
     throw new Error('Billing category filter did not find PGR product');
   }
 

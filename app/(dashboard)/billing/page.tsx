@@ -7,13 +7,14 @@ import BillAdjustments from '@/components/billing/bill-adjustments';
 import PaymentPanel from '@/components/billing/payment-panel';
 import BillSuccessDialog from '@/components/billing/bill-success-dialog';
 import { CustomerFormDialog } from '@/components/customers/customer-form-dialog';
+import { QuickCustomerDialog } from '@/components/customers/quick-customer-dialog';
 import { BillingCartItem, BillAdjustment } from '@/types/sales';
 import { generateId } from '@/lib/utils';
 import { calculateBillTotal } from '@/lib/calculations';
 import { getCustomersAction } from '@/actions/customers';
 import { getShopProfileAction } from '@/actions/settings';
 import { isShopProfileComplete, ShopDetails } from '@/lib/shop-details';
-import { User, X, UserPlus, Wifi, Phone, MapPin, Search, AlertCircle, Store, ArrowRight } from 'lucide-react';
+import { User, X, UserPlus, Wifi, Phone, MapPin, Search, AlertCircle, Store, ArrowRight, Edit2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import Link from 'next/link';
@@ -48,6 +49,7 @@ export default function BillingPage() {
   const [lastInvoiceNumber, setLastInvoiceNumber] = useState<string | null>(null);
   const [lastSaleTotals, setLastSaleTotals] = useState<any>(null);
   const [showNewCustomerDialog, setShowNewCustomerDialog] = useState(false);
+  const [showQuickCustomerDialog, setShowQuickCustomerDialog] = useState(false);
   const [shopProfile, setShopProfile] = useState<ShopDetails | null>(null);
   const [isProfileLoaded, setIsProfileLoaded] = useState(false);
 
@@ -156,13 +158,16 @@ export default function BillingPage() {
 
   /* ─── Handlers ─── */
   const selectCustomer = (cust: CustomerOption) => {
+    const isWalkIn = cust.id === 'walk-in' || cust.name.toLowerCase() === 'walk-in' || cust.name.toLowerCase() === 'walk-in customer';
+    const cleanName = isWalkIn ? 'WALK-IN CUSTOMER' : (cust.name || '').trim().toUpperCase();
+
     setCustomerId(cust.id);
-    setCustomerName(cust.name);
+    setCustomerName(cleanName);
     setCustomerPhone(cust.phone || '');
-    setCustomerVillage(cust.village || '');
+    setCustomerVillage((cust.village || '').trim().toUpperCase());
     setCustomerSearch('');
 
-    if (cust.id !== 'walk-in') {
+    if (!isWalkIn) {
       setRecentCustomerIds(prev => {
         const next = [cust.id, ...prev.filter(id => id !== cust.id)].slice(0, 6);
         try {
@@ -173,13 +178,21 @@ export default function BillingPage() {
     }
   };
 
+  const handleQuickCustomerApply = (data: { id: string; name: string; phone: string; village: string }) => {
+    setCustomerId(data.id);
+    setCustomerName(data.name.toUpperCase());
+    setCustomerPhone(data.phone);
+    setCustomerVillage(data.village.toUpperCase());
+    setCustomerSearch('');
+  };
+
   const handleCustomerCreated = (newCust: any) => {
     if (newCust) {
       const item: CustomerOption = {
         id: String(newCust.id),
-        name: newCust.name,
+        name: (newCust.name || '').toUpperCase(),
         phone: newCust.phone || newCust.mobile || '',
-        village: newCust.village || '',
+        village: (newCust.village || '').toUpperCase(),
       };
       setCustomerList(prev => [item, ...prev.filter(c => c.id !== item.id)]);
       selectCustomer(item);
@@ -200,7 +213,7 @@ export default function BillingPage() {
         // Quick select as ad-hoc customer
         selectCustomer({
           id: `cust-${Date.now()}`,
-          name: customerSearch.trim(),
+          name: customerSearch.trim().toUpperCase(),
           phone: '',
         });
       }
@@ -216,11 +229,16 @@ export default function BillingPage() {
   };
 
   const handleClearCart = useCallback(() => {
-    if ((cart.length > 0 || adjustments.length > 0) && window.confirm('Clear all items and adjustments from the bill?')) {
+    if ((cart.length > 0 || adjustments.length > 0 || customerName) && window.confirm('Clear all items, adjustments, and customer from the bill?')) {
       setCart([]);
       setAdjustments([]);
+      setCustomerId('');
+      setCustomerName('');
+      setCustomerPhone('');
+      setCustomerVillage('');
+      setCustomerSearch('');
     }
-  }, [cart, adjustments]);
+  }, [cart, adjustments, customerName]);
 
   const handleSaleComplete = (saleId: string, invoiceNumber?: string, completedTotals?: any) => {
     setLastSaleId(saleId);
@@ -233,6 +251,7 @@ export default function BillingPage() {
     setCustomerName('');
     setCustomerPhone('');
     setCustomerVillage('');
+    setCustomerSearch('');
   };
 
   const handleAddToCart = (item: any) => {
@@ -296,25 +315,35 @@ export default function BillingPage() {
 
       {/* ════════ SECTION 1: CUSTOMER (Dark Card) ════════ */}
       <section className="rounded-xl border border-border bg-card p-5 md:p-6 shadow-sm text-card-foreground">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
           <div className="flex items-center gap-2.5">
             <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center">
               <User className="h-5 w-5 text-primary" />
             </div>
             <div>
               <h2 className="text-lg font-semibold text-foreground">Customer / Farmer</h2>
-              <p className="text-xs text-muted-foreground">Select registered farmer or walk-in customer</p>
+              <p className="text-xs text-muted-foreground">Select registered farmer, enter quick customer details, or use walk-in</p>
             </div>
           </div>
           {!customerName && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="text-primary border-primary/40 hover:bg-primary/10 hover:text-primary"
-              onClick={() => setShowNewCustomerDialog(true)}
-            >
-              <UserPlus className="h-4 w-4 mr-1.5" /> New Customer
-            </Button>
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-primary border-primary/40 hover:bg-primary/10 hover:text-primary font-semibold"
+                onClick={() => setShowQuickCustomerDialog(true)}
+              >
+                <User className="h-4 w-4 mr-1.5" /> + Quick Customer
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-muted-foreground border-border hover:bg-muted font-medium"
+                onClick={() => setShowNewCustomerDialog(true)}
+              >
+                <UserPlus className="h-4 w-4 mr-1.5" /> New Registered Farmer
+              </Button>
+            </div>
           )}
         </div>
 
@@ -323,28 +352,53 @@ export default function BillingPage() {
           <div className="flex items-center gap-3">
             <div className="flex-1 bg-primary/10 border-2 border-primary/40 rounded-xl px-5 py-3.5">
               <div className="flex items-center justify-between flex-wrap gap-2">
-                <p className="text-2xl md:text-3xl font-bold text-primary tracking-tight">{customerName}</p>
-                {customerId === 'walk-in' && (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="text-2xl md:text-3xl font-bold text-primary tracking-tight">{customerName}</p>
+                  <button
+                    type="button"
+                    onClick={() => setShowQuickCustomerDialog(true)}
+                    className="p-1 rounded text-primary hover:bg-primary/20 transition-colors"
+                    title="Edit Customer Details for this bill"
+                  >
+                    <Edit2 className="h-4 w-4" />
+                  </button>
+                </div>
+                {customerId === 'walk-in' && !customerPhone && !customerVillage && (
                   <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-muted text-muted-foreground">
-                    Cash Customer
+                    Walk-in Customer
                   </span>
                 )}
+                {customerId?.startsWith('quick-') || (customerId?.startsWith('cust-') && customerId !== 'walk-in') ? (
+                  <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-blue-500/15 text-blue-400 border border-blue-500/30">
+                    Quick Customer
+                  </span>
+                ) : customerId && customerId !== 'walk-in' ? (
+                  <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                    Registered Farmer
+                  </span>
+                ) : null}
               </div>
-              {customerId !== 'walk-in' && (
-                <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1 font-medium flex-wrap">
-                  {customerPhone && (
-                    <span className="flex items-center gap-1">
-                      <Phone className="h-3.5 w-3.5 text-primary/70" /> {customerPhone}
-                    </span>
-                  )}
-                  {customerVillage && (
-                    <span className="flex items-center gap-1">
-                      <MapPin className="h-3.5 w-3.5 text-primary/70" /> {customerVillage}
-                    </span>
-                  )}
-                  <span className="text-xs text-primary font-semibold">Registered Farmer</span>
-                </div>
-              )}
+              <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1 font-medium flex-wrap">
+                {customerPhone ? (
+                  <span className="flex items-center gap-1">
+                    <Phone className="h-3.5 w-3.5 text-primary/70" /> {customerPhone}
+                  </span>
+                ) : null}
+                {customerVillage ? (
+                  <span className="flex items-center gap-1">
+                    <MapPin className="h-3.5 w-3.5 text-primary/70" /> {customerVillage}
+                  </span>
+                ) : null}
+                {!customerPhone && !customerVillage && customerId === 'walk-in' && (
+                  <button
+                    type="button"
+                    onClick={() => setShowQuickCustomerDialog(true)}
+                    className="text-xs text-primary underline hover:text-primary/80 font-semibold"
+                  >
+                    + Add Phone / Village (Optional)
+                  </button>
+                )}
+              </div>
             </div>
             <Button
               variant="ghost"
@@ -365,7 +419,7 @@ export default function BillingPage() {
                 value={customerSearch}
                 onChange={e => setCustomerSearch(e.target.value)}
                 onKeyDown={handleCustomerSearchKeyDown}
-                placeholder="Search customer by name or phone (e.g. Ramesh, 9876...)"
+                placeholder="Search registered farmer by name or phone (e.g. Ramesh, 9876...)"
                 className="text-base py-5 pl-10 bg-background border-border text-foreground placeholder:text-muted-foreground"
               />
             </div>
@@ -387,12 +441,12 @@ export default function BillingPage() {
                       onClick={() =>
                         selectCustomer({
                           id: `cust-${Date.now()}`,
-                          name: customerSearch.trim(),
+                          name: customerSearch.trim().toUpperCase(),
                           phone: '',
                         })
                       }
                     >
-                      + Use &ldquo;{customerSearch.trim()}&rdquo;
+                      + Quick Customer &ldquo;{customerSearch.trim().toUpperCase()}&rdquo;
                     </Button>
                   )}
                   {searchResults.map(c => (
@@ -410,7 +464,7 @@ export default function BillingPage() {
                   ))}
                   {searchResults.length === 0 && (
                     <span className="text-sm text-muted-foreground italic py-1">
-                      No registered customer matches &ldquo;{customerSearch}&rdquo;.
+                      No registered customer matches &ldquo;{customerSearch}&rdquo;. Click above to use as Quick Customer.
                     </span>
                   )}
                 </div>
@@ -430,6 +484,15 @@ export default function BillingPage() {
                     {c.name}
                   </Button>
                 ))}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="rounded-full px-3 py-1.5 h-auto text-xs font-semibold text-primary hover:bg-primary/10"
+                  onClick={() => setShowQuickCustomerDialog(true)}
+                >
+                  + Enter Other Details
+                </Button>
               </div>
             )}
           </>
@@ -460,8 +523,9 @@ export default function BillingPage() {
         adjustments={adjustments}
         totals={totals}
         customerId={customerId || (customerSearch.trim() ? `cust-${Date.now()}` : '')}
-        customerName={customerName || customerSearch.trim()}
+        customerName={customerName || customerSearch.trim().toUpperCase()}
         customerPhone={customerPhone}
+        customerVillage={customerVillage}
         onComplete={handleSaleComplete}
       />
 
@@ -486,6 +550,17 @@ export default function BillingPage() {
           }}
         />
       )}
+
+      <QuickCustomerDialog
+        open={showQuickCustomerDialog}
+        onOpenChange={setShowQuickCustomerDialog}
+        initialData={{
+          name: customerName !== 'WALK-IN CUSTOMER' ? customerName : '',
+          phone: customerPhone,
+          village: customerVillage,
+        }}
+        onApply={handleQuickCustomerApply}
+      />
 
       <CustomerFormDialog
         open={showNewCustomerDialog}

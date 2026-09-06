@@ -143,7 +143,7 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
   const customerName = (s.customer?.name || (typeof s.customer === 'string' ? s.customer : null) || s.customer_name || (hasRealSale ? 'WALK-IN CUSTOMER' : 'DEMO CUSTOMER NAME')).toUpperCase();
   const customerPhone = s.customer?.phone || s.customer?.mobile || s.customer_phone || (hasRealSale ? '' : '9876543210');
   const customerAddress = [
-    s.customer?.village || s.customer?.address || (!hasRealSale ? 'Demo Address' : ''),
+    s.customer?.village || s.customer?.address || s.customer_village || s.customer_address || (!hasRealSale ? 'Demo Address' : ''),
     s.customer?.district || (!hasRealSale ? 'Demo District' : ''),
     s.customer?.state || (!hasRealSale ? 'Demo State' : '')
   ].filter(Boolean).join(', ');

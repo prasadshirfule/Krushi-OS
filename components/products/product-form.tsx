@@ -326,7 +326,12 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
   const onSubmit = async (data: ProductInput) => {
     setIsSubmitting(true);
     try {
-      const dbExpiry = formatDDMMYYYYtoDB(data.expiry_date) || data.expiry_date;
+      const rawBatch = (data.batch_number || '').trim();
+      const rawExpStr = (data.expiry_date || '').trim();
+      const dbExpiry = rawExpStr ? (formatDDMMYYYYtoDB(rawExpStr) || rawExpStr) : null;
+      const hasBatch = Boolean(rawBatch);
+      const hasExpiry = Boolean(dbExpiry);
+
       const sizeVal = data.product_size_value !== undefined && data.product_size_value !== null && data.product_size_value !== ('' as any)
         ? Number(data.product_size_value)
         : null;
@@ -337,9 +342,10 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
       const formattedData: ProductInput = {
         ...data,
         name: normalizedName,
+        batch_number: hasBatch ? rawBatch : null,
         expiry_date: dbExpiry,
-        batch_tracking: true,
-        expiry_tracking: true,
+        batch_tracking: hasBatch,
+        expiry_tracking: hasExpiry,
         product_size_value: sizeVal,
         product_size_unit: sizeUnit,
         pack_size: packSize,
@@ -733,14 +739,14 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
             </div>
           </CardHeader>
           <CardContent className="p-6 grid gap-6 sm:grid-cols-2">
-            {/* Batch Number */}
+            {/* Batch Number (Optional) */}
             <div className="space-y-2">
               <Label htmlFor="batch_number" className="text-sm font-semibold text-foreground">
-                Batch Number <span className="text-destructive font-bold">*</span>
+                Batch Number <span className="text-muted-foreground text-xs font-normal">(Optional)</span>
               </Label>
               <Input
                 id="batch_number"
-                placeholder="e.g. UREA-2026-01"
+                placeholder="e.g. UREA-2026-01 (or leave empty)"
                 className="h-11 text-base rounded-lg border-border bg-background font-mono"
                 {...form.register('batch_number')}
               />
@@ -749,18 +755,18 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
               )}
             </div>
 
-            {/* Expiry Date */}
+            {/* Expiry Date (Optional) */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label htmlFor="expiry_date" className="text-sm font-semibold text-foreground">
-                  Expiry Date <span className="text-destructive font-bold">*</span>
+                  Expiry Date <span className="text-muted-foreground text-xs font-normal">(Optional)</span>
                 </Label>
                 <span className="text-xs text-muted-foreground font-mono font-medium">DD/MM/YYYY</span>
               </div>
               <div className="relative">
                 <Input
                   id="expiry_date"
-                  placeholder="DD/MM/YYYY"
+                  placeholder="DD/MM/YYYY (or leave empty)"
                   maxLength={10}
                   className="h-11 text-base rounded-lg border-border bg-background font-mono pl-3.5 pr-10"
                   value={form.watch('expiry_date') || ''}
@@ -771,7 +777,7 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
               {form.formState.errors.expiry_date ? (
                 <p className="text-xs text-destructive font-medium">{form.formState.errors.expiry_date.message}</p>
               ) : (
-                <p className="text-[11px] text-muted-foreground">Expected format: DD/MM/YYYY (e.g. 04/09/2027)</p>
+                <p className="text-[11px] text-muted-foreground">Optional. Format: DD/MM/YYYY (e.g. 04/09/2027)</p>
               )}
             </div>
 

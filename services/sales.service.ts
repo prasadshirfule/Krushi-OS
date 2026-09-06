@@ -64,18 +64,24 @@ export function normalizeSale(sale: any) {
     };
   });
 
-  // Extract adjustments from sale.adjustments or serialized notes
+  // Extract adjustments and quickCustomer snapshot from sale.adjustments or serialized notes
   let rawAdjustments = Array.isArray(sale.adjustments) ? sale.adjustments : [];
   let userNotes = sale.notes || '';
+  let quickCustomer: any = null;
 
-  if (rawAdjustments.length === 0 && sale.notes && typeof sale.notes === 'string') {
+  if (sale.notes && typeof sale.notes === 'string') {
     try {
       const trimmed = sale.notes.trim();
       if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
         const parsed = JSON.parse(trimmed);
         if (Array.isArray(parsed.adjustments)) {
           rawAdjustments = parsed.adjustments;
-          userNotes = parsed.userNote || parsed.notes || '';
+        }
+        if (parsed.userNote !== undefined) {
+          userNotes = parsed.userNote || '';
+        }
+        if (parsed.quickCustomer) {
+          quickCustomer = parsed.quickCustomer;
         }
       } else if (trimmed.includes('__ADJUSTMENTS__:')) {
         const parts = trimmed.split('__ADJUSTMENTS__:');
@@ -88,6 +94,28 @@ export function normalizeSale(sale: any) {
     } catch {
       // ignore
     }
+  }
+
+  // Resolve customer object from sale or quickCustomer snapshot
+  let resolvedCustomer = sale.customer || null;
+  if (!resolvedCustomer && quickCustomer) {
+    resolvedCustomer = {
+      id: 'quick-customer',
+      name: (quickCustomer.name || '').toUpperCase().trim(),
+      phone: quickCustomer.phone || '',
+      mobile: quickCustomer.phone || '',
+      village: quickCustomer.village || quickCustomer.address || '',
+      address: quickCustomer.address || quickCustomer.village || '',
+    };
+  } else if (!resolvedCustomer && sale.customer_name) {
+    resolvedCustomer = {
+      id: 'walk-in',
+      name: (sale.customer_name || '').toUpperCase().trim(),
+      phone: sale.customer_phone || '',
+      mobile: sale.customer_phone || '',
+      village: sale.customer_village || sale.customer_address || '',
+      address: sale.customer_address || sale.customer_village || '',
+    };
   }
 
   const totalAdditions = rawAdjustments.filter((a: any) => a.type === 'ADD').reduce((sum: number, a: any) => sum + (Number(a.amount) || 0), 0);
@@ -111,8 +139,16 @@ export function normalizeSale(sale: any) {
     resolvedStatus = 'COMPLETED';
   }
 
+  const custObj = resolvedCustomer || sale.customer || null;
+  const custName = custObj?.name || sale.customer_name || (sale.customer_id ? 'CUSTOMER' : 'WALK-IN CUSTOMER');
+
   return {
     ...sale,
+    customer: custObj,
+    customer_name: custName,
+    customer_phone: custObj?.phone || custObj?.mobile || sale.customer_phone || '',
+    customer_village: custObj?.village || custObj?.address || sale.customer_village || sale.customer_address || '',
+    customer_address: custObj?.address || custObj?.village || sale.customer_address || sale.customer_village || '',
     adjustments: rawAdjustments,
     notes: userNotes,
     raw_notes: sale.notes,
@@ -319,13 +355,26 @@ export async function completeSale(shopId: string, data: any, userId: string) {
     };
   });
 
-  // Format notes to include adjustments metadata so it persists in Supabase
+  // Format notes to include adjustments and customer snapshot metadata so it persists in Supabase
   let notesPayload = data.notes || null;
-  if (rawAdjustments.length > 0) {
-    notesPayload = JSON.stringify({
-      userNote: data.notes || null,
-      adjustments: rawAdjustments,
-    });
+  const metadataObj: any = {};
+  if (data.notes) metadataObj.userNote = data.notes;
+  if (rawAdjustments.length > 0) metadataObj.adjustments = rawAdjustments;
+  if (data.customer_name || data.customer_phone || data.customer_village || data.customer_address || data.customer) {
+    const custName = (data.customer_name || data.customer?.name || '').toUpperCase().trim();
+    const custPhone = (data.customer_phone || data.customer?.phone || data.customer?.mobile || '').trim();
+    const custVill = (data.customer_village || data.customer_address || data.customer?.village || data.customer?.address || '').toUpperCase().trim();
+    if (custName || custPhone || custVill) {
+      metadataObj.quickCustomer = {
+        name: custName,
+        phone: custPhone,
+        village: custVill,
+        address: custVill,
+      };
+    }
+  }
+  if (Object.keys(metadataObj).length > 0) {
+    notesPayload = JSON.stringify(metadataObj);
   }
 
   const { data: saleRes, error } = await supabase.rpc('process_sale', {

@@ -1,6 +1,6 @@
 import { MOCK_CUSTOMERS, MOCK_SALES, MOCK_PRODUCTS, MOCK_CATEGORIES, MOCK_BRANDS } from '@/lib/mock-data';
 import { calculateItemTotal, calculateBillTotal } from '@/lib/calculations';
-import { formatDDMMYYYYtoDB, parseProductSize, formatProductPackDisplay } from '@/lib/validations';
+import { formatDDMMYYYYtoDB, parseProductSize, formatProductPackDisplay, formatProductNameWithSize } from '@/lib/validations';
 import {
   calculateTodaySales,
   calculateTotalBills,
@@ -507,26 +507,35 @@ export function saveDemoSaleClient(data: any): any {
       customerName = found.name;
       customerPhone = found.phone || found.mobile || '';
     } else if (data.customer_name || data.customer?.name) {
-      customerName = data.customer_name || data.customer?.name;
-      customerPhone = data.customer_phone || data.customer?.phone || '';
+      customerName = (data.customer_name || data.customer?.name || '').toUpperCase().trim();
+      customerPhone = data.customer_phone || data.customer?.phone || data.customer?.mobile || '';
+      const vill = (data.customer_village || data.customer_address || data.customer?.village || data.customer?.address || '').toUpperCase().trim();
       customerObj = { 
         id: customerId, 
         name: customerName, 
         phone: customerPhone,
         mobile: customerPhone,
-        village: data.customer?.village || '',
-        address: data.customer?.address || '',
+        village: vill,
+        address: vill,
         gstin: data.customer?.gstin || '',
         aadhaar: data.customer?.aadhaar || ''
       };
     }
   } else if (data.customer_name && data.customer_name.toLowerCase() !== 'walk-in' && data.customer_name.toLowerCase() !== 'walk-in customer') {
-    customerName = data.customer_name;
-    customerPhone = data.customer_phone || '';
-    customerObj = { id: `cust-${Date.now()}`, name: customerName, phone: customerPhone };
+    customerName = data.customer_name.toUpperCase().trim();
+    customerPhone = data.customer_phone || data.customer?.phone || data.customer?.mobile || '';
+    const vill = (data.customer_village || data.customer_address || data.customer?.village || data.customer?.address || '').toUpperCase().trim();
+    customerObj = { 
+      id: `cust-${Date.now()}`, 
+      name: customerName, 
+      phone: customerPhone, 
+      mobile: customerPhone,
+      village: vill,
+      address: vill
+    };
   } else {
-    customerObj = { id: 'walk-in', name: 'Walk-in Customer', phone: '' };
-    customerName = 'Walk-in Customer';
+    customerObj = { id: 'walk-in', name: 'WALK-IN CUSTOMER', phone: '', mobile: '', village: '', address: '' };
+    customerName = 'WALK-IN CUSTOMER';
   }
 
   const items = (data.items || []).map((it: any, idx: number) => {
@@ -1124,12 +1133,20 @@ export function searchDemoProductsClient(queryText: string, categoryId?: string,
     return filtered.slice(0, limit);
   }
 
-  return filtered.filter(p =>
-    (p.name && p.name.toLowerCase().includes(q)) ||
-    (p.sku && p.sku.toLowerCase().includes(q)) ||
-    (p.barcode && p.barcode.includes(q)) ||
-    (p.category?.name && p.category.name.toLowerCase().includes(q))
-  ).slice(0, limit);
+  const cleanQ = q.replace(/[()]/g, '');
+
+  return filtered.filter(p => {
+    const formatted = formatProductNameWithSize(p.name, p.pack_size, p.unit).toLowerCase();
+    return (
+      (p.name && p.name.toLowerCase().includes(q)) ||
+      formatted.includes(q) ||
+      formatted.replace(/[()]/g, '').includes(cleanQ) ||
+      (p.pack_size && p.pack_size.toLowerCase().includes(q)) ||
+      (p.sku && p.sku.toLowerCase().includes(q)) ||
+      (p.barcode && p.barcode.includes(q)) ||
+      (p.category?.name && p.category.name.toLowerCase().includes(q))
+    );
+  }).slice(0, limit);
 }
 
 /* ═════════════════════════════════════════════════════════

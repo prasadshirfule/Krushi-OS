@@ -127,7 +127,7 @@ export function generateInvoicePDF(sale: any, customSettings?: any) {
   const customerName = (s.customer?.name || (typeof s.customer === 'string' ? s.customer : null) || s.customer_name || 'WALK-IN CUSTOMER').toUpperCase();
   const customerPhone = s.customer?.phone || s.customer?.mobile || s.customer_phone || '';
   const customerAddress = [
-    s.customer?.village || s.customer?.address || '',
+    s.customer?.village || s.customer?.address || s.customer_village || s.customer_address || '',
     s.customer?.district || '',
     s.customer?.state || ''
   ].filter(Boolean).join(', ');

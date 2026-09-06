@@ -187,7 +187,7 @@ export function formatProductPackDisplay(prod: {
 export function formatProductSizeCompact(packSize?: string | null, unitStr?: string | null): string {
   if (!packSize && !unitStr) return '';
   const parsed = parseProductSize(packSize, unitStr);
-  if (parsed.sizeValue !== null && parsed.sizeValue !== undefined) {
+  if (parsed.sizeValue !== null && parsed.sizeValue !== undefined && !isNaN(parsed.sizeValue)) {
     let cleanUnit = (parsed.sizeUnit || 'KG').toUpperCase().trim();
     if (cleanUnit === 'LTR' || cleanUnit === 'LITRE' || cleanUnit === 'LITER') cleanUnit = 'L';
     else if (cleanUnit === 'G' || cleanUnit === 'GRAM' || cleanUnit === 'GRAMS') cleanUnit = 'GM';
@@ -220,27 +220,38 @@ export function formatProductSizeCompact(packSize?: string | null, unitStr?: str
 }
 
 /**
- * Returns formatted "PRODUCT NAME PRODUCT SIZE" in uppercase.
- * Example: "UREA" + "45 KG" -> "UREA 45KG"
- * If size is not present, returns just "UREA".
+ * Returns formatted "PRODUCT_NAME(SIZE)" in uppercase.
+ * Example: "UREA" + "45 KG" -> "UREA(45KG)"
+ * Example: "DAP" + "50 KG" -> "DAP(50KG)"
+ * If size is not present, returns just "UREA". Never undefined, null, or NaN.
  */
 export function formatProductNameWithSize(
   name?: string | null,
   packSize?: string | null,
   unit?: string | null
 ): string {
-  const cleanName = (name || '').trim().toUpperCase();
+  let cleanName = (name || '').trim().toUpperCase();
   if (!cleanName) return '';
 
-  const sizeCompact = formatProductSizeCompact(packSize, unit);
-  if (!sizeCompact) return cleanName;
+  // Clean out any accidental literal "(undefined)", "(null)", "(NaN)"
+  cleanName = cleanName.replace(/\((undefined|null|nan)\)$/gi, '').trim();
 
-  // Avoid duplicating if name already contains the size tag
-  if (cleanName.endsWith(sizeCompact) || cleanName.replace(/\s+/g, '').endsWith(sizeCompact)) {
+  const sizeCompact = formatProductSizeCompact(packSize, unit);
+  if (!sizeCompact) {
     return cleanName;
   }
 
-  return `${cleanName} ${sizeCompact}`;
+  // Avoid duplicating if cleanName already ends with (SIZE)
+  if (cleanName.endsWith(`(${sizeCompact})`)) {
+    return cleanName;
+  }
+
+  // If cleanName ends with " SIZE" e.g. "UREA 45KG", extract base name
+  if (cleanName.endsWith(` ${sizeCompact}`)) {
+    cleanName = cleanName.substring(0, cleanName.length - sizeCompact.length - 1).trim();
+  }
+
+  return `${cleanName}(${sizeCompact})`;
 }
 
 export const productSchema = z.object({
@@ -264,12 +275,13 @@ export const productSchema = z.object({
   opening_stock: z.coerce.number({ invalid_type_error: 'Quantity is required' }).min(0.01, 'Quantity must be greater than 0'),
   batch_tracking: z.boolean().optional().default(true),
   expiry_tracking: z.boolean().optional().default(true),
-  batch_number: z.string({ required_error: 'Batch number is required.' }).trim().min(1, 'Batch number is required.'),
-  mfd_date: z.string().optional().nullable(),
-  expiry_date: z.string({ required_error: 'Expiry date is required.' })
-    .trim()
-    .min(1, 'Expiry date is required.')
-    .refine(validateExpiryDate, {
+  batch_number: z.string().optional().nullable().or(z.literal('')),
+  mfd_date: z.string().optional().nullable().or(z.literal('')),
+  expiry_date: z.string()
+    .optional()
+    .nullable()
+    .or(z.literal(''))
+    .refine((val) => !val || validateExpiryDate(val), {
       message: 'Invalid expiry date. Use format DD/MM/YYYY',
     }),
   product_type: z.string().optional().nullable(),
