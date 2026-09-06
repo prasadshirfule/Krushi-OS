@@ -255,148 +255,201 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
      ================================================================ */
   return (
     <div
-      id="printable-tax-invoice"
+      className="invoice-page"
       style={{
-        ...FONT_BASE,
-        width: mm(204),
-        height: mm(142),
-        border: BORDER_OUTER,
-        boxSizing: 'border-box',
-        backgroundColor: '#ffffff',
+        width: mm(210),
+        height: mm(148),
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
         margin: '0 auto',
-        position: 'relative',
-        overflow: 'hidden',
-        borderRadius: 0,
+        backgroundColor: '#ffffff',
+        boxSizing: 'border-box',
+        WebkitPrintColorAdjust: 'exact',
+        printColorAdjust: 'exact',
       }}
     >
-      {/* ════════════════════════════════════════════════════════
-          1. HEADER – 19 mm
-          ════════════════════════════════════════════════════════ */}
-      <div style={{
-        height: mm(H_HEADER),
-        borderBottom: BORDER_MAJOR,
-        display: 'flex',
-        boxSizing: 'border-box',
-      }}>
-        {/* 1A – Logo area (24 mm) */}
+      <div
+        id="printable-tax-invoice"
+        className="invoice"
+        style={{
+          ...FONT_BASE,
+          width: mm(204),
+          height: mm(142),
+          border: BORDER_OUTER,
+          boxSizing: 'border-box',
+          backgroundColor: '#ffffff',
+          margin: '0 auto',
+          position: 'relative',
+          overflow: 'hidden',
+          borderRadius: 0,
+        }}
+      >
+        {/* ════════════════════════════════════════════════════════
+            1. HEADER – 19 mm
+            ════════════════════════════════════════════════════════ */}
         <div style={{
-          width: mm(24),
-          minWidth: mm(24),
-          borderRight: BORDER_MAJOR,
+          height: mm(H_HEADER),
+          borderBottom: BORDER_MAJOR,
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'center',
-          padding: mm(1),
+          justifyContent: 'space-between',
+          padding: `0 ${mm(1.5)}`,
           boxSizing: 'border-box',
         }}>
-          {shop.logoBase64 ? (
-            <img
-              src={shop.logoBase64}
-              alt="Logo"
-              style={{ maxWidth: mm(16), maxHeight: mm(16), objectFit: 'contain' }}
-            />
-          ) : (
+          {/* 1A + 1B – Logo + Shop Information (ONE continuous area, NO vertical divider) */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            flex: 1,
+            height: '100%',
+            overflow: 'hidden',
+            boxSizing: 'border-box',
+            paddingRight: mm(2),
+          }}>
+            {/* Logo (no right border, comfortable spacing) */}
             <div style={{
-              width: mm(15),
-              height: mm(15),
-              border: '0.3mm solid #000',
+              width: mm(18),
+              minWidth: mm(18),
+              height: mm(17),
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: '7px',
-              fontWeight: 'bold',
+              flexShrink: 0,
+              boxSizing: 'border-box',
             }}>
-              LOGO
+              {shop.logoBase64 ? (
+                <img
+                  src={shop.logoBase64}
+                  alt="Logo"
+                  style={{ maxWidth: mm(16), maxHeight: mm(16), objectFit: 'contain' }}
+                />
+              ) : (
+                <div style={{
+                  width: mm(15),
+                  height: mm(15),
+                  border: '0.3mm solid #000',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '7px',
+                  fontWeight: 'bold',
+                }}>
+                  LOGO
+                </div>
+              )}
             </div>
-          )}
-        </div>
 
-        {/* 1B – Center business info (~130 mm flexible) */}
-        <div style={{
-          flex: 1,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          textAlign: 'center',
-          padding: `${mm(1)} ${mm(2)}`,
-          boxSizing: 'border-box',
-          overflow: 'hidden',
-        }}>
-          <div style={{
-            fontSize: '16px',
-            fontWeight: 900,
-            textTransform: 'uppercase',
-            lineHeight: 1.1,
-            margin: 0,
-            letterSpacing: '0.3px',
-          }}>
-            {shop.shopName || 'KRUSHI OS SEVA KENDRA'}
+            {/* Shop Details (centered in remaining shop info area) */}
+            <div style={{
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              textAlign: 'center',
+              padding: `0 ${mm(1)}`,
+              boxSizing: 'border-box',
+              overflow: 'hidden',
+            }}>
+              <div style={{
+                fontSize: '13.5px',
+                fontWeight: 900,
+                textTransform: 'uppercase',
+                lineHeight: 1.1,
+                margin: 0,
+                letterSpacing: '0.3px',
+              }}>
+                {shop.shopName || 'KRUSHI OS SEVA KENDRA'}
+              </div>
+              <div style={{
+                fontSize: '8.5px',
+                fontWeight: 600,
+                lineHeight: 1.2,
+                marginTop: mm(0.6),
+              }}>
+                {dynamicShopAddress}
+              </div>
+              <div style={{
+                fontSize: '8px',
+                fontWeight: 'bold',
+                marginTop: mm(0.6),
+                display: 'flex',
+                gap: mm(6),
+                justifyContent: 'center',
+              }}>
+                <span>Pro: {shop.ownerName || 'Demo Owner Name'}</span>
+                <span>Mob: {shop.contact1 || '9876543210'}</span>
+              </div>
+            </div>
           </div>
-          <div style={{
-            fontSize: '9px',
-            fontWeight: 600,
-            lineHeight: 1.2,
-            marginTop: mm(0.8),
-          }}>
-            {dynamicShopAddress}
-          </div>
-          <div style={{
-            fontSize: '8px',
-            fontWeight: 'bold',
-            marginTop: mm(1),
-            display: 'flex',
-            gap: mm(6),
-          }}>
-            <span>Pro: {shop.ownerName || 'Demo Owner Name'}</span>
-            <span>Mob: {shop.contact1 || '9876543210'}</span>
-          </div>
-        </div>
 
-        {/* 1C – Registration box (49 mm) */}
-        <div style={{
-          width: mm(49),
-          minWidth: mm(49),
-          borderLeft: BORDER_MAJOR,
-          display: 'flex',
-          flexDirection: 'column',
-          boxSizing: 'border-box',
-          fontSize: '8px',
-        }}>
-          {/* GSTIN row */}
+          {/* 1C – Independent GSTIN / LIC / REG Table (3 Rows × 1 Column, 4-sided outer border, 2 internal dividers) */}
           <div style={{
-            flex: 1,
-            borderBottom: BORDER_INNER,
+            width: mm(49),
+            minWidth: mm(49),
+            height: mm(17),
+            boxSizing: 'border-box',
             display: 'flex',
-            alignItems: 'center',
-            padding: `0 ${mm(2)}`,
+            flexDirection: 'column',
+            justifyContent: 'center',
+            flexShrink: 0,
           }}>
-            <span style={{ fontWeight: 'bold', width: mm(12), flexShrink: 0 }}>GSTIN:</span>
-            <span style={{ fontWeight: 'bold', fontFamily: 'monospace' }}>{shop.gstNumber || ''}</span>
-          </div>
-          {/* LIC NO row */}
-          <div style={{
-            flex: 1,
-            borderBottom: BORDER_INNER,
-            display: 'flex',
-            alignItems: 'center',
-            padding: `0 ${mm(2)}`,
-          }}>
-            <span style={{ fontWeight: 'bold', width: mm(12), flexShrink: 0 }}>LIC NO:</span>
-            <span style={{ fontWeight: 'bold', fontFamily: 'monospace' }}>{shop.licenseNumber || ''}</span>
-          </div>
-          {/* REG NO row */}
-          <div style={{
-            flex: 1,
-            display: 'flex',
-            alignItems: 'center',
-            padding: `0 ${mm(2)}`,
-          }}>
-            <span style={{ fontWeight: 'bold', width: mm(12), flexShrink: 0 }}>REG NO:</span>
-            <span style={{ fontWeight: 'bold', fontFamily: 'monospace' }}>{shop.registrationNumber || ''}</span>
+            <table style={{
+              width: '100%',
+              height: '100%',
+              border: BORDER_MAJOR,
+              borderCollapse: 'collapse',
+              boxSizing: 'border-box',
+              fontSize: '7.5px',
+              tableLayout: 'fixed',
+            }}>
+              <tbody>
+                {/* GSTIN row */}
+                <tr style={{ height: '33.33%' }}>
+                  <td style={{
+                    borderBottom: BORDER_INNER,
+                    padding: `0 ${mm(1.5)}`,
+                    verticalAlign: 'middle',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}>
+                    <span style={{ fontWeight: 'bold', display: 'inline-block', width: mm(13) }}>GSTIN:</span>
+                    <span style={{ fontWeight: 'bold', fontFamily: 'monospace' }}>{shop.gstNumber || ''}</span>
+                  </td>
+                </tr>
+                {/* LIC NO row */}
+                <tr style={{ height: '33.33%' }}>
+                  <td style={{
+                    borderBottom: BORDER_INNER,
+                    padding: `0 ${mm(1.5)}`,
+                    verticalAlign: 'middle',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}>
+                    <span style={{ fontWeight: 'bold', display: 'inline-block', width: mm(13) }}>LIC NO:</span>
+                    <span style={{ fontWeight: 'bold', fontFamily: 'monospace' }}>{shop.licenseNumber || ''}</span>
+                  </td>
+                </tr>
+                {/* REG NO row */}
+                <tr style={{ height: '33.33%' }}>
+                  <td style={{
+                    padding: `0 ${mm(1.5)}`,
+                    verticalAlign: 'middle',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}>
+                    <span style={{ fontWeight: 'bold', display: 'inline-block', width: mm(13) }}>REG NO:</span>
+                    <span style={{ fontWeight: 'bold', fontFamily: 'monospace' }}>{shop.registrationNumber || ''}</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
-      </div>
 
       {/* ════════════════════════════════════════════════════════
           2. CUSTOMER + BILL INFO – 19 mm
@@ -838,6 +891,7 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
         <span>PAGE 1 OF 1</span>
       </div>
     </div>
+  </div>
   );
 }
 
@@ -872,6 +926,10 @@ export function printInvoiceDirectly(elementId: string) {
     styles += node.outerHTML;
   });
 
+  const invoiceHtml = element.classList.contains('invoice-page')
+    ? element.outerHTML
+    : `<div class="invoice-page" style="width: 210mm; height: 148mm; display: flex; align-items: center; justify-content: center; box-sizing: border-box; margin: 0; padding: 0;">${element.outerHTML}</div>`;
+
   doc.open();
   doc.write(`
     <!DOCTYPE html>
@@ -896,6 +954,7 @@ export function printInvoiceDirectly(elementId: string) {
             display: flex;
             align-items: center;
             justify-content: center;
+            overflow: hidden;
           }
           * {
             box-sizing: border-box;
@@ -903,9 +962,7 @@ export function printInvoiceDirectly(elementId: string) {
         </style>
       </head>
       <body>
-        <div style="padding: 3mm; margin: 0; width: 210mm; height: 148mm; display: flex; align-items: center; justify-content: center; box-sizing: border-box;">
-          ${element.outerHTML}
-        </div>
+        ${invoiceHtml}
       </body>
     </html>
   `);
