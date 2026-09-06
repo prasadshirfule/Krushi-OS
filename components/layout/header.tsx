@@ -39,7 +39,8 @@ export function Header({ user }: { user: any }) {
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
-    router.push('/dashboard')
+    router.push('/login')
+    router.refresh()
   }
 
   return (

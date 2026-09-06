@@ -3,36 +3,17 @@ import { PurchaseTable } from '@/components/purchases/purchase-table';
 import { Button } from '@/components/ui/button';
 import { formatCurrency } from '@/lib/utils';
 import Link from 'next/link';
-import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { cookies } from 'next/headers';
-import { redirect } from 'next/navigation';
+import { getAuthAndPermissions } from '@/lib/auth-helper';
+
+export const dynamic = 'force-dynamic';
 
 export const metadata = {
   title: 'Purchases | KRUSHI OS',
 };
 
 export default async function PurchasesPage() {
-  const supabase = await createServerSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-
-  const cookieStore = await cookies();
-  const isDemo = cookieStore.get('krushi_demo_session')?.value === 'true';
-  const isPlaceholder = !process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('placeholder');
-
-  const effectiveUser = user || { id: 'demo-admin-id', email: 'admin@krushios.com' };
-
-  let shopId = 'demo-shop-1';
-  if (user && !isPlaceholder) {
-    const { data: userData } = await supabase
-      .from('users')
-      .select('shop_id')
-      .eq('id', user.id)
-      .single();
-
-    if (userData?.shop_id) {
-      shopId = userData.shop_id;
-    }
-  }
+  const user = await getAuthAndPermissions();
+  const shopId = user.shop_id;
 
   const [{ purchases }, summary] = await Promise.all([
     getPurchases(shopId, { limit: 50 }),

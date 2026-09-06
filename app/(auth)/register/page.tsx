@@ -56,12 +56,13 @@ export default function RegisterPage() {
       return
     }
 
-    if (authData.user) {
-      // In a real application, you'd insert a shop record and map user to shop
-      // We will assume a trigger handles it or do it here if tables are available.
-      // For now, registration success:
-      toast.success('Registration successful! Please check your email to verify.')
-      router.push('/login')
+    if (authData.session) {
+      toast.success('Account created successfully! Welcome to KRUSHI OS.');
+      router.push('/dashboard');
+      router.refresh();
+    } else if (authData.user) {
+      toast.success('Registration successful! Please check your email or sign in.');
+      router.push('/login');
     }
   }
 

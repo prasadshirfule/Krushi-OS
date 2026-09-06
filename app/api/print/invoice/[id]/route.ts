@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { getSaleById } from '@/services/sales.service'
 import { generateInvoicePDF } from '@/lib/invoice'
-import { cookies } from 'next/headers'
+import { getAuthAndPermissions } from '@/lib/auth-helper'
+import { getShopProfile } from '@/services/settings.service'
 
 export async function GET(
   request: Request,
@@ -12,23 +13,8 @@ export async function GET(
     const { id } = await params
     const supabase = await createServerSupabaseClient()
     
-    const { data: { user } } = await supabase.auth.getUser()
-    const cookieStore = await cookies()
-    const isDemo = cookieStore.get('krushi_demo_session')?.value === 'true'
-    const isPlaceholder = !process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('placeholder')
-
-    let shopId = 'demo-shop-1'
-
-    if (!isPlaceholder && user) {
-      const { data: userData } = await supabase
-        .from('users')
-        .select('shop_id')
-        .eq('id', user.id)
-        .single()
-      if (userData?.shop_id) shopId = userData.shop_id
-    } else if (!isDemo && !isPlaceholder && !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const user = await getAuthAndPermissions()
+    const shopId = user.shop_id
 
     const { searchParams } = new URL(request.url)
     const format = searchParams.get('format') || 'json'
@@ -39,11 +25,19 @@ export async function GET(
       return NextResponse.json({ error: 'Sale not found' }, { status: 404 })
     }
 
+    const shopProfile = await getShopProfile(shopId)
     const settings = {
-      shop_name: 'KRUSHI OS SEVA KENDRA',
-      shop_address: 'Main Market Road, Near Mandi Yard, Sehore, MP',
-      shop_phone: '9876543210',
-      gstin: '23AAACK1234F1Z9'
+      shop_name: shopProfile.shopName || 'KRUSHI OS Store',
+      shop_address: `${shopProfile.address || ''} ${shopProfile.district || ''} ${shopProfile.state || ''} ${shopProfile.pincode || ''}`.trim(),
+      shop_phone: shopProfile.contact1 || shopProfile.contact2 || '',
+      shop_email: shopProfile.email || '',
+      gstin: shopProfile.gstNumber || '',
+      fssai: shopProfile.registrationNumber || '',
+      license: shopProfile.licenseNumber || '',
+      terms: shopProfile.invoiceTerms || '',
+      bank_name: shopProfile.bankName || '',
+      account_number: shopProfile.accountNumber || '',
+      ifsc: shopProfile.ifsc || '',
     }
 
     if (format === 'pdf') {

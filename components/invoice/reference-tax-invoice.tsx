@@ -9,6 +9,7 @@ import {
   formatShopAddress 
 } from '@/lib/shop-details';
 import { getDemoProductsClient } from '@/lib/client-demo-store';
+import { getShopProfileAction } from '@/actions/settings';
 
 export interface InvoiceItemData {
   id?: string;
@@ -93,7 +94,16 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
   const [persistedShop, setPersistedShop] = useState<ShopDetails>(DEFAULT_SHOP_DETAILS);
 
   useEffect(() => {
-    setPersistedShop(getSavedShopDetails());
+    // 1. Initial synchronous cache/defaults load
+    const cached = getSavedShopDetails();
+    if (cached) setPersistedShop(cached);
+
+    // 2. Fetch latest verified profile from Supabase settings
+    getShopProfileAction().then(res => {
+      if (res?.success && res?.data) {
+        setPersistedShop(res.data);
+      }
+    }).catch(() => {});
   }, []);
 
   const shop: ShopDetails = {

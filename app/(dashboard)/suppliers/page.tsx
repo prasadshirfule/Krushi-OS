@@ -3,8 +3,7 @@ import { SupplierTable } from '@/components/suppliers/supplier-table';
 import { Button } from '@/components/ui/button';
 import { formatCurrency } from '@/lib/utils';
 import Link from 'next/link';
-import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { cookies } from 'next/headers';
+import { getAuthAndPermissions } from '@/lib/auth-helper';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,24 +12,8 @@ export const metadata = {
 };
 
 export default async function SuppliersPage() {
-  const supabase = await createServerSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-
-  const cookieStore = await cookies();
-  const isPlaceholder = !process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('placeholder');
-
-  let shopId = 'demo-shop-1';
-  if (user && !isPlaceholder) {
-    const { data: userData } = await supabase
-      .from('users')
-      .select('shop_id')
-      .eq('id', user.id)
-      .single();
-
-    if (userData?.shop_id) {
-      shopId = userData.shop_id;
-    }
-  }
+  const user = await getAuthAndPermissions();
+  const shopId = user.shop_id;
 
   const [{ suppliers }, summary] = await Promise.all([
     getSuppliers(shopId, { limit: 50 }),

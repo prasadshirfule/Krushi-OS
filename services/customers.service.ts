@@ -35,9 +35,8 @@ export function normalizeCustomer(c: any) {
     outstanding,
     outstanding_balance: outstanding,
     total_purchases: totalPurchases,
-    totalPurchases,
     is_active: c.is_active !== false,
-    shop_id: c.shop_id || 'demo-shop-1',
+    shop_id: c.shop_id || '',
     created_at: c.created_at || new Date().toISOString(),
     updated_at: c.updated_at || new Date().toISOString(),
   };

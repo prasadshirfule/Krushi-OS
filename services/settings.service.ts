@@ -1,5 +1,6 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { SettingsInput } from '@/lib/validations';
+import { ShopDetails, DEFAULT_SHOP_DETAILS } from '@/lib/shop-details';
 
 const DEFAULT_SETTINGS: Record<string, any> = {
   shop_name: 'KRUSHI OS Store',
@@ -15,7 +16,7 @@ const DEFAULT_SETTINGS: Record<string, any> = {
 export async function getSettings(shopId: string) {
   try {
     const supabase = await createServerSupabaseClient();
-    const { data: shop } = await supabase.from('shops').select('*').eq('id', shopId).single();
+    const { data: shop } = await supabase.from('shops').select('*').eq('id', shopId).maybeSingle();
 
     if (shop) {
       return {
@@ -66,6 +67,96 @@ export async function updateSettings(shopId: string, data: SettingsInput) {
   }
 
   return getSettings(shopId);
+}
+
+/**
+ * Retrieve unified shop profile from Supabase shops and settings tables.
+ */
+export async function getShopProfile(shopId: string): Promise<ShopDetails> {
+  try {
+    const supabase = await createServerSupabaseClient();
+    const { data: shop } = await supabase.from('shops').select('*').eq('id', shopId).maybeSingle();
+
+    let extended: Partial<ShopDetails> = {};
+    const { data: settingRow } = await supabase
+      .from('settings')
+      .select('value')
+      .eq('shop_id', shopId)
+      .eq('key', 'shop_profile')
+      .maybeSingle();
+
+    if (settingRow?.value) {
+      try {
+        extended = JSON.parse(settingRow.value);
+      } catch {}
+    }
+
+    if (!shop) {
+      return { ...DEFAULT_SHOP_DETAILS, ...extended };
+    }
+
+    return {
+      ...DEFAULT_SHOP_DETAILS,
+      ...extended,
+      shopName: shop.name || extended.shopName || DEFAULT_SHOP_DETAILS.shopName,
+      address: shop.address || extended.address || DEFAULT_SHOP_DETAILS.address,
+      contact1: shop.phone || extended.contact1 || DEFAULT_SHOP_DETAILS.contact1,
+      email: shop.email || extended.email || DEFAULT_SHOP_DETAILS.email,
+      gstNumber: shop.gst_number || extended.gstNumber || DEFAULT_SHOP_DETAILS.gstNumber,
+      licenseNumber: shop.license_info || extended.licenseNumber || DEFAULT_SHOP_DETAILS.licenseNumber,
+      invoiceTerms: shop.terms_and_conditions || extended.invoiceTerms || DEFAULT_SHOP_DETAILS.invoiceTerms,
+      logoBase64: shop.logo_url || extended.logoBase64 || DEFAULT_SHOP_DETAILS.logoBase64,
+    };
+  } catch (err) {
+    console.error("Failed to get shop profile from Supabase:", err);
+    return DEFAULT_SHOP_DETAILS;
+  }
+}
+
+/**
+ * Update unified shop profile in Supabase shops and settings tables.
+ */
+export async function updateShopProfile(shopId: string, data: Partial<ShopDetails>): Promise<ShopDetails> {
+  const supabase = await createServerSupabaseClient();
+
+  // 1. Update core shops table
+  const updatePayload: Record<string, any> = {};
+  if (data.shopName !== undefined) updatePayload.name = data.shopName;
+  if (data.address !== undefined) updatePayload.address = data.address;
+  if (data.contact1 !== undefined) updatePayload.phone = data.contact1;
+  if (data.email !== undefined) updatePayload.email = data.email;
+  if (data.gstNumber !== undefined) updatePayload.gst_number = data.gstNumber;
+  if (data.licenseNumber !== undefined) updatePayload.license_info = data.licenseNumber;
+  if (data.invoiceTerms !== undefined) updatePayload.terms_and_conditions = data.invoiceTerms;
+  if (data.logoBase64 !== undefined) updatePayload.logo_url = data.logoBase64;
+
+  if (Object.keys(updatePayload).length > 0) {
+    const { error: shopError } = await supabase
+      .from('shops')
+      .update(updatePayload)
+      .eq('id', shopId);
+
+    if (shopError) {
+      console.error("Error updating shops table:", shopError);
+      throw new Error(`Failed to update shop: ${shopError.message}`);
+    }
+  }
+
+  // 2. Persist extended profile in settings table
+  const { error: settingError } = await supabase
+    .from('settings')
+    .upsert({
+      shop_id: shopId,
+      key: 'shop_profile',
+      value: JSON.stringify(data),
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'shop_id, key' });
+
+  if (settingError) {
+    console.warn("Notice: settings key upsert error:", settingError);
+  }
+
+  return getShopProfile(shopId);
 }
 
 export async function uploadLogo(shopId: string, formData: FormData) {
