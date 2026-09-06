@@ -598,6 +598,11 @@ export function saveDemoSaleClient(data: any): any {
   const payable = Number(billTotals.payableAmount ?? billTotals.grandTotal ?? 0);
   const paymentMethod = data.payment_method || (data.payments?.[0]?.method) || 'Cash';
   const isCredit = paymentMethod.toUpperCase() === 'CREDIT';
+  const isPartial = paymentMethod.toUpperCase().includes('PARTIAL') || Boolean(data.partial_payment || data.partialPayment);
+  const partialObj = data.partial_payment || data.partialPayment || null;
+  const paidAmount = data.paid_amount !== undefined 
+    ? Number(data.paid_amount) 
+    : (isPartial && partialObj ? Number(partialObj.total_paid || partialObj.totalPaid || 0) : (isCredit ? 0 : payable));
 
   const newSale = normalizeDemoSale({
     id: saleId,
@@ -623,13 +628,17 @@ export function saveDemoSaleClient(data: any): any {
     grand_total: payable,
     totalAmount: payable,
     payableAmount: payable,
-    paid_amount: data.paid_amount !== undefined ? data.paid_amount : (isCredit ? 0 : payable),
+    paid_amount: paidAmount,
     profit_amount: Math.round(payable * 0.15),
-    payment_mode: paymentMethod,
-    payment_method: paymentMethod,
-    payments: data.payments || [{ method: paymentMethod, amount: data.paid_amount !== undefined ? data.paid_amount : (isCredit ? 0 : payable) }],
+    payment_mode: isPartial ? 'PARTIAL' : paymentMethod,
+    payment_method: isPartial ? 'PARTIAL' : paymentMethod,
+    payments: data.payments || [{ method: paymentMethod, amount: paidAmount }],
+    partial_payment: partialObj,
+    partialPayment: partialObj,
     status: 'COMPLETED',
-    payment_status: isCredit ? (data.paid_amount > 0 ? (data.paid_amount >= payable ? 'PAID' : 'PARTIAL') : 'UNPAID') : 'PAID',
+    payment_status: (isCredit || (isPartial && (partialObj?.remaining > 0 || paidAmount < payable)))
+      ? (paidAmount > 0 ? 'PARTIAL' : 'UNPAID')
+      : 'PAID',
     notes: data.notes || null,
     created_at: new Date().toISOString(),
     sale_date: new Date().toISOString(),
@@ -658,22 +667,21 @@ export function saveDemoSaleClient(data: any): any {
       window.dispatchEvent(new CustomEvent('krushi-products-updated'));
     }
 
-    // If CREDIT sale with a real customer, update their outstanding and create ledger entry
+    // If CREDIT or PARTIAL sale with a remaining balance and a real customer, update their outstanding and create ledger entry
     const saleCustomerId = newSale.customer_id;
-    if (isCredit && saleCustomerId && saleCustomerId !== 'walk-in') {
-      const actualPaid = data.paid_amount !== undefined ? Number(data.paid_amount) : 0;
-      const udhariAdded = Math.max(0, payable - actualPaid);
+    const udhariAdded = isCredit 
+      ? Math.max(0, payable - paidAmount) 
+      : (isPartial && partialObj ? Number(partialObj.remaining || 0) : 0);
 
-      if (udhariAdded > 0) {
-        updateDemoCustomerOutstanding(saleCustomerId, udhariAdded);
-        addDemoLedgerEntry({
-          customer_id: saleCustomerId,
-          type: 'DEBIT',
-          amount: udhariAdded,
-          description: `Credit Sale (${invoiceNum})`,
-          reference: invoiceNum,
-        });
-      }
+    if (udhariAdded > 0 && saleCustomerId && saleCustomerId !== 'walk-in') {
+      updateDemoCustomerOutstanding(saleCustomerId, udhariAdded);
+      addDemoLedgerEntry({
+        customer_id: saleCustomerId,
+        type: 'DEBIT',
+        amount: udhariAdded,
+        description: isPartial ? `Partial Payment Balance (${invoiceNum})` : `Credit Sale (${invoiceNum})`,
+        reference: invoiceNum,
+      });
     }
 
     // Update customer total_purchases regardless of payment method

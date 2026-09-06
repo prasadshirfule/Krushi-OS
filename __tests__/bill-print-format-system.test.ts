@@ -11,7 +11,6 @@ import {
   getSavedShopDetails 
 } from '../lib/shop-details';
 import { formatProductNameWithSize } from '../lib/validations';
-import { formatThermalProductName } from '../components/invoice/thermal-receipt-invoice';
 import { buildUpiUri } from '../lib/upi';
 import { calculateItemGst, formatInvoiceExpiry } from '../components/invoice/reference-tax-invoice';
 
@@ -65,29 +64,54 @@ const deliveryCharge = 34.0;
 const netFinalTotal = productSubtotal + deliveryCharge;
 assert(netFinalTotal === 550.0, 'Test Case 4: Net Total is ₹550.00 (Products ₹516 + Delivery ₹34)');
 
-// 6. TEST CASE 5: Product Details Format & Uppercase
+// 6. TEST CASE 5: Product Details Format & Uppercase: PRODUCT_NAME (SIZE UNIT) with single space
 const ureaFormatted = formatProductNameWithSize('urea', '45kg', '');
-assert(ureaFormatted === 'UREA (45KG)', 'A5 Product format is "UREA (45KG)" with single space');
+assert(ureaFormatted === 'UREA (45 KG)', 'Product format is "UREA (45 KG)" with single space');
 const stunnerFormatted = formatProductNameWithSize('stunner gold', '1kg', '');
-assert(stunnerFormatted === 'STUNNER GOLD (1KG)', 'A5 Product format is "STUNNER GOLD (1KG)" with single space');
+assert(stunnerFormatted === 'STUNNER GOLD (1 KG)', 'Product format is "STUNNER GOLD (1 KG)" with single space');
+const dapFormatted = formatProductNameWithSize('dap', '50kg', '');
+assert(dapFormatted === 'DAP (50 KG)', 'Product format is "DAP (50 KG)" with single space');
+const bioFormatted = formatProductNameWithSize('biofertilizer', '1l', '');
+assert(bioFormatted === 'BIOFERTILIZER (1 L)', 'Product format is "BIOFERTILIZER (1 L)" with single space');
 
-// 7. 80MM EXACT TWO SPACES PRODUCT FORMAT
-const thermalUrea = formatThermalProductName('urea', '45kg');
-assert(thermalUrea === 'UREA  (45KG)', '80mm format is "UREA  (45KG)" with TWO spaces');
-const thermalDap = formatThermalProductName('DAP', '50KG');
-assert(thermalDap === 'DAP  (50KG)', '80mm format is "DAP  (50KG)" with TWO spaces');
-const thermalStunner = formatThermalProductName('STUNNER GOLD', '50ML');
-assert(thermalStunner === 'STUNNER GOLD  (50ML)', '80mm format is "STUNNER GOLD  (50ML)" with TWO spaces');
-const thermalPremium = formatThermalProductName('STUNNER GOLD PREMIUM', '1KG');
-assert(thermalPremium === 'STUNNER GOLD PREMIUM  (1KG)', '80mm format is "STUNNER GOLD PREMIUM  (1KG)" with TWO spaces');
-const thermalNormalized = formatThermalProductName('STUNNER GOLD (50ML)');
-assert(thermalNormalized === 'STUNNER GOLD  (50ML)', '80mm normalizes single space "(50ML)" to TWO spaces');
+// Strict Test: STUNNER GOLD (50 ML) - Never appends "PIECE"
+const stunnerPieceRaw = formatProductNameWithSize('STUNNER GOLD (50 ML PIECE)', '50 ML', 'Piece');
+assert(stunnerPieceRaw === 'STUNNER GOLD (50 ML)', 'Strips accidental "(50 ML PIECE)" to exact "STUNNER GOLD (50 ML)"');
+assert(!stunnerPieceRaw.includes('PIECE') && !stunnerPieceRaw.includes('piece'), 'Product display does NOT contain "PIECE"');
+
+const stunnerClean = formatProductNameWithSize('STUNNER GOLD', '50', 'ML');
+assert(stunnerClean === 'STUNNER GOLD (50 ML)', 'Clean format generates "STUNNER GOLD (50 ML)"');
 
 assert(formatInvoiceExpiry('') === '-', 'Empty expiry displays as "-"');
 assert(formatInvoiceExpiry(null) === '-', 'Null expiry displays as "-"');
 assert(formatInvoiceExpiry('2028-07-10') === '10/07/2028', 'ISO expiry converted to 10/07/2028');
 
-// 8. TEST CASE 6: Quick / Unregistered Customer & Shop Address
+// 7. TEST CASE 6: Partial Payment & Isolated UPI Portion QR Code
+const fullBillTotal = 550.0;
+const partialCashPaid = 200.0;
+const partialUpiPaid = 350.0;
+const partialTotalPaid = partialCashPaid + partialUpiPaid;
+assert(partialTotalPaid === fullBillTotal, 'Partial payment total paid equals final bill of ₹550.00');
+
+// UPI QR must represent ONLY the UPI portion (₹350.00) in Partial Payment
+const partialUpiUri = buildUpiUri('maulikrushi@upi', 'MAULI KRUSHI KENDRA', partialUpiPaid);
+assert(partialUpiUri.includes('am=350.00'), 'Partial Payment UPI QR code represents ONLY the UPI portion of ₹350.00, NOT ₹550.00');
+assert(!partialUpiUri.includes('am=550.00'), 'Partial Payment UPI QR code does NOT include the full ₹550.00 bill amount');
+
+// Full pure UPI payment represents full total
+const pureUpiUri = buildUpiUri('maulikrushi@upi', 'MAULI KRUSHI KENDRA', fullBillTotal);
+assert(pureUpiUri.includes('am=550.00'), 'Pure UPI payment represents full bill total of ₹550.00');
+
+// 8. TEST CASE 7: Partial Payment with Remaining Balance
+const billTotalWithBal = 550.0;
+const balCash = 200.0;
+const balUpi = 100.0;
+const balTotalPaid = balCash + balUpi;
+const balRemaining = billTotalWithBal - balTotalPaid;
+assert(balTotalPaid === 300.0, 'Partial payment with balance: Total Paid = ₹300.00');
+assert(balRemaining === 250.0, 'Partial payment with balance: Remaining balance = ₹250.00 for Credit/Udhar');
+
+// 9. TEST CASE 8: Quick / Unregistered Customer & Shop Address
 const sampleShop: ShopDetails = {
   ...DEFAULT_SHOP_DETAILS,
   shopName: 'MAULI KRUSHI KENDRA',
@@ -99,10 +123,10 @@ const sampleShop: ShopDetails = {
   contact1: '9890341388',
 };
 const addrFormatted = formatShopAddress(sampleShop);
-assert(addrFormatted.includes('At Kamari'), 'Test Case 6: Shop address contains "At Kamari"');
-assert(addrFormatted.includes('Himayatnagar'), 'Test Case 6: Shop address contains "Himayatnagar"');
+assert(addrFormatted.includes('At Kamari'), 'Shop address contains "At Kamari"');
+assert(addrFormatted.includes('Himayatnagar'), 'Shop address contains "Himayatnagar"');
 
-// 9. TEST CASE 7 & 8: GST-Inclusive Pricing Rule
+// 10. TEST CASE 9: GST-Inclusive Pricing Rule
 const gstCalc = calculateItemGst(250, 1, 18);
 assert(gstCalc.unitWithGst === 250, 'GST-Inclusive: Customer selling price remains ₹250.00');
 assert(gstCalc.taxable === 211.86, 'GST-Inclusive: Taxable base price extracted backward to ₹211.86');

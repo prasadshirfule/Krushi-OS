@@ -153,11 +153,12 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
   const dateObj = s.sale_date || s.created_at ? new Date(s.sale_date || s.created_at) : new Date();
   const formattedDate = dateObj.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
   const formattedTime = dateObj.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
-
-  const isCredit = (s.payment_method || s.payment_mode || s.paymentMethod || '').toUpperCase() === 'CREDIT';
-  const isUpi = (s.payment_method || s.payment_mode || s.paymentMethod || s.payments?.[0]?.method || '').toUpperCase() === 'UPI';
-  const paymentBadge = isCredit ? '[R] Credit Bill' : (isUpi ? '[R] UPI Bill' : '[R] Cash Bill');
-  const paymentMode = isUpi ? 'UPI' : (isCredit ? 'CREDIT' : (s.payment_method || s.payment_mode || s.paymentMethod || 'CASH').toUpperCase());
+  const rawPaymentMethod = (s.payment_method || s.payment_mode || s.paymentMethod || s.payments?.[0]?.method || 'CASH').toString().toUpperCase();
+  const isCredit = rawPaymentMethod === 'CREDIT';
+  const isUpi = rawPaymentMethod === 'UPI';
+  const isPartial = rawPaymentMethod.includes('PARTIAL') || (Array.isArray(s.payments) && s.payments.length > 1);
+  const paymentBadge = isPartial ? '[R] Partial Bill' : (isCredit ? '[R] Credit Bill' : (isUpi ? '[R] UPI Bill' : '[R] Cash Bill'));
+  const paymentMode = isPartial ? 'PARTIAL' : (isUpi ? 'UPI' : (isCredit ? 'CREDIT' : (rawPaymentMethod === 'BANK_TRANSFER' ? 'BANK TRANSFER' : rawPaymentMethod)));
 
   /* ---------- items ---------- */
   const rawItems = customItems || s.items || s.sale_items || [];
@@ -269,13 +270,14 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
   const productsTotal = items.reduce((sum, item) => sum + item.total, 0);
 
   let rawAdjustments: any[] = Array.isArray(s.adjustments) ? s.adjustments : [];
-  if (rawAdjustments.length === 0 && s.notes && typeof s.notes === 'string') {
+  let parsedMetadata: any = {};
+  if (s.notes && typeof s.notes === 'string') {
     try {
       const trimmed = s.notes.trim();
       if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
-        const parsed = JSON.parse(trimmed);
-        if (Array.isArray(parsed.adjustments)) {
-          rawAdjustments = parsed.adjustments;
+        parsedMetadata = JSON.parse(trimmed);
+        if (Array.isArray(parsedMetadata.adjustments)) {
+          rawAdjustments = parsedMetadata.adjustments;
         }
       } else if (trimmed.includes('__ADJUSTMENTS__:')) {
         const parts = trimmed.split('__ADJUSTMENTS__:');
@@ -292,24 +294,63 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
 
   const netTotal = Math.max(0, productsTotal + totalAdditions - totalDeductions);
 
+  // Partial payment breakdown calculation
+  let partialCash = 0;
+  let partialUpi = 0;
+  let partialBank = 0;
+  let partialPaidTotal = 0;
+  let partialRemaining = 0;
+
+  if (isPartial) {
+    if (s.partial_payment) {
+      partialCash = Number(s.partial_payment.cash || 0);
+      partialUpi = Number(s.partial_payment.upi || 0);
+      partialBank = Number(s.partial_payment.bank_transfer || s.partial_payment.bankTransfer || 0);
+      partialPaidTotal = Number(s.partial_payment.total_paid || s.partial_payment.totalPaid || (partialCash + partialUpi + partialBank));
+      partialRemaining = Number(s.partial_payment.remaining !== undefined ? s.partial_payment.remaining : Math.max(0, netTotal - partialPaidTotal));
+    } else if (parsedMetadata.partialPayment) {
+      const pp = parsedMetadata.partialPayment;
+      partialCash = Number(pp.cash || 0);
+      partialUpi = Number(pp.upi || 0);
+      partialBank = Number(pp.bank_transfer || pp.bankTransfer || 0);
+      partialPaidTotal = Number(pp.total_paid || pp.totalPaid || (partialCash + partialUpi + partialBank));
+      partialRemaining = Number(pp.remaining !== undefined ? pp.remaining : Math.max(0, netTotal - partialPaidTotal));
+    } else if (Array.isArray(s.payments) && s.payments.length > 0) {
+      for (const p of s.payments) {
+        const m = String(p.method).toUpperCase();
+        const amt = Number(p.amount || 0);
+        if (m === 'CASH') partialCash += amt;
+        else if (m === 'UPI') partialUpi += amt;
+        else if (m === 'BANK_TRANSFER' || m === 'BANK TRANSFER') partialBank += amt;
+      }
+      partialPaidTotal = partialCash + partialUpi + partialBank;
+      partialRemaining = Math.max(0, netTotal - partialPaidTotal);
+    }
+  }
+
+  // Determine UPI QR amount: for full UPI = netTotal; for Partial Payment = ONLY UPI portion (if > 0)
+  const upiQrAmount = isPartial ? partialUpi : (isUpi ? netTotal : 0);
+
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
 
   useEffect(() => {
-    if (isUpi && shop.upiId && netTotal > 0) {
-      const uri = buildUpiUri(shop.upiId, shop.shopName, netTotal);
+    if (upiQrAmount > 0 && shop.upiId) {
+      const uri = buildUpiUri(shop.upiId, shop.shopName, upiQrAmount);
       generateQrDataUrl(uri, { width: 180, margin: 1 })
         .then(setQrDataUrl)
         .catch(() => setQrDataUrl(''));
     } else {
       setQrDataUrl('');
     }
-  }, [isUpi, shop.upiId, shop.shopName, netTotal]);
+  }, [upiQrAmount, shop.upiId, shop.shopName]);
 
   let rawWords = numberToWords(Math.round(netTotal));
   let cleanWords = `${rawWords} Rupees Only`.replace(/Rupees Only\s+Rupees Only/gi, 'Rupees Only').replace(/\s+/g, ' ').trim();
 
   // Ledger calculation
-  const amountPaid = s.paid_amount !== undefined ? Number(s.paid_amount) : (isCredit ? 0 : netTotal);
+  const amountPaid = isPartial 
+    ? partialPaidTotal 
+    : (s.paid_amount !== undefined ? Number(s.paid_amount) : (isCredit ? 0 : netTotal));
   const openingBal = s.customer?.opening_balance ? Number(s.customer.opening_balance) : 0;
   const drInvoice = netTotal;
   const closingBalance = openingBal + drInvoice - amountPaid;
@@ -647,6 +688,20 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
                       ({shop.upiId})
                     </span>
                   ) : null}
+                  {isPartial && (
+                    <div style={{ fontSize: '8.5px', fontWeight: 'bold', textTransform: 'none', color: '#111', marginTop: '0.5px' }}>
+                      {[
+                        partialCash > 0 ? `Cash: ₹${partialCash.toFixed(2)}` : null,
+                        partialUpi > 0 ? `UPI: ₹${partialUpi.toFixed(2)}` : null,
+                        partialBank > 0 ? `Bank: ₹${partialBank.toFixed(2)}` : null,
+                      ].filter(Boolean).join(' | ')}
+                      {partialRemaining > 0 && (
+                        <span style={{ color: '#b91c1c', marginLeft: mm(1) }}>
+                          (Bal: ₹{partialRemaining.toFixed(2)})
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </td>
               </tr>
             </tbody>
@@ -1071,7 +1126,7 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
           position: 'relative',
           gap: mm(1.5),
         }}>
-          {isUpi && shop.upiId ? (
+          {upiQrAmount > 0 && shop.upiId ? (
             <>
               {/* Dynamic QR Block */}
               <div style={{
@@ -1097,8 +1152,13 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
                   UPI: {shop.upiId}
                 </span>
                 <span style={{ fontSize: '7.2px', fontWeight: 900, whiteSpace: 'nowrap', fontFamily: 'monospace' }}>
-                  ₹ {netTotal.toFixed(2)}
+                  ₹ {upiQrAmount.toFixed(2)}
                 </span>
+                {isPartial && (
+                  <span style={{ fontSize: '6px', fontWeight: 'bold', color: '#555', textTransform: 'uppercase' }}>
+                    (UPI Portion)
+                  </span>
+                )}
               </div>
 
               {/* Signatures & Shop Signatory Block */}

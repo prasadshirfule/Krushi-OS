@@ -68,6 +68,7 @@ export function normalizeSale(sale: any) {
   let rawAdjustments = Array.isArray(sale.adjustments) ? sale.adjustments : [];
   let userNotes = sale.notes || '';
   let quickCustomer: any = null;
+  let partialPayment: any = sale.partial_payment || sale.partialPayment || null;
 
   if (sale.notes && typeof sale.notes === 'string') {
     try {
@@ -82,6 +83,9 @@ export function normalizeSale(sale: any) {
         }
         if (parsed.quickCustomer) {
           quickCustomer = parsed.quickCustomer;
+        }
+        if (parsed.partialPayment) {
+          partialPayment = parsed.partialPayment;
         }
       } else if (trimmed.includes('__ADJUSTMENTS__:')) {
         const parts = trimmed.split('__ADJUSTMENTS__:');
@@ -150,6 +154,8 @@ export function normalizeSale(sale: any) {
     customer_village: custObj?.village || custObj?.address || sale.customer_village || sale.customer_address || '',
     customer_address: custObj?.address || custObj?.village || sale.customer_address || sale.customer_village || '',
     adjustments: rawAdjustments,
+    partial_payment: partialPayment,
+    partialPayment: partialPayment,
     notes: userNotes,
     raw_notes: sale.notes,
     total_additions: totalAdditions,
@@ -346,12 +352,15 @@ export async function completeSale(shopId: string, data: any, userId: string) {
   const totalDeductions = rawAdjustments.filter((a: any) => a.type === 'DEDUCT').reduce((sum: number, a: any) => sum + (Number(a.amount) || 0), 0);
   const verifiedGrandTotal = Math.max(0, verifiedProductsTotal + totalAdditions - totalDeductions);
 
-  // Clean payments - ensure full payment amount reflects final total including adjustments if not credit
+  // Clean payments - preserve individual amounts for partial payment splits or credit
+  const hasMultiplePayments = Array.isArray(data.payments) && data.payments.length > 1;
+  const isPartial = Boolean(data.partial_payment || data.partialPayment) || hasMultiplePayments;
+
   const cleanPayments = (data.payments || []).map((p: any) => {
     const isCreditPayment = String(p.method).toUpperCase() === 'CREDIT';
     return {
       method: p.method,
-      amount: isCreditPayment ? (Number(p.amount) || 0) : verifiedGrandTotal
+      amount: (isCreditPayment || isPartial) ? (Number(p.amount) || 0) : verifiedGrandTotal
     };
   });
 
@@ -360,6 +369,9 @@ export async function completeSale(shopId: string, data: any, userId: string) {
   const metadataObj: any = {};
   if (data.notes) metadataObj.userNote = data.notes;
   if (rawAdjustments.length > 0) metadataObj.adjustments = rawAdjustments;
+  if (data.partial_payment || data.partialPayment) {
+    metadataObj.partialPayment = data.partial_payment || data.partialPayment;
+  }
   if (data.customer_name || data.customer_phone || data.customer_village || data.customer_address || data.customer) {
     const custName = (data.customer_name || data.customer?.name || '').toUpperCase().trim();
     const custPhone = (data.customer_phone || data.customer?.phone || data.customer?.mobile || '').trim();

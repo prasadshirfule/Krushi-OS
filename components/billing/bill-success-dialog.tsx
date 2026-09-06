@@ -136,7 +136,16 @@ export default function BillSuccessDialog({ saleId, invoiceNumber, totals, onClo
   const displayInv = invoiceNumber || saleData?.invoice_number || (saleId.startsWith('KOS-') ? saleId : `KOS-${saleId.substring(0, 8).toUpperCase()}`);
   const displayTotal = Number(totals?.payableAmount ?? totals?.total_amount ?? totals?.grand_total ?? saleData?.total_amount ?? saleData?.grand_total ?? 0);
   const rawPayment = saleData?.payment_method || saleData?.payment_mode || totals?.payment_method || saleData?.payments?.[0]?.method || 'Cash';
-  const displayPayment = String(rawPayment).toUpperCase() === 'UPI' ? 'UPI' : String(rawPayment).toUpperCase();
+  const isPartial = String(rawPayment).toUpperCase().includes('PARTIAL') || (Array.isArray(saleData?.payments) && saleData.payments.length > 1) || Boolean(totals?.partial_payment || saleData?.partial_payment);
+  const displayPayment = isPartial ? 'PARTIAL' : (String(rawPayment).toUpperCase() === 'UPI' ? 'UPI' : String(rawPayment).toUpperCase());
+
+  // Partial breakdown
+  const pp = totals?.partial_payment || totals?.partialPayment || saleData?.partial_payment || saleData?.partialPayment;
+  const partialCash = Number(pp?.cash || 0);
+  const partialUpi = Number(pp?.upi || 0);
+  const partialBank = Number(pp?.bank_transfer || pp?.bankTransfer || 0);
+  const partialPaid = Number(pp?.total_paid || pp?.totalPaid || (partialCash + partialUpi + partialBank));
+  const partialRemaining = Number(pp?.remaining !== undefined ? pp.remaining : Math.max(0, displayTotal - partialPaid));
 
   const preparedSale = saleData || {
     id: saleId,
@@ -147,6 +156,7 @@ export default function BillSuccessDialog({ saleId, invoiceNumber, totals, onClo
     customer_name: totals?.customer_name,
     customer_phone: totals?.customer_phone,
     payment_method: displayPayment,
+    partial_payment: pp,
   };
 
   return (
@@ -177,15 +187,48 @@ export default function BillSuccessDialog({ saleId, invoiceNumber, totals, onClo
           </DialogHeader>
 
           {/* Amount & Payment Info */}
-          <div className="bg-muted/80 p-3.5 rounded-lg my-2 space-y-1.5 border">
+          <div className="bg-muted/80 p-3.5 rounded-lg my-2 space-y-2 border">
             <div>
               <div className="text-xs text-muted-foreground">Total Amount</div>
               <div className="text-2xl font-black text-primary">{formatCurrency(displayTotal)}</div>
             </div>
             <div className="pt-1.5 border-t border-border flex items-center justify-between text-xs">
-              <span className="text-muted-foreground font-semibold">Payment Method:</span>
+              <span className="text-muted-foreground font-semibold">Payment:</span>
               <span className="font-bold text-foreground uppercase tracking-wider">{displayPayment}</span>
             </div>
+
+            {isPartial && (
+              <div className="pt-1 border-t border-border/70 space-y-1 text-xs text-left">
+                <div className="flex items-center justify-between font-medium">
+                  <span className="text-muted-foreground">Paid:</span>
+                  <span className="font-bold text-emerald-600">{formatCurrency(partialPaid > 0 ? partialPaid : displayTotal)}</span>
+                </div>
+                {partialCash > 0 && (
+                  <div className="flex items-center justify-between text-muted-foreground">
+                    <span>Cash:</span>
+                    <span className="font-mono font-semibold text-foreground">{formatCurrency(partialCash)}</span>
+                  </div>
+                )}
+                {partialUpi > 0 && (
+                  <div className="flex items-center justify-between text-muted-foreground">
+                    <span>UPI:</span>
+                    <span className="font-mono font-semibold text-foreground">{formatCurrency(partialUpi)}</span>
+                  </div>
+                )}
+                {partialBank > 0 && (
+                  <div className="flex items-center justify-between text-muted-foreground">
+                    <span>Bank Transfer:</span>
+                    <span className="font-mono font-semibold text-foreground">{formatCurrency(partialBank)}</span>
+                  </div>
+                )}
+                {partialRemaining > 0 && (
+                  <div className="flex items-center justify-between font-bold text-red-600 pt-0.5 border-t border-dashed border-border/70">
+                    <span>Remaining (Credit):</span>
+                    <span className="font-mono">{formatCurrency(partialRemaining)}</span>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Print Format Selector (Temporary Choice for this Bill) */}

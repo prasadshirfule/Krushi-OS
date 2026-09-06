@@ -153,8 +153,8 @@ export function parseProductSize(packSize?: string | null, unitStr?: string | nu
 }
 
 /**
- * Formats a clean, readable Product Size descriptor for shopkeepers (e.g., "45 KG", "100 ML").
- * Does NOT append packaging type (Bag, Bottle, etc.).
+ * Formats a clean, readable Product Size descriptor for shopkeepers (e.g., "45 KG", "50 ML", "1 L").
+ * Never includes "Piece", "Pieces", etc.
  */
 export function formatProductPackDisplay(prod: {
   pack_size?: string | null;
@@ -162,61 +162,63 @@ export function formatProductPackDisplay(prod: {
   product_size_value?: number | null;
   product_size_unit?: string | null;
 }): string {
-  if (prod.product_size_value) {
-    return `${prod.product_size_value} ${prod.product_size_unit || 'KG'}`;
+  if (prod.product_size_value && prod.product_size_value > 0) {
+    let u = (prod.product_size_unit || 'KG').toUpperCase().trim();
+    if (u === 'LTR' || u === 'LITRE' || u === 'LITER') u = 'L';
+    else if (u === 'G' || u === 'GRAM' || u === 'GRAMS') u = 'GM';
+    else if (u === 'KGS' || u === 'KILOGRAM') u = 'KG';
+    else if (u === 'MILLILITER' || u === 'MLS') u = 'ML';
+    if (!['PIECE', 'PIECES', 'PC', 'PCS', 'NOS', 'PACK', 'PACKET', 'BOX', 'BAG', 'BOTTLE'].includes(u)) {
+      return `${prod.product_size_value} ${u}`;
+    }
   }
   if (prod.pack_size) {
-    const parsed = parseProductSize(prod.pack_size, prod.unit);
+    let trimmed = String(prod.pack_size).trim();
+    trimmed = trimmed.replace(/\s*(pieces?|pcs?|nos?|packet?|box|bag|bottle)\s*$/i, '').trim();
+    const parsed = parseProductSize(trimmed, prod.unit);
     if (parsed.sizeValue && parsed.sizeUnit) {
-      return `${parsed.sizeValue} ${parsed.sizeUnit}`;
+      let u = parsed.sizeUnit.toUpperCase();
+      if (u === 'LTR' || u === 'LITRE' || u === 'LITER') u = 'L';
+      else if (u === 'G' || u === 'GRAM' || u === 'GRAMS') u = 'GM';
+      else if (u === 'KGS' || u === 'KILOGRAM') u = 'KG';
+      else if (u === 'MILLILITER' || u === 'MLS') u = 'ML';
+      if (!['PIECE', 'PIECES', 'PC', 'PCS', 'NOS', 'PACK'].includes(u)) {
+        return `${parsed.sizeValue} ${u}`;
+      }
     }
-    return prod.pack_size;
+    const m = trimmed.match(/^(\d+(?:\.\d+)?)\s*([a-zA-Z]+)$/);
+    if (m) {
+      let u = m[2].toUpperCase();
+      if (u === 'LTR' || u === 'LITRE' || u === 'LITER') u = 'L';
+      else if (u === 'G' || u === 'GRAM' || u === 'GRAMS') u = 'GM';
+      else if (u === 'KGS' || u === 'KILOGRAM') u = 'KG';
+      else if (u === 'MILLILITER' || u === 'MLS') u = 'ML';
+      if (!['PIECE', 'PIECES', 'PC', 'PCS', 'NOS', 'PACK'].includes(u)) {
+        return `${m[1]} ${u}`;
+      }
+    }
   }
   if (prod.unit) {
     const parsed = parseProductSize(null, prod.unit);
     if (parsed.sizeValue && parsed.sizeUnit) {
-      return `${parsed.sizeValue} ${parsed.sizeUnit}`;
+      let u = parsed.sizeUnit.toUpperCase();
+      if (u === 'LTR' || u === 'LITRE' || u === 'LITER') u = 'L';
+      else if (u === 'G' || u === 'GRAM' || u === 'GRAMS') u = 'GM';
+      else if (u === 'KGS' || u === 'KILOGRAM') u = 'KG';
+      else if (u === 'MILLILITER' || u === 'MLS') u = 'ML';
+      if (!['PIECE', 'PIECES', 'PC', 'PCS', 'NOS', 'PACK'].includes(u)) {
+        return `${parsed.sizeValue} ${u}`;
+      }
     }
   }
   return '';
 }
 
 /**
- * Formats product size as a compact string (e.g. "45KG", "50KG", "1L", "10KG", "500ML").
+ * Formats product size with one space between number and unit (e.g. "45 KG", "50 ML", "1 L", "10 KG", "500 ML").
  */
 export function formatProductSizeCompact(packSize?: string | null, unitStr?: string | null): string {
-  if (!packSize && !unitStr) return '';
-  const parsed = parseProductSize(packSize, unitStr);
-  if (parsed.sizeValue !== null && parsed.sizeValue !== undefined && !isNaN(parsed.sizeValue)) {
-    let cleanUnit = (parsed.sizeUnit || 'KG').toUpperCase().trim();
-    if (cleanUnit === 'LTR' || cleanUnit === 'LITRE' || cleanUnit === 'LITER') cleanUnit = 'L';
-    else if (cleanUnit === 'G' || cleanUnit === 'GRAM' || cleanUnit === 'GRAMS') cleanUnit = 'GM';
-    else if (cleanUnit === 'KGS' || cleanUnit === 'KILOGRAM') cleanUnit = 'KG';
-    else if (cleanUnit === 'MILLILITER' || cleanUnit === 'MLS') cleanUnit = 'ML';
-    return `${parsed.sizeValue}${cleanUnit}`;
-  }
-
-  if (packSize && typeof packSize === 'string') {
-    const trimmed = packSize.trim();
-    const m = trimmed.match(/^(\d+(?:\.\d+)?)\s*([a-zA-Z]+)$/);
-    if (m) {
-      let u = m[2].toUpperCase();
-      if (u === 'KG' || u === 'KILOGRAM' || u === 'KGS') u = 'KG';
-      else if (u === 'L' || u === 'LTR' || u === 'LITRE' || u === 'LITER') u = 'L';
-      else if (u === 'GM' || u === 'G' || u === 'GRAM' || u === 'GMS') u = 'GM';
-      else if (u === 'ML' || u === 'MILLILITER') u = 'ML';
-      return `${m[1]}${u}`;
-    }
-    if (/^\d+(\.\d+)?$/.test(trimmed) && unitStr) {
-      let u = unitStr.toUpperCase().trim();
-      if (u === 'KG' || u === 'KILOGRAM' || u === 'KGS') u = 'KG';
-      else if (u === 'L' || u === 'LTR' || u === 'LITRE' || u === 'LITER') u = 'L';
-      else if (u === 'GM' || u === 'G' || u === 'GRAM' || u === 'GMS') u = 'GM';
-      else if (u === 'ML' || u === 'MILLILITER') u = 'ML';
-      return `${trimmed}${u}`;
-    }
-  }
-  return '';
+  return formatProductPackDisplay({ pack_size: packSize, unit: unitStr });
 }
 
 /**
@@ -240,11 +242,12 @@ export function normalizeUpiId(val?: string | null): string {
 }
 
 /**
- * Returns formatted "PRODUCT_NAME (SIZE)" in uppercase.
- * Example: "UREA" + "45 KG" -> "UREA (45KG)"
- * Example: "DAP" + "50 KG" -> "DAP (50KG)"
- * Example: "STUNNER GOLD" + "1 L" -> "STUNNER GOLD (1L)"
- * If size is not present, returns just "UREA". Never undefined, null, or NaN.
+ * Returns formatted "PRODUCT_NAME (SIZE UNIT)" in uppercase.
+ * Example: "STUNNER GOLD" + "50 ML" -> "STUNNER GOLD (50 ML)"
+ * Example: "UREA" + "45 KG" -> "UREA (45 KG)"
+ * Example: "DAP" + "50 KG" -> "DAP (50 KG)"
+ * Example: "BIOFERTILIZER" + "1 L" -> "BIOFERTILIZER (1 L)"
+ * Never appends "PIECE", "Pieces", etc.
  */
 export function formatProductNameWithSize(
   name?: string | null,
@@ -257,27 +260,46 @@ export function formatProductNameWithSize(
   // Clean out any accidental literal "(undefined)", "(null)", "(NaN)"
   cleanName = cleanName.replace(/\((undefined|null|nan)\)$/gi, '').trim();
 
-  const sizeCompact = formatProductSizeCompact(packSize, unit);
-  if (!sizeCompact) {
+  // If cleanName already has parenthesis like "STUNNER GOLD (50 ML PIECE)" or "STUNNER GOLD(50ML)"
+  const bracketMatch = cleanName.match(/^(.*?)\s*\(([^)]+)\)$/);
+  if (bracketMatch) {
+    const base = bracketMatch[1].trim();
+    let inside = bracketMatch[2].trim();
+    // Strip trailing piece/pieces
+    inside = inside.replace(/\s*(pieces?|pcs?|nos?|packet?|box|bag|bottle)\s*$/i, '').trim();
+    const parsedInside = parseProductSize(inside);
+    if (parsedInside.sizeValue && parsedInside.sizeUnit) {
+      let u = parsedInside.sizeUnit.toUpperCase();
+      if (u === 'LTR' || u === 'LITRE' || u === 'LITER') u = 'L';
+      else if (u === 'G' || u === 'GRAM' || u === 'GRAMS') u = 'GM';
+      else if (u === 'KGS' || u === 'KILOGRAM') u = 'KG';
+      else if (u === 'MILLILITER' || u === 'MLS') u = 'ML';
+      if (!['PIECE', 'PIECES', 'PC', 'PCS', 'NOS', 'PACK'].includes(u)) {
+        return `${base} (${parsedInside.sizeValue} ${u})`;
+      }
+    }
+  }
+
+  const sizeStr = formatProductPackDisplay({ pack_size: packSize, unit });
+  if (!sizeStr) {
     return cleanName;
   }
 
-  // Avoid duplicating if cleanName already ends with " (SIZE)"
-  if (cleanName.endsWith(` (${sizeCompact})`)) {
+  const compactNoSpace = sizeStr.replace(/\s+/g, '');
+  if (cleanName.endsWith(` (${sizeStr})`)) {
     return cleanName;
   }
-
-  // If cleanName ends with "(SIZE)" without space, clean it
-  if (cleanName.endsWith(`(${sizeCompact})`)) {
-    cleanName = cleanName.substring(0, cleanName.length - sizeCompact.length - 2).trim();
+  if (cleanName.endsWith(`(${sizeStr})`)) {
+    cleanName = cleanName.substring(0, cleanName.length - sizeStr.length - 2).trim();
+  }
+  if (cleanName.endsWith(`(${compactNoSpace})`)) {
+    cleanName = cleanName.substring(0, cleanName.length - compactNoSpace.length - 2).trim();
+  }
+  if (cleanName.endsWith(` (${compactNoSpace})`)) {
+    cleanName = cleanName.substring(0, cleanName.length - compactNoSpace.length - 3).trim();
   }
 
-  // If cleanName ends with " SIZE" e.g. "UREA 45KG", extract base name
-  if (cleanName.endsWith(` ${sizeCompact}`)) {
-    cleanName = cleanName.substring(0, cleanName.length - sizeCompact.length - 1).trim();
-  }
-
-  return `${cleanName} (${sizeCompact})`;
+  return `${cleanName} (${sizeStr})`;
 }
 
 export const productSchema = z.object({
@@ -377,7 +399,7 @@ export const purchaseSchema = z.object({
 });
 
 export const paymentSplitSchema = z.object({
-  method: z.enum(['CASH', 'UPI', 'CARD', 'BANK_TRANSFER', 'CREDIT']),
+  method: z.enum(['CASH', 'UPI', 'CARD', 'BANK_TRANSFER', 'CREDIT', 'PARTIAL']),
   amount: z.number().min(0),
 });
 

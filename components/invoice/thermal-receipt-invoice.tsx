@@ -9,45 +9,9 @@ import {
 } from '@/lib/shop-details';
 import { getDemoProductsClient } from '@/lib/client-demo-store';
 import { getShopProfileAction } from '@/actions/settings';
+import { formatProductNameWithSize } from '@/lib/validations';
 import { buildUpiUri, generateQrDataUrl } from '@/lib/upi';
 import { InvoiceItemData, InvoiceProps, formatInvoiceExpiry } from './reference-tax-invoice';
-
-/**
- * Formats product name for 80mm thermal receipt in the exact required structure:
- * PRODUCT_NAME  (SIZE) with TWO spaces before the opening bracket.
- */
-export function formatThermalProductName(rawName?: string, packSize?: string, unit?: string): string {
-  let name = (rawName || 'PRODUCT').trim().toUpperCase();
-  
-  // If already formatted with brackets (e.g. "UREA (45KG)" or "UREA(45KG)"), normalize to 2 spaces
-  const bracketMatch = name.match(/^(.*?)\s*\(([^)]+)\)$/);
-  if (bracketMatch) {
-    const base = bracketMatch[1].trim();
-    const sz = bracketMatch[2].trim().toUpperCase();
-    return `${base}  (${sz})`;
-  }
-
-  // Construct from size & unit
-  const sizeVal = (packSize || '').trim();
-  const unitVal = (unit || '').trim();
-  let combinedSize = '';
-
-  if (sizeVal) {
-    if (unitVal && !sizeVal.toUpperCase().includes(unitVal.toUpperCase())) {
-      combinedSize = `${sizeVal}${unitVal}`.toUpperCase();
-    } else {
-      combinedSize = sizeVal.toUpperCase();
-    }
-  } else if (unitVal) {
-    combinedSize = unitVal.toUpperCase();
-  }
-
-  if (combinedSize) {
-    return `${name}  (${combinedSize})`;
-  }
-
-  return name;
-}
 
 export function ThermalReceiptInvoice({ sale, shopDetails: customShopDetails, customItems }: InvoiceProps) {
   const [persistedShop, setPersistedShop] = useState<ShopDetails>(DEFAULT_SHOP_DETAILS);
@@ -85,9 +49,11 @@ export function ThermalReceiptInvoice({ sale, shopDetails: customShopDetails, cu
   const formattedDate = dateObj.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
   const formattedTime = dateObj.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
 
-  const isCredit = (s.payment_method || s.payment_mode || s.paymentMethod || '').toUpperCase() === 'CREDIT';
-  const isUpi = (s.payment_method || s.payment_mode || s.paymentMethod || s.payments?.[0]?.method || '').toUpperCase() === 'UPI';
-  const paymentMode = isUpi ? 'UPI' : (isCredit ? 'CREDIT' : (s.payment_method || s.payment_mode || s.paymentMethod || 'CASH').toUpperCase());
+  const rawPaymentMethod = (s.payment_method || s.payment_mode || s.paymentMethod || s.payments?.[0]?.method || 'CASH').toString().toUpperCase();
+  const isCredit = rawPaymentMethod === 'CREDIT';
+  const isUpi = rawPaymentMethod === 'UPI';
+  const isPartial = rawPaymentMethod.includes('PARTIAL') || (Array.isArray(s.payments) && s.payments.length > 1);
+  const paymentMode = isPartial ? 'PARTIAL' : (isUpi ? 'UPI' : (isCredit ? 'CREDIT' : (rawPaymentMethod === 'BANK_TRANSFER' ? 'BANK TRANSFER' : rawPaymentMethod)));
 
   /* ---------- Items ---------- */
   const rawItems = customItems || s.items || s.sale_items || [];
@@ -125,8 +91,8 @@ export function ThermalReceiptInvoice({ sale, shopDetails: customShopDetails, cu
 
       const packSize = item.pack_size || p.pack_size || ((item.product_size_value || p.product_size_value) ? `${item.product_size_value || p.product_size_value} ${item.product_size_unit || p.product_size_unit || 'KG'}` : '');
       const unit = item.unit || p.unit || '';
-      // Exact PRODUCT_NAME  (SIZE) format with 2 spaces
-      const prodName = formatThermalProductName(prodRawName, packSize, unit);
+      // Exact PRODUCT_NAME (SIZE UNIT) format with single space before ( and between size & unit, no "PIECE"
+      const prodName = formatProductNameWithSize(prodRawName, packSize, unit);
 
       let mfg = item.manufacturer || p.manufacturer || p.brand?.manufacturer || p.brand?.name || '';
       if (!mfg && (item.product_id || item.id)) {
@@ -174,19 +140,19 @@ export function ThermalReceiptInvoice({ sale, shopDetails: customShopDetails, cu
     items = [
       {
         id: 'default-item-1',
-        name: 'UREA  (45KG)',
-        manufacturer: 'IFFCO',
-        hsn: '3102',
-        batch: '-',
-        expiry: '-',
+        name: 'STUNNER GOLD (50 ML)',
+        manufacturer: 'PROGENE',
+        hsn: '3808',
+        batch: '100',
+        expiry: '10/07/2028',
         quantity: 1,
-        rate: 266,
-        gstRate: 5,
-        rateWithGst: 266,
-        taxableAmount: 253.33,
-        cgstAmount: 6.33,
-        sgstAmount: 6.34,
-        total: 266,
+        rate: 250,
+        gstRate: 18,
+        rateWithGst: 250,
+        taxableAmount: 211.86,
+        cgstAmount: 19.07,
+        sgstAmount: 19.07,
+        total: 250,
       }
     ];
   }
@@ -197,13 +163,14 @@ export function ThermalReceiptInvoice({ sale, shopDetails: customShopDetails, cu
   const productsTotal = items.reduce((sum, item) => sum + item.total, 0);
 
   let rawAdjustments: any[] = Array.isArray(s.adjustments) ? s.adjustments : [];
-  if (rawAdjustments.length === 0 && s.notes && typeof s.notes === 'string') {
+  let parsedMetadata: any = {};
+  if (s.notes && typeof s.notes === 'string') {
     try {
       const trimmed = s.notes.trim();
       if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
-        const parsed = JSON.parse(trimmed);
-        if (Array.isArray(parsed.adjustments)) {
-          rawAdjustments = parsed.adjustments;
+        parsedMetadata = JSON.parse(trimmed);
+        if (Array.isArray(parsedMetadata.adjustments)) {
+          rawAdjustments = parsedMetadata.adjustments;
         }
       } else if (trimmed.includes('__ADJUSTMENTS__:')) {
         const parts = trimmed.split('__ADJUSTMENTS__:');
@@ -220,16 +187,53 @@ export function ThermalReceiptInvoice({ sale, shopDetails: customShopDetails, cu
 
   const netTotal = Math.max(0, productsTotal + totalAdditions - totalDeductions);
 
+  // Partial payment breakdown calculation
+  let partialCash = 0;
+  let partialUpi = 0;
+  let partialBank = 0;
+  let partialPaidTotal = 0;
+  let partialRemaining = 0;
+
+  if (isPartial) {
+    if (s.partial_payment) {
+      partialCash = Number(s.partial_payment.cash || 0);
+      partialUpi = Number(s.partial_payment.upi || 0);
+      partialBank = Number(s.partial_payment.bank_transfer || s.partial_payment.bankTransfer || 0);
+      partialPaidTotal = Number(s.partial_payment.total_paid || s.partial_payment.totalPaid || (partialCash + partialUpi + partialBank));
+      partialRemaining = Number(s.partial_payment.remaining !== undefined ? s.partial_payment.remaining : Math.max(0, netTotal - partialPaidTotal));
+    } else if (parsedMetadata.partialPayment) {
+      const pp = parsedMetadata.partialPayment;
+      partialCash = Number(pp.cash || 0);
+      partialUpi = Number(pp.upi || 0);
+      partialBank = Number(pp.bank_transfer || pp.bankTransfer || 0);
+      partialPaidTotal = Number(pp.total_paid || pp.totalPaid || (partialCash + partialUpi + partialBank));
+      partialRemaining = Number(pp.remaining !== undefined ? pp.remaining : Math.max(0, netTotal - partialPaidTotal));
+    } else if (Array.isArray(s.payments) && s.payments.length > 0) {
+      for (const p of s.payments) {
+        const m = String(p.method).toUpperCase();
+        const amt = Number(p.amount || 0);
+        if (m === 'CASH') partialCash += amt;
+        else if (m === 'UPI') partialUpi += amt;
+        else if (m === 'BANK_TRANSFER' || m === 'BANK TRANSFER') partialBank += amt;
+      }
+      partialPaidTotal = partialCash + partialUpi + partialBank;
+      partialRemaining = Math.max(0, netTotal - partialPaidTotal);
+    }
+  }
+
+  // Determine UPI QR amount: for full UPI = netTotal; for Partial Payment = ONLY UPI portion (if > 0)
+  const upiQrAmount = isPartial ? partialUpi : (isUpi ? netTotal : 0);
+
   useEffect(() => {
-    if (isUpi && shop.upiId && netTotal > 0) {
-      const uri = buildUpiUri(shop.upiId, shop.shopName, netTotal);
+    if (upiQrAmount > 0 && shop.upiId) {
+      const uri = buildUpiUri(shop.upiId, shop.shopName, upiQrAmount);
       generateQrDataUrl(uri, { width: 200, margin: 1 })
         .then(setQrDataUrl)
         .catch(() => setQrDataUrl(''));
     } else {
       setQrDataUrl('');
     }
-  }, [isUpi, shop.upiId, shop.shopName, netTotal]);
+  }, [upiQrAmount, shop.upiId, shop.shopName]);
 
   const dynamicShopAddress = formatShopAddress(shop) || shop.address || '';
 
@@ -317,7 +321,7 @@ export function ThermalReceiptInvoice({ sale, shopDetails: customShopDetails, cu
         {/* Divider */}
         <div style={{ borderTop: '1px dashed #000000', margin: '2mm 0' }} />
 
-        {/* ─── 3. NEW 4-COLUMN PRODUCT TABLE ─── */}
+        {/* ─── 3. 4-COLUMN PRODUCT TABLE (COMPACT 1-LINE PRODUCT NAME FIT) ─── */}
         <div style={{ marginBottom: '2mm' }}>
           {/* Table Header: ITEM DETAILS | QTY | MRP | TOTAL */}
           <div 
@@ -326,17 +330,17 @@ export function ThermalReceiptInvoice({ sale, shopDetails: customShopDetails, cu
               justifyContent: 'space-between', 
               alignItems: 'center', 
               fontWeight: 900, 
-              fontSize: '9.5px', 
+              fontSize: '9px', 
               paddingBottom: '1mm', 
               borderBottom: '1px solid #000000',
               textTransform: 'uppercase',
-              letterSpacing: '0.2px'
+              letterSpacing: '0.1px'
             }}
           >
-            <span style={{ width: '46%', textAlign: 'left' }}>ITEM DETAILS</span>
-            <span style={{ width: '14%', textAlign: 'center' }}>QTY</span>
-            <span style={{ width: '20%', textAlign: 'right' }}>MRP</span>
-            <span style={{ width: '20%', textAlign: 'right' }}>TOTAL</span>
+            <span style={{ width: '50%', textAlign: 'left' }}>ITEM DETAILS</span>
+            <span style={{ width: '12%', textAlign: 'center' }}>QTY</span>
+            <span style={{ width: '19%', textAlign: 'right' }}>MRP</span>
+            <span style={{ width: '19%', textAlign: 'right' }}>TOTAL</span>
           </div>
 
           {/* Table Rows */}
@@ -345,30 +349,31 @@ export function ThermalReceiptInvoice({ sale, shopDetails: customShopDetails, cu
               <div 
                 key={item.id || idx} 
                 style={{ 
-                  paddingBottom: '2mm', 
+                  paddingBottom: '1.5mm', 
                   marginBottom: '1.5mm', 
                   borderBottom: idx < items.length - 1 ? '0.5px dotted #888' : 'none' 
                 }}
               >
-                {/* 4-Column Row: 1. PRODUCT_NAME  (SIZE) | QTY | MRP | TOTAL */}
+                {/* 4-Column Row: 1. PRODUCT_NAME (SIZE UNIT) | QTY | MRP | TOTAL */}
                 <div 
                   style={{ 
                     display: 'flex', 
                     justifyContent: 'space-between', 
                     alignItems: 'flex-start',
-                    fontSize: '10px',
-                    lineHeight: 1.25
+                    fontSize: '9.2px',
+                    lineHeight: 1.2
                   }}
                 >
-                  {/* Product Name with Index and EXACT TWO SPACES before (SIZE) */}
+                  {/* Product Name (Clean 1-line fit for normal names) */}
                   <div 
                     style={{ 
-                      width: '46%', 
+                      width: '50%', 
                       textAlign: 'left', 
                       fontWeight: 800, 
                       textTransform: 'uppercase', 
-                      whiteSpace: 'pre-wrap', 
-                      wordBreak: 'break-word' 
+                      wordBreak: 'break-word',
+                      letterSpacing: '-0.1px',
+                      paddingRight: '1mm'
                     }}
                   >
                     {idx + 1}. {item.name}
@@ -377,23 +382,24 @@ export function ThermalReceiptInvoice({ sale, shopDetails: customShopDetails, cu
                   {/* Quantity (Centered) */}
                   <div 
                     style={{ 
-                      width: '14%', 
+                      width: '12%', 
                       textAlign: 'center', 
                       fontWeight: 700, 
-                      fontFamily: 'monospace' 
+                      fontFamily: 'monospace',
+                      fontSize: '9.2px'
                     }}
                   >
                     {item.quantity}
                   </div>
 
-                  {/* MRP (Selling Price including GST - Right-Aligned) */}
+                  {/* MRP (Right-Aligned) */}
                   <div 
                     style={{ 
-                      width: '20%', 
+                      width: '19%', 
                       textAlign: 'right', 
                       fontWeight: 700, 
                       fontFamily: 'monospace',
-                      fontSize: '9.5px'
+                      fontSize: '9px'
                     }}
                   >
                     ₹{item.rate.toFixed(2)}
@@ -402,11 +408,11 @@ export function ThermalReceiptInvoice({ sale, shopDetails: customShopDetails, cu
                   {/* Line Total (Right-Aligned) */}
                   <div 
                     style={{ 
-                      width: '20%', 
+                      width: '19%', 
                       textAlign: 'right', 
                       fontWeight: 900, 
                       fontFamily: 'monospace',
-                      fontSize: '9.5px'
+                      fontSize: '9px'
                     }}
                   >
                     ₹{item.total.toFixed(2)}
@@ -416,17 +422,17 @@ export function ThermalReceiptInvoice({ sale, shopDetails: customShopDetails, cu
                 {/* Metadata line directly underneath: Mfg: MANUFACTURER | Batch: BATCH | Exp: EXPIRY */}
                 <div 
                   style={{ 
-                    fontSize: '8.5px', 
+                    fontSize: '8px', 
                     color: '#222', 
-                    marginTop: '1mm', 
-                    lineHeight: 1.2,
-                    paddingLeft: '1mm'
+                    marginTop: '0.5mm', 
+                    lineHeight: 1.15,
+                    paddingLeft: '0.5mm'
                   }}
                 >
                   <span>Mfg: {item.manufacturer}</span>
-                  <span style={{ margin: '0 1mm' }}>|</span>
+                  <span style={{ margin: '0 0.8mm' }}>|</span>
                   <span>Batch: {item.batch}</span>
-                  <span style={{ margin: '0 1mm' }}>|</span>
+                  <span style={{ margin: '0 0.8mm' }}>|</span>
                   <span>Exp: {item.expiry}</span>
                 </div>
               </div>
@@ -471,27 +477,63 @@ export function ThermalReceiptInvoice({ sale, shopDetails: customShopDetails, cu
             <span style={{ fontSize: '15px', fontWeight: 900, fontFamily: 'monospace' }}>₹{netTotal.toFixed(2)}</span>
           </div>
 
-          {/* Payment Method */}
+          {/* Payment Method & Partial Breakdown */}
           <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, marginTop: '1mm' }}>
             <span>Payment Mode:</span>
             <span style={{ textTransform: 'uppercase' }}>{paymentMode}</span>
           </div>
+
+          {isPartial && (
+            <div style={{ marginTop: '1mm', padding: '1.5mm 2mm', backgroundColor: '#f5f5f5', borderRadius: '3px', fontSize: '9px', lineHeight: 1.35, border: '0.5px solid #ddd' }}>
+              <div style={{ fontWeight: 800, textTransform: 'uppercase', borderBottom: '0.5px solid #ccc', paddingBottom: '0.5mm', marginBottom: '0.5mm' }}>
+                Payment Breakdown
+              </div>
+              {partialCash > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Cash:</span>
+                  <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>₹{partialCash.toFixed(2)}</span>
+                </div>
+              )}
+              {partialUpi > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>UPI:</span>
+                  <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>₹{partialUpi.toFixed(2)}</span>
+                </div>
+              )}
+              {partialBank > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Bank Transfer:</span>
+                  <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>₹{partialBank.toFixed(2)}</span>
+                </div>
+              )}
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '0.5px dotted #aaa', paddingTop: '0.5mm', marginTop: '0.5mm', fontWeight: 800 }}>
+                <span>Total Paid:</span>
+                <span style={{ fontFamily: 'monospace' }}>₹{partialPaidTotal.toFixed(2)}</span>
+              </div>
+              {partialRemaining > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#b91c1c', fontWeight: 800 }}>
+                  <span>Remaining Balance:</span>
+                  <span style={{ fontFamily: 'monospace' }}>₹{partialRemaining.toFixed(2)}</span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
-        {/* ─── 5. DYNAMIC UPI QR CODE (IF UPI) ─── */}
-        {isUpi && shop.upiId && (
-          <div style={{ textAlign: 'center', marginTop: '3mm', padding: '2mm', border: '1px dashed #000000' }}>
+        {/* ─── 5. DYNAMIC UPI QR CODE (FOR FULL UPI OR PARTIAL UPI PORTION > 0) ─── */}
+        {upiQrAmount > 0 && shop.upiId && (
+          <div style={{ textAlign: 'center', marginTop: '2.5mm', padding: '2mm', border: '1px dashed #000000' }}>
             <div style={{ fontSize: '9px', fontWeight: 800, textTransform: 'uppercase', marginBottom: '1mm' }}>
-              Scan to Pay (UPI)
+              {isPartial ? `Scan to Pay UPI (₹${upiQrAmount.toFixed(2)})` : 'Scan to Pay (UPI)'}
             </div>
             {qrDataUrl ? (
               <img
                 src={qrDataUrl}
                 alt="UPI Payment QR"
-                style={{ width: '32mm', height: '32mm', margin: '0 auto', display: 'block', objectFit: 'contain' }}
+                style={{ width: '30mm', height: '30mm', margin: '0 auto', display: 'block', objectFit: 'contain' }}
               />
             ) : (
-              <div style={{ width: '32mm', height: '32mm', border: '1px solid #000', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '8px' }}>
+              <div style={{ width: '30mm', height: '30mm', border: '1px solid #000', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '8px' }}>
                 QR CODE
               </div>
             )}
@@ -499,7 +541,7 @@ export function ThermalReceiptInvoice({ sale, shopDetails: customShopDetails, cu
               UPI: {shop.upiId}
             </div>
             <div style={{ fontSize: '9.5px', fontWeight: 900, fontFamily: 'monospace' }}>
-              ₹{netTotal.toFixed(2)}
+              ₹{upiQrAmount.toFixed(2)}
             </div>
           </div>
         )}

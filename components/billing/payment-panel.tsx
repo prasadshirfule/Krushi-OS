@@ -33,15 +33,15 @@ interface PaymentPanelProps {
 const PAYMENT_METHOD_ICONS: Record<string, React.ReactNode> = {
   Cash: <Banknote className="h-5 w-5 mr-2" />,
   UPI: <QrCode className="h-5 w-5 mr-2" />,
-  Card: <CreditCard className="h-5 w-5 mr-2" />,
+  'Partial Payment': <CreditCard className="h-5 w-5 mr-2" />,
   'Bank Transfer': <Building2 className="h-5 w-5 mr-2" />,
   Credit: <BookOpen className="h-5 w-5 mr-2" />,
 };
 
-const METHOD_TO_ENUM: Record<string, 'CASH' | 'UPI' | 'CARD' | 'BANK_TRANSFER' | 'CREDIT'> = {
+const METHOD_TO_ENUM: Record<string, 'CASH' | 'UPI' | 'PARTIAL' | 'BANK_TRANSFER' | 'CREDIT'> = {
   Cash: 'CASH',
   UPI: 'UPI',
-  Card: 'CARD',
+  'Partial Payment': 'PARTIAL',
   'Bank Transfer': 'BANK_TRANSFER',
   Credit: 'CREDIT',
 };
@@ -53,54 +53,92 @@ export default function PaymentPanel({ cart, adjustments = [], totals, customerI
   const [notes, setNotes] = useState('');
   const [cashTendered, setCashTendered] = useState<string>('');
   const [creditPaidAmount, setCreditPaidAmount] = useState<string>('');
+  
+  // Partial payment split inputs
+  const [partialCash, setPartialCash] = useState<string>('');
+  const [partialUpi, setPartialUpi] = useState<string>('');
+  const [partialBankTransfer, setPartialBankTransfer] = useState<string>('');
+
   const [shopProfile, setShopProfile] = useState<ShopDetails | null>(null);
   const [upiQrDataUrl, setUpiQrDataUrl] = useState<string>('');
 
   const payableAmount = Number(totals?.payableAmount || 0);
 
+  // Reset payment split values when cart becomes empty (e.g. on New Bill)
+  useEffect(() => {
+    if (cart.length === 0) {
+      setPartialCash('');
+      setPartialUpi('');
+      setPartialBankTransfer('');
+      setCashTendered('');
+      setCreditPaidAmount('');
+      setNotes('');
+    }
+  }, [cart.length]);
+
   // Load shop profile for dynamic UPI QR code
   useEffect(() => {
     const cached = getSavedShopDetails();
-    if (cached) setShopProfile(cached);
+    if (cached) setPersistedShopProfile(cached);
 
     getShopProfileAction().then(res => {
       if (res?.success && res?.data) {
-        setShopProfile(res.data);
+        setPersistedShopProfile(res.data);
       }
     }).catch(() => {});
   }, []);
 
-  // Dynamically generate QR code when UPI is selected or bill amount changes
-  useEffect(() => {
-    if (paymentMethod !== 'UPI') return;
+  const setPersistedShopProfile = (profile: ShopDetails) => {
+    setShopProfile(profile);
+  };
 
+  const isPartial = paymentMethod === 'Partial Payment';
+  const isCredit = paymentMethod === 'Credit';
+  const isPureUpi = paymentMethod === 'UPI';
+
+  // Partial payment calculations
+  const partialCashNum = parseFloat(partialCash) || 0;
+  const partialUpiNum = parseFloat(partialUpi) || 0;
+  const partialBankNum = parseFloat(partialBankTransfer) || 0;
+  const partialTotalPaid = partialCashNum + partialUpiNum + partialBankNum;
+  const partialRemaining = Math.max(0, payableAmount - partialTotalPaid);
+  const isPartialOverpaid = isPartial && partialTotalPaid > payableAmount;
+
+  // Determine UPI QR amount: for Pure UPI = full payableAmount; for Partial Payment = ONLY UPI portion (if > 0)
+  const upiQrTargetAmount = isPureUpi ? payableAmount : (isPartial && partialUpiNum > 0 ? partialUpiNum : 0);
+
+  // Dynamically generate QR code
+  useEffect(() => {
     const upiId = shopProfile?.upiId?.trim();
-    if (!upiId || payableAmount <= 0) {
+    if (!upiId || upiQrTargetAmount <= 0) {
       setUpiQrDataUrl('');
       return;
     }
 
-    const upiUri = buildUpiUri(upiId, shopProfile?.shopName, payableAmount);
+    const upiUri = buildUpiUri(upiId, shopProfile?.shopName, upiQrTargetAmount);
     generateQrDataUrl(upiUri, { width: 220, margin: 1 }).then(url => {
       setUpiQrDataUrl(url);
     }).catch(err => {
       console.error('Failed to generate UPI QR code:', err);
     });
-  }, [paymentMethod, payableAmount, shopProfile?.upiId, shopProfile?.shopName]);
+  }, [upiQrTargetAmount, shopProfile?.upiId, shopProfile?.shopName]);
 
-  const isCredit = paymentMethod === 'Credit';
   const effectiveCustomerName = customerName?.trim() || '';
   const hasCustomer = Boolean(
     (customerId && customerId !== 'walk-in') || 
     (effectiveCustomerName && effectiveCustomerName.toLowerCase() !== 'walk-in')
   );
-  const creditError = isCredit && !hasCustomer;
+
+  // A customer is required if full credit, OR if partial payment has remaining balance > 0
+  const creditError = (isCredit || (isPartial && partialRemaining > 0)) && !hasCustomer;
 
   const isSaleDisabled =
     cart.length === 0 ||
     payableAmount <= 0 ||
     isSubmitting ||
-    creditError;
+    creditError ||
+    isPartialOverpaid ||
+    (isPartial && partialTotalPaid === 0);
 
   // Cash change calculation
   const tenderedNum = parseFloat(cashTendered) || 0;
@@ -149,8 +187,18 @@ export default function PaymentPanel({ cart, adjustments = [], totals, customerI
       toast.warning('Amount paid cannot exceed bill total.');
       return;
     }
+    if (isPartial) {
+      if (partialTotalPaid > payableAmount) {
+        toast.error('Payment amount cannot exceed the final bill amount.');
+        return;
+      }
+      if (partialTotalPaid === 0 && !hasCustomer) {
+        toast.warning('Please enter payment amounts for partial payment.');
+        return;
+      }
+    }
     if (creditError) {
-      toast.error('A registered customer is required for credit sales. Please select or add a customer.');
+      toast.error('A registered customer is required for credit / outstanding sales. Please select or add a customer.');
       return;
     }
 
@@ -195,15 +243,56 @@ export default function PaymentPanel({ cart, adjustments = [], totals, customerI
         taxTreatment: a.taxTreatment || 'NON_TAXABLE',
       }));
 
-      // Format payment to match paymentSplitSchema
-      const methodEnum = METHOD_TO_ENUM[paymentMethod] || 'CASH';
-      const actualPaidAmount = isCredit ? creditPaidNum : payableAmount;
-      const formattedPayments = [
-        {
-          method: methodEnum,
-          amount: actualPaidAmount,
-        },
-      ];
+      // Format payment splits
+      let formattedPayments: Array<{ method: 'CASH' | 'UPI' | 'PARTIAL' | 'BANK_TRANSFER' | 'CREDIT'; amount: number }> = [];
+      let actualPaidAmount = payableAmount;
+      let partialPaymentObj: any = null;
+
+      if (isPartial) {
+        actualPaidAmount = partialTotalPaid;
+        if (partialCashNum > 0) {
+          formattedPayments.push({ method: 'CASH', amount: partialCashNum });
+        }
+        if (partialUpiNum > 0) {
+          formattedPayments.push({ method: 'UPI', amount: partialUpiNum });
+        }
+        if (partialBankNum > 0) {
+          formattedPayments.push({ method: 'BANK_TRANSFER', amount: partialBankNum });
+        }
+        if (partialRemaining > 0) {
+          formattedPayments.push({ method: 'CREDIT', amount: partialRemaining });
+        }
+        if (formattedPayments.length === 0) {
+          formattedPayments.push({ method: 'CASH', amount: payableAmount });
+        }
+
+        partialPaymentObj = {
+          cash: partialCashNum,
+          upi: partialUpiNum,
+          bank_transfer: partialBankNum,
+          bankTransfer: partialBankNum,
+          total_paid: partialTotalPaid,
+          totalPaid: partialTotalPaid,
+          remaining: partialRemaining,
+        };
+      } else if (isCredit) {
+        actualPaidAmount = creditPaidNum;
+        formattedPayments = [
+          {
+            method: 'CREDIT',
+            amount: creditPaidNum,
+          },
+        ];
+      } else {
+        const methodEnum = METHOD_TO_ENUM[paymentMethod] || 'CASH';
+        actualPaidAmount = payableAmount;
+        formattedPayments = [
+          {
+            method: methodEnum,
+            amount: payableAmount,
+          },
+        ];
+      }
 
       const customerDisplayName = effectiveCustomerName ? effectiveCustomerName.toUpperCase() : (hasCustomer ? 'CUSTOMER' : 'WALK-IN CUSTOMER');
       const cleanVillage = (customerVillage || '').toUpperCase().trim();
@@ -223,10 +312,13 @@ export default function PaymentPanel({ cart, adjustments = [], totals, customerI
         items: formattedItems,
         adjustments: formattedAdjustments,
         payments: formattedPayments,
+        partial_payment: partialPaymentObj,
+        partialPayment: partialPaymentObj,
         notes: notes.trim() || null,
         idempotency_key: idempotencyKey,
         // Legacy fallback fields
-        payment_method: paymentMethod,
+        payment_method: isPartial ? 'PARTIAL' : paymentMethod,
+        payment_mode: isPartial ? 'PARTIAL' : paymentMethod,
         totals,
         paid_amount: actualPaidAmount,
       };
@@ -247,7 +339,7 @@ export default function PaymentPanel({ cart, adjustments = [], totals, customerI
         router.refresh();
         const saleId = savedSale.id || `sale-${Date.now()}`;
         const invNo = savedSale.invoice_number || savedSale.invoiceNumber;
-        onComplete(saleId, invNo, totals);
+        onComplete(saleId, invNo, { ...totals, partial_payment: partialPaymentObj, payment_method: isPartial ? 'PARTIAL' : paymentMethod });
       } else {
         const result = await completeSaleAction(saleData);
 
@@ -261,7 +353,7 @@ export default function PaymentPanel({ cart, adjustments = [], totals, customerI
           router.refresh();
           const saleId = result.data?.sale_id || result.data?.id || result.data?.saleId;
           const invNo = result.data?.invoice_number || result.data?.invoiceNumber;
-          onComplete(saleId, invNo, totals);
+          onComplete(saleId, invNo, { ...totals, partial_payment: partialPaymentObj, payment_method: isPartial ? 'PARTIAL' : paymentMethod });
         } else {
           toast.error(result.error || 'Unable to complete bill. Please try again.');
         }
@@ -298,12 +390,14 @@ export default function PaymentPanel({ cart, adjustments = [], totals, customerI
               key={method}
               type="button"
               variant={isSelected ? 'default' : 'outline'}
-              className={`h-14 rounded-xl text-sm font-bold flex items-center justify-center transition-all ${
+              className={`h-14 rounded-xl text-xs md:text-sm font-bold flex items-center justify-center transition-all ${
                 isSelected
                   ? 'bg-primary hover:bg-primary/90 text-primary-foreground shadow-md ring-2 ring-primary ring-offset-2 ring-offset-background'
                   : 'bg-background/60 hover:bg-accent hover:border-primary/40 text-foreground border border-border'
               }`}
-              onClick={() => setPaymentMethod(method)}
+              onClick={() => {
+                setPaymentMethod(method);
+              }}
             >
               {PAYMENT_METHOD_ICONS[method]}
               {method}
@@ -312,17 +406,207 @@ export default function PaymentPanel({ cart, adjustments = [], totals, customerI
         })}
       </div>
 
-      {/* ─── Credit Warning Banner ─── */}
+      {/* ─── Partial Payment Overpaid Error Banner ─── */}
+      {isPartialOverpaid && (
+        <div className="bg-destructive/10 border border-destructive/30 rounded-xl p-3.5 flex items-center gap-2.5 text-destructive text-sm font-semibold">
+          <AlertCircle className="h-5 w-5 text-destructive shrink-0" />
+          <span>Payment amount cannot exceed the final bill amount.</span>
+        </div>
+      )}
+
+      {/* ─── Credit / Partial Remaining Warning Banner ─── */}
       {creditError && (
         <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3.5 flex items-center gap-2.5 text-amber-300 text-sm">
           <AlertCircle className="h-5 w-5 text-amber-400 shrink-0" />
           <span>
-            <strong>Credit (Udhaar) requires a customer.</strong> Please select or add a customer in the Customer section at the top of the page.
+            <strong>Customer required for remaining balance (Credit / Udhaar).</strong> Please select or add a customer in the Customer section at the top.
           </span>
         </div>
       )}
 
-      {/* ─── Dynamic UPI Payment & QR Code Section ─── */}
+      {/* ─── Partial Payment Breakdown Section ─── */}
+      {isPartial && payableAmount > 0 && (
+        <div className="bg-muted/30 border border-border rounded-xl p-4 sm:p-5 space-y-4">
+          <div className="flex items-center justify-between border-b border-border pb-3">
+            <div>
+              <h3 className="text-base font-bold text-foreground flex items-center gap-2">
+                <CreditCard className="h-5 w-5 text-primary" />
+                PARTIAL PAYMENT BREAKDOWN
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                Enter amount paid through each payment method
+              </p>
+            </div>
+            <span className="text-xs font-bold px-2.5 py-1 bg-primary/10 text-primary rounded-md border border-primary/20">
+              Total Bill: {formatCurrency(payableAmount)}
+            </span>
+          </div>
+
+          {/* Input Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+            {/* Cash Input */}
+            <div className="bg-background border border-border rounded-lg p-3 space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                  <Banknote className="h-4 w-4 text-emerald-600" />
+                  Cash Amount
+                </label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-1.5 text-[11px] text-primary hover:underline"
+                  onClick={() => {
+                    const otherPaid = partialUpiNum + partialBankNum;
+                    const rem = Math.max(0, payableAmount - otherPaid);
+                    setPartialCash(rem > 0 ? rem.toString() : '');
+                  }}
+                >
+                  Fill Balance
+                </Button>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-muted-foreground font-bold">₹</span>
+                <Input
+                  type="number"
+                  placeholder="0.00"
+                  value={partialCash}
+                  onChange={e => setPartialCash(e.target.value)}
+                  className="h-10 text-base font-bold font-mono bg-card border-border text-foreground"
+                />
+              </div>
+            </div>
+
+            {/* UPI Input */}
+            <div className="bg-background border border-border rounded-lg p-3 space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                  <QrCode className="h-4 w-4 text-blue-600" />
+                  UPI Amount
+                </label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-1.5 text-[11px] text-primary hover:underline"
+                  onClick={() => {
+                    const otherPaid = partialCashNum + partialBankNum;
+                    const rem = Math.max(0, payableAmount - otherPaid);
+                    setPartialUpi(rem > 0 ? rem.toString() : '');
+                  }}
+                >
+                  Fill Balance
+                </Button>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-muted-foreground font-bold">₹</span>
+                <Input
+                  type="number"
+                  placeholder="0.00"
+                  value={partialUpi}
+                  onChange={e => setPartialUpi(e.target.value)}
+                  className="h-10 text-base font-bold font-mono bg-card border-border text-foreground"
+                />
+              </div>
+            </div>
+
+            {/* Bank Transfer Input */}
+            <div className="bg-background border border-border rounded-lg p-3 space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                  <Building2 className="h-4 w-4 text-purple-600" />
+                  Bank Transfer
+                </label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-1.5 text-[11px] text-primary hover:underline"
+                  onClick={() => {
+                    const otherPaid = partialCashNum + partialUpiNum;
+                    const rem = Math.max(0, payableAmount - otherPaid);
+                    setPartialBankTransfer(rem > 0 ? rem.toString() : '');
+                  }}
+                >
+                  Fill Balance
+                </Button>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-muted-foreground font-bold">₹</span>
+                <Input
+                  type="number"
+                  placeholder="0.00"
+                  value={partialBankTransfer}
+                  onChange={e => setPartialBankTransfer(e.target.value)}
+                  className="h-10 text-base font-bold font-mono bg-card border-border text-foreground"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Partial Payment Summary Card */}
+          <div className="bg-background/80 border border-border rounded-lg p-3.5 space-y-2 text-sm">
+            <div className="flex items-center justify-between text-muted-foreground font-medium">
+              <span>Total Bill (Final with GST & Adjustments):</span>
+              <span className="font-mono font-bold text-foreground">{formatCurrency(payableAmount)}</span>
+            </div>
+            <div className="flex items-center justify-between text-muted-foreground font-medium">
+              <span>Total Paid:</span>
+              <span className="font-mono font-bold text-emerald-600">{formatCurrency(partialTotalPaid)}</span>
+            </div>
+            <div className="pt-2 border-t border-border flex items-center justify-between font-bold">
+              <span>Remaining Balance:</span>
+              <span className={`font-mono text-base ${partialRemaining > 0 ? 'text-amber-500' : 'text-emerald-600'}`}>
+                {formatCurrency(partialRemaining)}
+              </span>
+            </div>
+            {partialRemaining > 0 && (
+              <p className="text-xs text-amber-400 mt-1">
+                * Remaining ₹{partialRemaining.toFixed(2)} will be recorded under customer&apos;s Credit/Udhar ledger.
+              </p>
+            )}
+          </div>
+
+          {/* Dynamic UPI QR for Partial Payment portion */}
+          {partialUpiNum > 0 && shopProfile?.upiId && (
+            <div className="bg-white text-slate-900 border-2 border-slate-300 rounded-xl p-4 flex flex-col sm:flex-row items-center gap-4">
+              <div className="bg-white p-2 rounded-lg border border-slate-200 flex flex-col items-center justify-center shrink-0">
+                {upiQrDataUrl ? (
+                  <img
+                    src={upiQrDataUrl}
+                    alt="UPI Partial QR Code"
+                    className="w-36 h-36 object-contain"
+                  />
+                ) : (
+                  <div className="w-36 h-36 flex flex-col items-center justify-center text-slate-400">
+                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                    <span className="text-[11px] mt-1 font-semibold">Generating QR...</span>
+                  </div>
+                )}
+                <span className="text-[10px] font-black tracking-wider uppercase mt-1 text-slate-800">
+                  Scan to Pay UPI Portion
+                </span>
+              </div>
+              <div className="space-y-1.5 text-left flex-1">
+                <div className="inline-block px-2 py-0.5 bg-blue-100 text-blue-800 text-[11px] font-bold rounded">
+                  UPI Portion QR Code
+                </div>
+                <div className="text-xs text-slate-600 font-semibold">
+                  UPI ID: <span className="font-mono text-slate-900 font-bold">{shopProfile.upiId}</span>
+                </div>
+                <div className="text-xl font-black text-blue-700 font-mono">
+                  {formatCurrency(partialUpiNum)}
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  This QR code is configured for ONLY the UPI portion (₹{partialUpiNum.toFixed(2)}). Cash and Bank Transfer portions are paid separately.
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ─── Dynamic UPI Payment & QR Code Section (Pure UPI) ─── */}
       {paymentMethod === 'UPI' && (
         <div className="bg-muted/30 border border-border rounded-xl p-4 sm:p-5 space-y-4">
           <div className="flex items-center justify-between border-b border-border pb-3">
