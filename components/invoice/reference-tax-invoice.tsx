@@ -34,6 +34,30 @@ export interface InvoiceProps {
   customItems?: InvoiceItemData[];
 }
 
+export function formatInvoiceExpiry(raw?: string | null): string {
+  if (!raw || typeof raw !== 'string') return '-';
+  const trimmed = raw.trim();
+  if (!trimmed || trimmed === '-' || trimmed === 'null' || trimmed === 'undefined') return '-';
+
+  // Already in DD/MM/YYYY format
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(trimmed)) {
+    return trimmed;
+  }
+
+  // If in YYYY-MM-DD or ISO format (e.g. 2028-12-31 or 2028-12-31T00:00:00.000Z)
+  const d = new Date(trimmed);
+  if (!isNaN(d.getTime())) {
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    if (year > 1900 && year < 3000) {
+      return `${day}/${month}/${year}`;
+    }
+  }
+
+  return trimmed;
+}
+
 export function calculateItemGst(totalAmt: number, qty: number, gstRate: number) {
   const safeQty = qty > 0 ? qty : 1;
   const safeRate = gstRate >= 0 ? gstRate : 0;
@@ -165,23 +189,26 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
         } catch {}
       }
 
-      let hsn = item.hsn_code || p.hsn_code || p.hsnCode || '';
-      let batch = item.batch_number || item.batch?.batch_number || p.batch_number || '-';
-      let expiryStr = item.expiry_date || item.batch?.expiry_date || p.expiry_date || '-';
-      if (expiryStr && expiryStr.includes('T')) {
-        const d = new Date(expiryStr);
-        if (!isNaN(d.getTime())) {
-          expiryStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-        }
-      }
+      const rawHsn = item.hsn_code || p.hsn_code || p.hsnCode || '';
+      const hsn = (rawHsn && rawHsn !== 'null' && rawHsn !== 'undefined' && String(rawHsn).trim() !== '-')
+        ? String(rawHsn).trim()
+        : '-';
+
+      const rawBatch = item.batch_number || item.batch?.batch_number || item.item_batches?.[0]?.batch?.batch_number || p.batches?.[0]?.batch_number || p.batch_number || '';
+      const batch = (rawBatch && rawBatch !== 'null' && rawBatch !== 'undefined' && String(rawBatch).trim() !== '-')
+        ? String(rawBatch).trim()
+        : '-';
+
+      const rawExpiry = item.expiry_date || item.batch?.expiry_date || item.item_batches?.[0]?.batch?.expiry_date || p.batches?.[0]?.expiry_date || p.expiry_date || '';
+      const expiry = formatInvoiceExpiry(rawExpiry);
 
       return {
         id: item.id || `item-${idx}`,
         name: prodName,
         manufacturer: mfg,
-        hsn: hsn || '-',
-        batch: batch || '-',
-        expiry: expiryStr || '-',
+        hsn: hsn,
+        batch: batch,
+        expiry: expiry,
         quantity: qty,
         rate: item.rate !== undefined ? Number(item.rate) : taxableUnitRate,
         gstRate: gst,

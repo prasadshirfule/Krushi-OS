@@ -20,16 +20,30 @@ export function normalizeSale(sale: any) {
     total_amount: total,
     totalAmount: total,
     payableAmount: total,
-    items: items.map((it: any) => ({
-      ...it,
-      unit_price: Number(it.unit_price ?? it.unitPrice ?? it.selling_price ?? it.rate ?? 0),
-      selling_price: Number(it.selling_price ?? it.unit_price ?? it.unitPrice ?? it.rate ?? 0),
-      rate: Number(it.rate ?? it.unit_price ?? it.selling_price ?? 0),
-      discount_percent: Number(it.discount_percent ?? it.discountPercent ?? it.discount ?? 0),
-      gst_rate: Number(it.gst_rate ?? it.gstRate ?? it.gst ?? 0),
-      total_amount: Number(it.total_amount ?? it.totalAmount ?? it.total_price ?? ((it.quantity || 1) * (it.unit_price || 0))),
-      total_price: Number(it.total_price ?? it.total_amount ?? it.totalAmount ?? ((it.quantity || 1) * (it.unit_price || 0))),
-    })),
+    items: items.map((it: any) => {
+      const p = it.product || {};
+      const b = it.batch || it.item_batches?.[0]?.batch || p.batches?.[0] || {};
+
+      const hsnCode = it.hsn_code || p.hsn_code || p.hsnCode || null;
+      const batchNumber = it.batch_number || b.batch_number || p.batch_number || p.batches?.[0]?.batch_number || null;
+      const expiryDate = it.expiry_date || b.expiry_date || p.expiry_date || p.batches?.[0]?.expiry_date || null;
+      const mfg = it.manufacturer || p.manufacturer || p.brand?.manufacturer || p.brand?.name || null;
+
+      return {
+        ...it,
+        hsn_code: hsnCode,
+        batch_number: batchNumber,
+        expiry_date: expiryDate,
+        manufacturer: mfg,
+        unit_price: Number(it.unit_price ?? it.unitPrice ?? it.selling_price ?? it.rate ?? 0),
+        selling_price: Number(it.selling_price ?? it.unit_price ?? it.unitPrice ?? it.rate ?? 0),
+        rate: Number(it.rate ?? it.unit_price ?? it.selling_price ?? 0),
+        discount_percent: Number(it.discount_percent ?? it.discountPercent ?? it.discount ?? 0),
+        gst_rate: Number(it.gst_rate ?? it.gstRate ?? it.gst ?? 0),
+        total_amount: Number(it.total_amount ?? it.totalAmount ?? it.total_price ?? ((it.quantity || 1) * (it.unit_price || 0))),
+        total_price: Number(it.total_price ?? it.total_amount ?? it.totalAmount ?? ((it.quantity || 1) * (it.unit_price || 0))),
+      };
+    }),
     sale_items: items,
     status: sale.status || (sale.payment_status === 'PAID' ? 'COMPLETED' : (sale.payment_status === 'UNPAID' ? 'PENDING' : 'COMPLETED')),
     sale_date: sale.sale_date || sale.created_at,
@@ -283,7 +297,7 @@ export async function getSales(
 
     let query = supabase
       .from('sales')
-      .select('*, customer:customers(id, name, mobile, address, village, gstin, aadhaar), items:sale_items(*, product:products(*))', { count: 'exact' })
+      .select('*, customer:customers(id, name, mobile, address, village, gstin, aadhaar), items:sale_items(*, product:products(*, brand:brands(*), batches:product_batches(*)), batch:product_batches(*), item_batches:sale_item_batches(*, batch:product_batches(*)))', { count: 'exact' })
       .eq('shop_id', shopId);
     
     if (options.customerId) query = query.eq('customer_id', options.customerId);
@@ -320,7 +334,7 @@ export async function getSaleById(shopId: string, saleId: string) {
     
     let query = supabase
       .from('sales')
-      .select('*, customer:customers(*), items:sale_items(*, product:products(*))')
+      .select('*, customer:customers(*), items:sale_items(*, product:products(*, brand:brands(*), batches:product_batches(*)), batch:product_batches(*), item_batches:sale_item_batches(*, batch:product_batches(*)))')
       .eq('shop_id', shopId);
 
     if (isUuid) {
@@ -352,7 +366,7 @@ export async function getSaleByInvoice(shopId: string, invoiceNumber: string) {
     const supabase = await createServerSupabaseClient();
     const { data, error } = await supabase
       .from('sales')
-      .select('*, customer:customers(*), items:sale_items(*, product:products(*))')
+      .select('*, customer:customers(*), items:sale_items(*, product:products(*, brand:brands(*), batches:product_batches(*)), batch:product_batches(*), item_batches:sale_item_batches(*, batch:product_batches(*)))')
       .eq('shop_id', shopId)
       .eq('invoice_number', invoiceNumber)
       .maybeSingle();

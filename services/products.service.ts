@@ -126,7 +126,7 @@ export async function getProducts(
 
     let query = supabase
       .from('products')
-      .select('*, category:categories(id, name), brand:brands(id, name)', { count: 'exact' })
+      .select('*, category:categories(id, name), brand:brands(id, name), batches:product_batches(*)', { count: 'exact' })
       .eq('shop_id', shopId)
       .eq('is_active', true);
     
@@ -401,6 +401,42 @@ export async function updateProduct(shopId: string, productId: string, data: Upd
     console.error("Error updating product metadata:", error);
     throw new Error(error.message || 'Failed to update product');
   }
+
+  // Synchronize batch tracking information in Supabase product_batches table
+  if (data.batch_number || data.expiry_date) {
+    const dbExpiry = data.expiry_date ? (formatDDMMYYYYtoDB(data.expiry_date) || data.expiry_date) : null;
+    const { data: existingBatch } = await supabase
+      .from('product_batches')
+      .select('id')
+      .eq('shop_id', shopId)
+      .eq('product_id', productId)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (existingBatch?.id) {
+      const batchUpdate: Record<string, any> = {};
+      if (data.batch_number) batchUpdate.batch_number = data.batch_number.trim();
+      if (dbExpiry) batchUpdate.expiry_date = dbExpiry;
+      if (data.selling_price !== undefined) batchUpdate.selling_price = Number(data.selling_price);
+      if (data.purchase_price !== undefined) batchUpdate.purchase_price = Number(data.purchase_price);
+      if (Object.keys(batchUpdate).length > 0) {
+        await supabase.from('product_batches').update(batchUpdate).eq('id', existingBatch.id);
+      }
+    } else if (data.batch_number) {
+      await supabase.from('product_batches').insert({
+        shop_id: shopId,
+        product_id: productId,
+        batch_number: data.batch_number.trim(),
+        expiry_date: dbExpiry,
+        purchase_price: Number(data.purchase_price || 0),
+        selling_price: Number(data.selling_price || 0),
+        quantity_available: Number((data as any).opening_stock || (data as any).current_stock || 0),
+        is_active: true,
+      });
+    }
+  }
+
   return product;
 }
 
@@ -439,7 +475,7 @@ export async function getProductByBarcode(shopId: string, barcode: string): Prom
     const supabase = await createServerSupabaseClient();
     const { data, error } = await supabase
       .from('products')
-      .select('*')
+      .select('*, category:categories(id, name), brand:brands(*), batches:product_batches(*)')
       .eq('shop_id', shopId)
       .eq('barcode', barcode)
       .eq('is_active', true)
@@ -459,8 +495,8 @@ export async function getProductByBarcode(shopId: string, barcode: string): Prom
 export async function searchProducts(shopId: string, queryText: string, limit = 20): Promise<ProductWithRelations[]> {
   if (isPlaceholderMode()) {
     const cleanQuery = queryText.replace(/[,().\\]/g, '').trim().toLowerCase();
-    if (!cleanQuery) return [];
     const all = getDemoProducts();
+    if (!cleanQuery) return all.filter(p => p.is_active !== false).slice(0, limit);
     const matches = all.filter(p =>
       p.is_active !== false &&
       (
@@ -476,14 +512,19 @@ export async function searchProducts(shopId: string, queryText: string, limit = 
   try {
     const supabase = await createServerSupabaseClient();
     const cleanQuery = queryText.replace(/[,().\\]/g, '').trim();
-    if (!cleanQuery) return [];
 
-    const { data, error } = await supabase
+    let queryBuilder = supabase
       .from('products')
-      .select('*, category:categories(id, name), batches:product_batches(*)')
+      .select('*, category:categories(id, name), brand:brands(id, name), batches:product_batches(*)')
       .eq('shop_id', shopId)
-      .eq('is_active', true)
-      .or(`name.ilike.%${cleanQuery}%,sku.ilike.%${cleanQuery}%,barcode.ilike.%${cleanQuery}%`)
+      .eq('is_active', true);
+
+    if (cleanQuery) {
+      queryBuilder = queryBuilder.or(`name.ilike.%${cleanQuery}%,sku.ilike.%${cleanQuery}%,barcode.ilike.%${cleanQuery}%`);
+    }
+
+    const { data, error } = await queryBuilder
+      .order('created_at', { ascending: false })
       .limit(limit);
 
     if (error) {
