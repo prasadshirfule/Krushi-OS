@@ -14,5 +14,5 @@ export default async function SalesPage({ searchParams }: { searchParams: Promis
     ? (Array.isArray(salesRes.data) ? salesRes.data : salesRes.data?.sales || []) 
     : [];
 
-  return <SalesHistoryClient initialSales={sales} />;
+  return <SalesHistoryClient initialSales={sales} initialError={salesRes.success ? undefined : salesRes.error} />;
 }

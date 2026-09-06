@@ -417,29 +417,63 @@ export async function getSales(
     const limit = options.limit || 50;
     const offset = (page - 1) * limit;
 
-    let query = supabase
-      .from('sales')
-      .select('*, customer:customers(id, name, mobile, address, village, gstin, aadhaar), items:sale_items(*, product:products(id, name, unit, hsn_code, gst_rate, pack_size, brand:brands(id, name, manufacturer)))', { count: 'exact' })
-      .eq('shop_id', shopId);
-    
-    if (options.customerId) query = query.eq('customer_id', options.customerId);
-    if (options.status) query = query.ilike('status', options.status);
-    if (options.dateFrom) query = query.gte('sale_date', options.dateFrom);
-    if (options.dateTo) query = query.lte('sale_date', options.dateTo);
-    if (options.search) query = query.ilike('invoice_number', `%${options.search}%`);
-    
-    query = query.order('created_at', { ascending: false });
+    const applyFilters = (queryBuilder: any) => {
+      let q = queryBuilder.eq('shop_id', shopId);
+      if (options.customerId) q = q.eq('customer_id', options.customerId);
+      if (options.status) q = q.ilike('status', options.status);
+      if (options.dateFrom) q = q.gte('sale_date', options.dateFrom);
+      if (options.dateTo) q = q.lte('sale_date', options.dateTo);
+      if (options.search) q = q.ilike('invoice_number', `%${options.search}%`);
+      return q.order('created_at', { ascending: false });
+    };
 
-    const { data, count, error } = await query.range(offset, offset + limit - 1);
+    // Primary attempt: join with customers and sale_items
+    let query = applyFilters(
+      supabase
+        .from('sales')
+        .select('*, customer:customers(*), items:sale_items(*)', { count: 'exact' })
+    );
+
+    let { data, count, error } = await query.range(offset, offset + limit - 1);
+
+    // Fallback attempt: if customer relation or nested join failed, select all sales directly
     if (error) {
-      console.error("Error fetching sales from Supabase:", error);
-      return { sales: [], total: 0 };
+      console.warn("Primary sales join query warning, falling back to base table:", error.message);
+      let fallbackQuery = applyFilters(
+        supabase.from('sales').select('*', { count: 'exact' })
+      );
+      const fallbackRes = await fallbackQuery.range(offset, offset + limit - 1);
+      if (fallbackRes.error) {
+        console.error("Error fetching sales from Supabase fallback:", fallbackRes.error);
+        throw new Error(fallbackRes.error.message || 'Unable to fetch sales from database');
+      }
+      data = fallbackRes.data;
+      count = fallbackRes.count;
+    }
+
+    // Enrich missing customer or items if not joined
+    if (Array.isArray(data) && data.length > 0) {
+      const missingItems = data.some((s: any) => !s.items && !s.sale_items);
+      if (missingItems) {
+        const saleIds = data.map((s: any) => s.id);
+        const { data: allItems } = await supabase
+          .from('sale_items')
+          .select('*')
+          .in('sale_id', saleIds);
+        
+        if (Array.isArray(allItems)) {
+          data = data.map((s: any) => ({
+            ...s,
+            items: allItems.filter((it: any) => it.sale_id === s.id),
+          }));
+        }
+      }
     }
     
     return { sales: (data || []).map(normalizeSale), total: count || 0 };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Failed to load sales:", error);
-    return { sales: [], total: 0 };
+    throw error;
   }
 }
 
@@ -456,7 +490,7 @@ export async function getSaleById(shopId: string, saleId: string) {
     
     let query = supabase
       .from('sales')
-      .select('*, customer:customers(*), items:sale_items(*, product:products(id, name, unit, hsn_code, gst_rate, pack_size, brand:brands(id, name, manufacturer)))')
+      .select('*, customer:customers(*), items:sale_items(*)')
       .eq('shop_id', shopId);
 
     if (isUuid) {
@@ -465,11 +499,38 @@ export async function getSaleById(shopId: string, saleId: string) {
       query = query.eq('invoice_number', saleId);
     }
 
-    const { data, error } = await query.maybeSingle();
+    let { data, error } = await query.maybeSingle();
+    
+    // Fallback if join failed
     if (error) {
-      console.error("Error fetching sale by ID/Invoice:", error);
-      return null;
+      let fallbackQuery = supabase
+        .from('sales')
+        .select('*')
+        .eq('shop_id', shopId);
+      if (isUuid) fallbackQuery = fallbackQuery.eq('id', saleId);
+      else fallbackQuery = fallbackQuery.eq('invoice_number', saleId);
+      
+      const res = await fallbackQuery.maybeSingle();
+      data = res.data;
     }
+
+    if (data && (!data.items || data.items.length === 0)) {
+      const { data: dbItems } = await supabase
+        .from('sale_items')
+        .select('*')
+        .eq('sale_id', data.id);
+      if (dbItems) data.items = dbItems;
+    }
+
+    if (data && data.customer_id && !data.customer) {
+      const { data: dbCust } = await supabase
+        .from('customers')
+        .select('*')
+        .eq('id', data.customer_id)
+        .maybeSingle();
+      if (dbCust) data.customer = dbCust;
+    }
+
     return data ? normalizeSale(data) : null;
   } catch (error) {
     console.error("Failed to load sale by ID:", error);
@@ -486,16 +547,40 @@ export async function getSaleByInvoice(shopId: string, invoiceNumber: string) {
 
   try {
     const supabase = await createServerSupabaseClient();
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('sales')
-      .select('*, customer:customers(*), items:sale_items(*, product:products(id, name, unit, hsn_code, gst_rate, pack_size, brand:brands(id, name, manufacturer)))')
+      .select('*, customer:customers(*), items:sale_items(*)')
       .eq('shop_id', shopId)
       .eq('invoice_number', invoiceNumber)
       .maybeSingle();
+
     if (error) {
-      console.error("Error fetching sale by invoice:", error);
-      return null;
+      const fallbackRes = await supabase
+        .from('sales')
+        .select('*')
+        .eq('shop_id', shopId)
+        .eq('invoice_number', invoiceNumber)
+        .maybeSingle();
+      data = fallbackRes.data;
     }
+
+    if (data && (!data.items || data.items.length === 0)) {
+      const { data: dbItems } = await supabase
+        .from('sale_items')
+        .select('*')
+        .eq('sale_id', data.id);
+      if (dbItems) data.items = dbItems;
+    }
+
+    if (data && data.customer_id && !data.customer) {
+      const { data: dbCust } = await supabase
+        .from('customers')
+        .select('*')
+        .eq('id', data.customer_id)
+        .maybeSingle();
+      if (dbCust) data.customer = dbCust;
+    }
+
     return data ? normalizeSale(data) : null;
   } catch (error) {
     console.error("Failed to load sale by invoice:", error);

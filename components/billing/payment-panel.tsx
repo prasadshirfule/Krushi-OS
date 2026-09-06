@@ -198,6 +198,11 @@ export default function PaymentPanel({ cart, adjustments = [], totals, customerI
         } catch {}
 
         toast.success('Bill completed successfully!');
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('krushi-sales-updated'));
+          window.dispatchEvent(new CustomEvent('krushi-products-updated'));
+          window.dispatchEvent(new CustomEvent('krushi-customers-updated'));
+        }
         router.refresh();
         const saleId = savedSale.id || `sale-${Date.now()}`;
         const invNo = savedSale.invoice_number || savedSale.invoiceNumber;
@@ -207,6 +212,11 @@ export default function PaymentPanel({ cart, adjustments = [], totals, customerI
 
         if (result.success) {
           toast.success('Bill completed successfully!');
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('krushi-sales-updated', { detail: result.data }));
+            window.dispatchEvent(new CustomEvent('krushi-products-updated'));
+            window.dispatchEvent(new CustomEvent('krushi-customers-updated'));
+          }
           router.refresh();
           const saleId = result.data?.sale_id || result.data?.id || result.data?.saleId;
           const invNo = result.data?.invoice_number || result.data?.invoiceNumber;

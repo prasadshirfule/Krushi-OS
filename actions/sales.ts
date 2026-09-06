@@ -50,13 +50,14 @@ export async function completeSaleAction(data: any): Promise<ActionResult<any>> 
   }
 }
 
-export async function getSalesAction(params: any): Promise<ActionResult<any>> {
+export async function getSalesAction(params: any = {}): Promise<ActionResult<any>> {
   try {
     const userData = await getAuthAndPermissions('sales.view');
-    const result = await salesService.getSales(userData.shop_id, params);
+    const result = await salesService.getSales(userData.shop_id, params || {});
     return { success: true, data: result };
   } catch (error: any) {
-    return { success: false, error: error.message || 'An unexpected error occurred' };
+    console.error('getSalesAction error:', error);
+    return { success: false, error: error.message || 'Unable to load sales history from database' };
   }
 }
 
