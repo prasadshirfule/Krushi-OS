@@ -151,21 +151,24 @@ export async function completeSale(shopId: string, data: any, userId: string) {
     const customerId = data.customer_id;
     let customerObj: any = null;
     if (data.customer) {
-      customerObj = data.customer;
+      customerObj = {
+        ...data.customer,
+        name: (data.customer.name || 'WALK-IN CUSTOMER').toUpperCase(),
+      };
     } else if (data.customer_name) {
       customerObj = {
         id: customerId || `cust-${Date.now()}`,
-        name: data.customer_name,
+        name: data.customer_name.trim().toUpperCase(),
         phone: data.customer_phone || '',
       };
     } else if (customerId && customerId !== 'walk-in') {
       const demoCusts = getDemoCustomers();
       const found = demoCusts.find(c => c.id === customerId) || MOCK_CUSTOMERS.find(c => c.id === customerId);
       customerObj = found
-        ? { id: found.id, name: found.name, phone: found.phone || found.mobile || '' }
-        : { id: customerId, name: data.customer_name || 'Customer', phone: '' };
+        ? { id: found.id, name: (found.name || 'CUSTOMER').toUpperCase(), phone: found.phone || found.mobile || '' }
+        : { id: customerId, name: (data.customer_name || 'CUSTOMER').trim().toUpperCase(), phone: '' };
     } else {
-      customerObj = { id: 'walk-in', name: 'Walk-in Customer', phone: '' };
+      customerObj = { id: 'walk-in', name: 'WALK-IN CUSTOMER', phone: '' };
     }
 
     const items = (data.items || []).map((it: any, idx: number) => {
@@ -226,7 +229,7 @@ export async function completeSale(shopId: string, data: any, userId: string) {
       shop_id: shopId,
       customer_id: customerId || null,
       customer: customerObj,
-      customer_name: customerObj?.name || 'Walk-in Customer',
+      customer_name: customerObj?.name || 'WALK-IN CUSTOMER',
       items: items,
       sale_items: items,
       adjustments: rawAdjustments,

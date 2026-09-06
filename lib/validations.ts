@@ -181,6 +181,68 @@ export function formatProductPackDisplay(prod: {
   return '';
 }
 
+/**
+ * Formats product size as a compact string (e.g. "45KG", "50KG", "1L", "10KG", "500ML").
+ */
+export function formatProductSizeCompact(packSize?: string | null, unitStr?: string | null): string {
+  if (!packSize && !unitStr) return '';
+  const parsed = parseProductSize(packSize, unitStr);
+  if (parsed.sizeValue !== null && parsed.sizeValue !== undefined) {
+    let cleanUnit = (parsed.sizeUnit || 'KG').toUpperCase().trim();
+    if (cleanUnit === 'LTR' || cleanUnit === 'LITRE' || cleanUnit === 'LITER') cleanUnit = 'L';
+    else if (cleanUnit === 'G' || cleanUnit === 'GRAM' || cleanUnit === 'GRAMS') cleanUnit = 'GM';
+    else if (cleanUnit === 'KGS' || cleanUnit === 'KILOGRAM') cleanUnit = 'KG';
+    else if (cleanUnit === 'MILLILITER' || cleanUnit === 'MLS') cleanUnit = 'ML';
+    return `${parsed.sizeValue}${cleanUnit}`;
+  }
+
+  if (packSize && typeof packSize === 'string') {
+    const trimmed = packSize.trim();
+    const m = trimmed.match(/^(\d+(?:\.\d+)?)\s*([a-zA-Z]+)$/);
+    if (m) {
+      let u = m[2].toUpperCase();
+      if (u === 'KG' || u === 'KILOGRAM' || u === 'KGS') u = 'KG';
+      else if (u === 'L' || u === 'LTR' || u === 'LITRE' || u === 'LITER') u = 'L';
+      else if (u === 'GM' || u === 'G' || u === 'GRAM' || u === 'GMS') u = 'GM';
+      else if (u === 'ML' || u === 'MILLILITER') u = 'ML';
+      return `${m[1]}${u}`;
+    }
+    if (/^\d+(\.\d+)?$/.test(trimmed) && unitStr) {
+      let u = unitStr.toUpperCase().trim();
+      if (u === 'KG' || u === 'KILOGRAM' || u === 'KGS') u = 'KG';
+      else if (u === 'L' || u === 'LTR' || u === 'LITRE' || u === 'LITER') u = 'L';
+      else if (u === 'GM' || u === 'G' || u === 'GRAM' || u === 'GMS') u = 'GM';
+      else if (u === 'ML' || u === 'MILLILITER') u = 'ML';
+      return `${trimmed}${u}`;
+    }
+  }
+  return '';
+}
+
+/**
+ * Returns formatted "PRODUCT NAME PRODUCT SIZE" in uppercase.
+ * Example: "UREA" + "45 KG" -> "UREA 45KG"
+ * If size is not present, returns just "UREA".
+ */
+export function formatProductNameWithSize(
+  name?: string | null,
+  packSize?: string | null,
+  unit?: string | null
+): string {
+  const cleanName = (name || '').trim().toUpperCase();
+  if (!cleanName) return '';
+
+  const sizeCompact = formatProductSizeCompact(packSize, unit);
+  if (!sizeCompact) return cleanName;
+
+  // Avoid duplicating if name already contains the size tag
+  if (cleanName.endsWith(sizeCompact) || cleanName.replace(/\s+/g, '').endsWith(sizeCompact)) {
+    return cleanName;
+  }
+
+  return `${cleanName} ${sizeCompact}`;
+}
+
 export const productSchema = z.object({
   name: z.string().min(2, 'Product name must be at least 2 characters').max(200),
   category_id: z.string().min(1, 'Category is required'),

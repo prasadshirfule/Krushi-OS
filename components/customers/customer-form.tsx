@@ -90,14 +90,14 @@ export function CustomerForm({ initialData, onSuccess, onCancel }: CustomerFormP
       let result: any = null;
       let savedCust: any = null;
       const udhariAmount = Number(data.previous_udhari || 0);
-
+      const normalizedName = data.name.trim().toUpperCase();
       const aadhaarTrimmed = (data.aadhaar || '').trim();
 
       if (demoMode) {
         // Save to browser localStorage demo store (one source of truth)
         if (initialData?.id) {
           savedCust = updateDemoCustomerClient(initialData.id, {
-            name: data.name.trim(),
+            name: normalizedName,
             mobile: data.mobile.trim(),
             aadhaar: aadhaarTrimmed,
             village: data.village?.trim() || null,
@@ -105,7 +105,7 @@ export function CustomerForm({ initialData, onSuccess, onCancel }: CustomerFormP
         } else {
           try {
             savedCust = saveDemoCustomerClient({
-              name: data.name.trim(),
+              name: normalizedName,
               mobile: data.mobile.trim(),
               aadhaar: aadhaarTrimmed,
               village: data.village?.trim() || null,
@@ -123,14 +123,14 @@ export function CustomerForm({ initialData, onSuccess, onCancel }: CustomerFormP
         try {
           if (initialData?.id) {
             updateCustomerAction(initialData.id, {
-              name: data.name.trim(),
+              name: normalizedName,
               mobile: data.mobile.trim(),
               aadhaar: aadhaarTrimmed,
               village: data.village?.trim() || null,
             }).catch(() => {});
           } else {
             createCustomerAction({
-              name: data.name.trim(),
+              name: normalizedName,
               mobile: data.mobile.trim(),
               aadhaar: aadhaarTrimmed,
               village: data.village?.trim() || null,
@@ -142,14 +142,14 @@ export function CustomerForm({ initialData, onSuccess, onCancel }: CustomerFormP
         // Real Supabase mode
         if (initialData?.id) {
           result = await updateCustomerAction(initialData.id, {
-            name: data.name.trim(),
+            name: normalizedName,
             mobile: data.mobile.trim(),
             aadhaar: aadhaarTrimmed,
             village: data.village?.trim() || null,
           });
         } else {
           result = await createCustomerAction({
-            name: data.name.trim(),
+            name: normalizedName,
             mobile: data.mobile.trim(),
             aadhaar: aadhaarTrimmed,
             village: data.village?.trim() || null,
@@ -187,7 +187,12 @@ export function CustomerForm({ initialData, onSuccess, onCancel }: CustomerFormP
             <FormItem>
               <FormLabel>Farmer / Customer Name <span className="text-destructive">*</span></FormLabel>
               <FormControl>
-                <Input placeholder="e.g. Ramesh Patel" {...field} />
+                <Input 
+                  placeholder="e.g. RAMESH PATEL" 
+                  className="uppercase font-semibold"
+                  {...field}
+                  onChange={(e) => field.onChange(e.target.value.toUpperCase())}
+                />
               </FormControl>
               <FormMessage />
             </FormItem>

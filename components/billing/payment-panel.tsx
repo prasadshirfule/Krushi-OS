@@ -167,7 +167,7 @@ export default function PaymentPanel({ cart, adjustments = [], totals, customerI
         },
       ];
 
-      const customerDisplayName = effectiveCustomerName || (hasCustomer ? 'Customer' : 'Walk-in Customer');
+      const customerDisplayName = effectiveCustomerName ? effectiveCustomerName.toUpperCase() : (hasCustomer ? 'CUSTOMER' : 'WALK-IN CUSTOMER');
 
       const isUuidCustomer = customerId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(customerId);
       const saleData = {

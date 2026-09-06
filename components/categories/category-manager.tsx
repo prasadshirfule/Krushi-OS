@@ -43,7 +43,7 @@ export function CategoryManager({ categories: initialCategories }: { categories:
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    const trimmed = name.trim();
+    const trimmed = name.trim().toUpperCase();
     if (!trimmed) return;
 
     setLoading(true);
@@ -113,8 +113,9 @@ export function CategoryManager({ categories: initialCategories }: { categories:
                   id="catName"
                   required
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Bio-Fertilizers"
+                  onChange={(e) => setName(e.target.value.toUpperCase())}
+                  placeholder="e.g. BIO-FERTILIZERS"
+                  className="uppercase font-semibold"
                 />
               </div>
               <div className="space-y-2">

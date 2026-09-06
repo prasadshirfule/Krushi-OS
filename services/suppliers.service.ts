@@ -46,7 +46,14 @@ export async function getSupplierById(shopId: string, supplierId: string) {
 
 export async function createSupplier(shopId: string, data: SupplierInput) {
   const supabase = await createServerSupabaseClient();
-  const { data: supplier, error } = await supabase.from('suppliers').insert({ ...data, shop_id: shopId }).select().single();
+  const payload = {
+    ...data,
+    name: (data.name || '').trim().toUpperCase(),
+    company: data.company ? data.company.trim().toUpperCase() : null,
+    gst_number: data.gst_number ? data.gst_number.trim().toUpperCase() : null,
+    shop_id: shopId,
+  };
+  const { data: supplier, error } = await supabase.from('suppliers').insert(payload).select().single();
   if (error) {
     console.error("Error creating supplier:", error);
     throw error;
@@ -56,7 +63,13 @@ export async function createSupplier(shopId: string, data: SupplierInput) {
 
 export async function updateSupplier(shopId: string, id: string, data: Partial<SupplierInput>) {
   const supabase = await createServerSupabaseClient();
-  const { data: supplier, error } = await supabase.from('suppliers').update(data).eq('shop_id', shopId).eq('id', id).select().single();
+  const payload = {
+    ...data,
+    name: data.name !== undefined ? data.name.trim().toUpperCase() : undefined,
+    company: data.company !== undefined ? (data.company ? data.company.trim().toUpperCase() : null) : undefined,
+    gst_number: data.gst_number !== undefined ? (data.gst_number ? data.gst_number.trim().toUpperCase() : null) : undefined,
+  };
+  const { data: supplier, error } = await supabase.from('suppliers').update(payload).eq('shop_id', shopId).eq('id', id).select().single();
   if (error) {
     console.error("Error updating supplier:", error);
     throw error;

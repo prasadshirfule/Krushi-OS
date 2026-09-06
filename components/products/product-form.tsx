@@ -204,7 +204,7 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
   // Handle Add New Category
   const handleCreateCategory = async (e: React.FormEvent) => {
     e.preventDefault();
-    const trimmed = newCategoryName.trim();
+    const trimmed = newCategoryName.trim().toUpperCase();
     if (!trimmed) {
       toast.error('Please enter a category name');
       return;
@@ -264,7 +264,7 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
   // Handle Add New Manufacturer
   const handleCreateBrand = async (e: React.FormEvent) => {
     e.preventDefault();
-    const trimmed = newBrandName.trim();
+    const trimmed = newBrandName.trim().toUpperCase();
     if (!trimmed) {
       toast.error('Please enter a manufacturer name');
       return;
@@ -273,16 +273,17 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
     setIsSavingBrand(true);
     try {
       let createdBrand: any = null;
+      const mfgName = newBrandCompany.trim().toUpperCase() || trimmed;
 
       if (isClientDemoMode()) {
         createdBrand = saveDemoBrandClient({
           name: trimmed,
-          manufacturer: newBrandCompany.trim() || trimmed,
+          manufacturer: mfgName,
         });
         try {
           await createBrandAction({
             name: trimmed,
-            manufacturer: newBrandCompany.trim() || trimmed,
+            manufacturer: mfgName,
           });
         } catch (err) {
           console.warn('Server brand fallback in demo mode:', err);
@@ -290,7 +291,7 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
       } else {
         const res = await createBrandAction({
           name: trimmed,
-          manufacturer: newBrandCompany.trim() || trimmed,
+          manufacturer: mfgName,
         });
         if (res.success && res.data) {
           createdBrand = res.data;
@@ -331,9 +332,11 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
         : null;
       const sizeUnit = data.product_size_unit || (sizeVal ? 'KG' : null);
       const packSize = sizeVal ? `${sizeVal} ${sizeUnit}` : (data.pack_size || '');
+      const normalizedName = (data.name || '').trim().toUpperCase();
 
       const formattedData: ProductInput = {
         ...data,
+        name: normalizedName,
         expiry_date: dbExpiry,
         batch_tracking: true,
         expiry_tracking: true,
@@ -458,9 +461,12 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
               </Label>
               <Input
                 id="name"
-                placeholder="e.g. Urea, DAP, Confidor, Cotton Seeds, Liquid Fertilizer"
-                className="h-11 text-base rounded-lg border-border bg-background"
+                placeholder="e.g. UREA, DAP, CONFIDOR, COTTON SEEDS, LIQUID FERTILIZER"
+                className="h-11 text-base rounded-lg border-border bg-background uppercase font-bold"
                 {...form.register('name')}
+                onChange={(e) => {
+                  form.setValue('name', e.target.value.toUpperCase(), { shouldValidate: true });
+                }}
               />
               {form.formState.errors.name && (
                 <p className="text-xs text-destructive font-medium">{form.formState.errors.name.message}</p>
@@ -910,10 +916,10 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
                 </Label>
                 <Input
                   id="new_cat_name"
-                  placeholder="e.g. Plant Growth Regulators"
+                  placeholder="e.g. PLANT GROWTH REGULATORS"
                   value={newCategoryName}
-                  onChange={(e) => setNewCategoryName(e.target.value)}
-                  className="h-10 text-sm"
+                  onChange={(e) => setNewCategoryName(e.target.value.toUpperCase())}
+                  className="h-10 text-sm uppercase"
                   autoFocus
                 />
               </div>
@@ -986,10 +992,10 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
                 </Label>
                 <Input
                   id="new_brand_name"
-                  placeholder="e.g. Coromandel, Dhanuka, Sumitomo"
+                  placeholder="e.g. COROMANDEL, DHANUKA, SUMITOMO"
                   value={newBrandName}
-                  onChange={(e) => setNewBrandName(e.target.value)}
-                  className="h-10 text-sm"
+                  onChange={(e) => setNewBrandName(e.target.value.toUpperCase())}
+                  className="h-10 text-sm uppercase"
                   autoFocus
                 />
               </div>
@@ -1000,10 +1006,10 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
                 </Label>
                 <Input
                   id="new_brand_company"
-                  placeholder="e.g. Coromandel International Ltd"
+                  placeholder="e.g. COROMANDEL INTERNATIONAL LTD"
                   value={newBrandCompany}
-                  onChange={(e) => setNewBrandCompany(e.target.value)}
-                  className="h-10 text-sm"
+                  onChange={(e) => setNewBrandCompany(e.target.value.toUpperCase())}
+                  className="h-10 text-sm uppercase"
                 />
               </div>
             </div>

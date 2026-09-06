@@ -166,7 +166,7 @@ export async function createCustomer(shopId: string, data: CustomerInput, userId
 
   const insertPayload: Record<string, any> = {
     shop_id: shopId,
-    name: data.name.trim(),
+    name: (data.name || '').trim().toUpperCase(),
     mobile: (data.mobile || data.phone || '').trim() || null,
     village: data.village?.trim() || null,
     address: data.address?.trim() || null,
@@ -265,7 +265,7 @@ export async function updateCustomer(shopId: string, id: string, data: Partial<C
 
   const supabase = await createServerSupabaseClient();
   const updatePayload: any = {};
-  if (data.name !== undefined) updatePayload.name = data.name.trim();
+  if (data.name !== undefined) updatePayload.name = data.name.trim().toUpperCase();
   if (data.mobile !== undefined || data.phone !== undefined) {
     updatePayload.mobile = (data.mobile || data.phone || '').trim() || null;
   }

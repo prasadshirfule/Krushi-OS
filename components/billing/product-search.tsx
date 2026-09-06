@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Search, Plus, Package, AlertTriangle, Barcode, X, Sparkles, Check } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
-import { formatProductPackDisplay } from '@/lib/validations';
+import { formatProductPackDisplay, formatProductNameWithSize } from '@/lib/validations';
 import { useDebounce } from '@/hooks/use-debounce';
 import { MOCK_PRODUCTS, MOCK_CATEGORIES } from '@/lib/mock-data';
 import { 
@@ -194,10 +194,12 @@ export default function ProductSearch({ onAddToCart }: ProductSearchProps) {
       }
     }
 
+    const prodFullName = formatProductNameWithSize(product.name, product.pack_size, product.unit);
+
     const cartItem = {
       product_id: product.id,
       product: product,
-      product_name: product.name,
+      product_name: prodFullName,
       batch_id: activeBatch?.id || null,
       batch_number: activeBatch?.batch_number || product.batch_number || null,
       expiry_date: activeBatch?.expiry_date || activeBatch?.exp_date || product.expiry_date || null,
@@ -362,8 +364,8 @@ export default function ProductSearch({ onAddToCart }: ProductSearchProps) {
                   </div>
 
                   {/* Product Title */}
-                  <h3 className="font-bold text-foreground text-base leading-snug line-clamp-2 mb-1" title={product.name}>
-                    {product.name}
+                  <h3 className="font-bold text-foreground text-base leading-snug line-clamp-2 mb-1" title={formatProductNameWithSize(product.name, product.pack_size, product.unit)}>
+                    {formatProductNameWithSize(product.name, product.pack_size, product.unit)}
                   </h3>
 
                   {/* Product Size */}

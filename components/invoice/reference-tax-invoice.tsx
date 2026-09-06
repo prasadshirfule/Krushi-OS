@@ -10,12 +10,13 @@ import {
 } from '@/lib/shop-details';
 import { getDemoProductsClient } from '@/lib/client-demo-store';
 import { getShopProfileAction } from '@/actions/settings';
+import { formatProductNameWithSize } from '@/lib/validations';
 
 export interface InvoiceItemData {
   id?: string;
   name: string;
   manufacturer?: string;
-  hsn: string;
+  hsn?: string;
   batch: string;
   expiry: string;
   quantity: number;
@@ -139,7 +140,7 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
   const s = sale || {};
   const hasRealSale = Boolean(s.id || s.invoice_number || (s.items && s.items.length > 0) || (s.sale_items && s.sale_items.length > 0));
 
-  const customerName = s.customer?.name || (typeof s.customer === 'string' ? s.customer : null) || s.customer_name || (hasRealSale ? 'Walk-in Customer' : 'Demo Customer Name');
+  const customerName = (s.customer?.name || (typeof s.customer === 'string' ? s.customer : null) || s.customer_name || (hasRealSale ? 'WALK-IN CUSTOMER' : 'DEMO CUSTOMER NAME')).toUpperCase();
   const customerPhone = s.customer?.phone || s.customer?.mobile || s.customer_phone || (hasRealSale ? '' : '9876543210');
   const customerAddress = [
     s.customer?.village || s.customer?.address || (!hasRealSale ? 'Demo Address' : ''),
@@ -175,18 +176,26 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
       );
       const lineTotal = Math.max(0, (qty * unitPrice) - discAmt);
       
-      const { taxable, cgst, sgst, taxableUnitRate, unitWithGst } = calculateItemGst(lineTotal, qty, gst);
+      // Exact reverse GST math
+      const taxable = Math.round((lineTotal / (1 + gst / 100)) * 100) / 100;
+      const totalTax = Math.round((lineTotal - taxable) * 100) / 100;
+      const cgst = Math.round((totalTax / 2) * 100) / 100;
+      const sgst = Math.round((totalTax - cgst) * 100) / 100;
 
-      let prodName = item.product_name || item.name;
-      if (!prodName || prodName === 'Product') prodName = p.name;
-      if (!prodName || prodName === 'Product') {
+      let prodRawName = item.product_name || item.name;
+      if (!prodRawName || prodRawName === 'Product') prodRawName = p.name;
+      if (!prodRawName || prodRawName === 'Product') {
         try {
           const catalog = getDemoProductsClient();
           const match = catalog.find((catItem: any) => catItem.id === (item.product_id || item.id));
-          if (match) prodName = match.name;
+          if (match) prodRawName = match.name;
         } catch {}
       }
-      if (!prodName) prodName = 'Demo Product';
+      if (!prodRawName) prodRawName = 'DEMO PRODUCT';
+
+      const packSize = item.pack_size || p.pack_size || ((item.product_size_value || p.product_size_value) ? `${item.product_size_value || p.product_size_value} ${item.product_size_unit || p.product_size_unit || 'KG'}` : '');
+      const unit = item.unit || p.unit || '';
+      const prodName = formatProductNameWithSize(prodRawName, packSize, unit);
 
       let mfg = item.manufacturer || p.manufacturer || p.brand?.manufacturer || p.brand?.name || '';
       if (!mfg && (item.product_id || item.id)) {
@@ -196,6 +205,9 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
           if (match) mfg = match.manufacturer || match.brand?.manufacturer || match.brand?.name || '';
         } catch {}
       }
+      const manufacturer = (mfg && mfg !== 'null' && mfg !== 'undefined' && String(mfg).trim() !== '-')
+        ? String(mfg).trim().toUpperCase()
+        : '-';
 
       const rawHsn = item.hsn_code || p.hsn_code || p.hsnCode || '';
       const hsn = (rawHsn && rawHsn !== 'null' && rawHsn !== 'undefined' && String(rawHsn).trim() !== '-')
@@ -213,7 +225,7 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
       return {
         id: item.id || `item-${idx}`,
         name: prodName,
-        manufacturer: mfg,
+        manufacturer: manufacturer,
         hsn: hsn,
         batch: batch,
         expiry: expiry,
@@ -231,8 +243,8 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
     items = [
       {
         id: 'default-item-1',
-        name: 'STUNNER GOLD',
-        manufacturer: 'Progone',
+        name: 'STUNNER GOLD 50KG',
+        manufacturer: 'PROGENE',
         hsn: '3105',
         batch: 'BAC2245',
         expiry: '10/07/2028',
@@ -305,14 +317,14 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
      ================================================================ */
   const COL = {
     sr:      '4.5%',
-    product: '23.5%',
-    hsn:     '7%',
-    batch:   '8.5%',
-    expiry:  '10%',
-    qty:     '6.5%',
-    rate:    '8.5%',
-    gst:     '7%',
-    rateGst: '13%',
+    product: '23%',
+    mfg:     '11%',
+    batch:   '8%',
+    expiry:  '9.5%',
+    qty:     '6%',
+    rate:    '8%',
+    gst:     '6.5%',
+    rateGst: '12%',
     total:   '11.5%',
   };
 
@@ -643,7 +655,7 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
             <tr style={{ height: '100%' }}>
               <th style={{ width: COL.sr, borderRight: BORDER_INNER, textAlign: 'center', verticalAlign: 'middle', padding: mm(0.4) }}>Sr.</th>
               <th style={{ width: COL.product, borderRight: BORDER_INNER, textAlign: 'center', verticalAlign: 'middle', padding: mm(0.4) }}>Product Details</th>
-              <th style={{ width: COL.hsn, borderRight: BORDER_INNER, textAlign: 'center', verticalAlign: 'middle', padding: mm(0.4) }}>HSN</th>
+              <th style={{ width: COL.mfg, borderRight: BORDER_INNER, textAlign: 'center', verticalAlign: 'middle', padding: mm(0.4) }}>MANUFACTURER</th>
               <th style={{ width: COL.batch, borderRight: BORDER_INNER, textAlign: 'center', verticalAlign: 'middle', padding: mm(0.4) }}>BATCH</th>
               <th style={{ width: COL.expiry, borderRight: BORDER_INNER, textAlign: 'center', verticalAlign: 'middle', padding: mm(0.4) }}>EXPIRY</th>
               <th style={{ width: COL.qty, borderRight: BORDER_INNER, textAlign: 'center', verticalAlign: 'middle', padding: mm(0.4) }}>Qty</th>
@@ -672,7 +684,7 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
           <colgroup>
             <col style={{ width: COL.sr }} />
             <col style={{ width: COL.product }} />
-            <col style={{ width: COL.hsn }} />
+            <col style={{ width: COL.mfg }} />
             <col style={{ width: COL.batch }} />
             <col style={{ width: COL.expiry }} />
             <col style={{ width: COL.qty }} />
@@ -694,14 +706,13 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
                   verticalAlign: 'middle',
                   overflow: 'hidden',
                 }}>
-                  <div style={{ fontWeight: 'bold', textTransform: 'uppercase', fontSize: '10.2px', lineHeight: 1.18, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  <div style={{ fontWeight: 'bold', textTransform: 'uppercase', fontSize: '10px', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {item.name}
                   </div>
-                  <div style={{ fontSize: '8.2px', fontWeight: 600, color: '#222', lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    Mfg: {item.manufacturer || '-'}
-                  </div>
                 </td>
-                <td style={{ borderRight: BORDER_INNER, textAlign: 'center', fontFamily: 'monospace', padding: `${mm(0.2)} ${mm(0.5)}`, verticalAlign: 'middle', fontSize: '9.5px' }}>{item.hsn}</td>
+                <td style={{ borderRight: BORDER_INNER, textAlign: 'center', fontWeight: 'bold', textTransform: 'uppercase', padding: `${mm(0.2)} ${mm(0.5)}`, verticalAlign: 'middle', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '9px' }}>
+                  {item.manufacturer || '-'}
+                </td>
                 <td style={{ borderRight: BORDER_INNER, textAlign: 'center', fontFamily: 'monospace', fontWeight: 'bold', padding: `${mm(0.2)} ${mm(0.5)}`, verticalAlign: 'middle', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '9.5px' }}>{item.batch}</td>
                 <td style={{ borderRight: BORDER_INNER, textAlign: 'center', fontFamily: 'monospace', fontWeight: 600, padding: `${mm(0.2)} ${mm(0.5)}`, verticalAlign: 'middle', fontSize: '9.2px' }}>{item.expiry}</td>
                 <td style={{ borderRight: BORDER_INNER, textAlign: 'center', fontWeight: 'bold', fontFamily: 'monospace', padding: `${mm(0.2)} ${mm(0.5)}`, verticalAlign: 'middle', fontSize: '10px' }}>

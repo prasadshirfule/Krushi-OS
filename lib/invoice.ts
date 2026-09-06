@@ -7,6 +7,7 @@ import {
   getSavedShopDetails, 
   formatShopAddress 
 } from './shop-details';
+import { formatProductNameWithSize } from './validations';
 
 declare module 'jspdf' {
   interface jsPDF {
@@ -123,12 +124,18 @@ export function generateInvoicePDF(sale: any, customSettings?: any) {
   doc.line(marginX, currentY, marginX + contentWidth, currentY);
 
   // ─── 2. CUSTOMER & BILL INFO ───
-  const customerName = s.customer?.name || (typeof s.customer === 'string' ? s.customer : null) || s.customer_name || 'Walk-in Customer';
-  const customerMobile = s.customer?.phone || s.customer?.mobile || s.customer_phone || '';
-  const customerAddress = [s.customer?.village || s.customer?.address, s.customer?.district].filter(Boolean).join(', ');
-  const customerGstin = s.customer?.gstin || '';
+  const customerName = (s.customer?.name || (typeof s.customer === 'string' ? s.customer : null) || s.customer_name || 'WALK-IN CUSTOMER').toUpperCase();
+  const customerPhone = s.customer?.phone || s.customer?.mobile || s.customer_phone || '';
+  const customerAddress = [
+    s.customer?.village || s.customer?.address || '',
+    s.customer?.district || '',
+    s.customer?.state || ''
+  ].filter(Boolean).join(', ');
+  const customerGstin = s.customer?.gstin || s.customer?.gst_number || '';
+  const customerMobile = customerPhone;
 
-  const invNo = s.invoice_number || s.invoiceNumber || (s.id ? (s.id.startsWith('KOS-') ? s.id : `KOS-${s.id.substring(0, 8).toUpperCase()}`) : '1');
+  // Invoice identifiers & metadata
+  const invNo = s.invoice_number || s.invoiceNumber || (s.id ? (s.id.startsWith('KOS-') ? s.id : `KOS-${s.id.substring(0, 8).toUpperCase()}`) : 'KOS-2026-001');
   const dateObj = s.sale_date || s.created_at ? new Date(s.sale_date || s.created_at) : new Date();
   const formattedDate = dateObj.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
   const formattedTime = dateObj.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
@@ -208,11 +215,6 @@ export function generateInvoicePDF(sale: any, customSettings?: any) {
       totalSgst += sgst;
       grandTotal += lineTotal;
 
-      const rawHsn = item.hsn_code || p.hsn_code || p.hsnCode || '';
-      const hsn = (rawHsn && rawHsn !== 'null' && rawHsn !== 'undefined' && String(rawHsn).trim() !== '-')
-        ? String(rawHsn).trim()
-        : '-';
-
       const rawBatch = item.batch_number || item.batch?.batch_number || item.item_batches?.[0]?.batch?.batch_number || p.batches?.[0]?.batch_number || p.batch_number || '';
       const batch = (rawBatch && rawBatch !== 'null' && rawBatch !== 'undefined' && String(rawBatch).trim() !== '-')
         ? String(rawBatch).trim()
@@ -221,14 +223,16 @@ export function generateInvoicePDF(sale: any, customSettings?: any) {
       const rawExpiry = item.expiry_date || item.batch?.expiry_date || item.item_batches?.[0]?.batch?.expiry_date || p.batches?.[0]?.expiry_date || p.expiry_date || '';
       const expiry = formatInvoiceExpiry(rawExpiry);
 
-      const mfg = item.manufacturer || p.manufacturer || p.brand?.manufacturer || p.brand?.name || '';
-      const prodName = item.product_name || item.name || p.name || `Item ${idx + 1}`;
-      const nameWithMfg = `${prodName}\nMfg: ${mfg || '-'}`;
+      const mfg = (item.manufacturer || p.manufacturer || p.brand?.manufacturer || p.brand?.name || '-').toUpperCase();
+      const prodRawName = item.product_name || item.name || p.name || `Item ${idx + 1}`;
+      const packSize = item.pack_size || p.pack_size || ((item.product_size_value || p.product_size_value) ? `${item.product_size_value || p.product_size_value} ${item.product_size_unit || p.product_size_unit || 'KG'}` : '');
+      const unit = item.unit || p.unit || '';
+      const prodName = formatProductNameWithSize(prodRawName, packSize, unit);
 
       return [
         idx + 1,
-        nameWithMfg,
-        hsn,
+        prodName,
+        mfg || '-',
         batch,
         expiry,
         qty,
@@ -256,7 +260,7 @@ export function generateInvoicePDF(sale: any, customSettings?: any) {
     startY: currentY,
     margin: { left: marginX, right: marginX },
     tableWidth: contentWidth,
-    head: [['Sr.', 'Product Details', 'HSN', 'BATCH', 'EXPIRY', 'Qty', 'Rate', 'GST %', 'Rate (With GST)', 'Total']],
+    head: [['Sr.', 'Product Details', 'Manufacturer', 'BATCH', 'EXPIRY', 'Qty', 'Rate', 'GST %', 'Rate (With GST)', 'Total']],
     body: tableRows,
     theme: 'grid',
     headStyles: {
@@ -278,15 +282,15 @@ export function generateInvoicePDF(sale: any, customSettings?: any) {
     },
     columnStyles: {
       0: { halign: 'center', cellWidth: 8 },
-      1: { halign: 'left', cellWidth: 60, fontStyle: 'bold' },
-      2: { halign: 'center', cellWidth: 15 },
-      3: { halign: 'center', cellWidth: 18 },
+      1: { halign: 'left', cellWidth: 48, fontStyle: 'bold' },
+      2: { halign: 'center', cellWidth: 22, fontStyle: 'bold' },
+      3: { halign: 'center', cellWidth: 16 },
       4: { halign: 'center', cellWidth: 18 },
       5: { halign: 'center', cellWidth: 10, fontStyle: 'bold' },
       6: { halign: 'right', cellWidth: 16 },
       7: { halign: 'center', cellWidth: 12 },
-      8: { halign: 'right', cellWidth: 18 },
-      9: { halign: 'right', cellWidth: 19, fontStyle: 'bold' },
+      8: { halign: 'right', cellWidth: 22 },
+      9: { halign: 'right', cellWidth: 22, fontStyle: 'bold' },
     },
   });
 

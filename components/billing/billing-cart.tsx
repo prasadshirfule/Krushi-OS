@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { BillingCartItem } from '@/types/sales';
 import { calculateItemTotal, calculateBillTotal } from '@/lib/calculations';
 import { formatCurrency, numberToWords } from '@/lib/utils';
-import { formatProductPackDisplay } from '@/lib/validations';
+import { formatProductPackDisplay, formatProductNameWithSize } from '@/lib/validations';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Trash2, ShoppingBasket, Plus, Minus, Receipt, Percent, AlertCircle, Tag } from 'lucide-react';
@@ -130,12 +130,9 @@ export default function BillingCart({ items, onChange, onClear, totals: propTota
                       {/* Product Name */}
                       <td className="py-3.5 px-4">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-bold text-foreground text-base">{item.product_name}</span>
-                          {formatProductPackDisplay(item.product || item) && (
-                            <span className="text-xs font-semibold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/25">
-                              {formatProductPackDisplay(item.product || item)}
-                            </span>
-                          )}
+                          <span className="font-bold text-foreground text-base">
+                            {formatProductNameWithSize(item.product_name || (item as any).name, item.pack_size || item.product?.pack_size, item.unit || item.product?.unit)}
+                          </span>
                         </div>
                         <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                           {item.batch_number && (

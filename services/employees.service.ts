@@ -45,7 +45,12 @@ export async function getEmployeeById(shopId: string, id: string) {
 
 export async function createEmployee(shopId: string, data: any) {
   const supabase = await createServerSupabaseClient();
-  const { data: employee, error } = await supabase.from('users').insert({ ...data, shop_id: shopId }).select().single();
+  const payload = {
+    ...data,
+    full_name: data.full_name ? data.full_name.trim().toUpperCase() : (data.name ? data.name.trim().toUpperCase() : undefined),
+    shop_id: shopId,
+  };
+  const { data: employee, error } = await supabase.from('users').insert(payload).select().single();
   if (error) {
     console.error("Error creating employee:", error);
     throw error;
@@ -55,7 +60,11 @@ export async function createEmployee(shopId: string, data: any) {
 
 export async function updateEmployee(shopId: string, id: string, data: any, userId?: string) {
   const supabase = await createServerSupabaseClient();
-  const { data: employee, error } = await supabase.from('users').update(data).eq('shop_id', shopId).eq('id', id).select().single();
+  const payload = {
+    ...data,
+    full_name: data.full_name !== undefined ? (data.full_name ? data.full_name.trim().toUpperCase() : null) : (data.name !== undefined ? (data.name ? data.name.trim().toUpperCase() : null) : undefined),
+  };
+  const { data: employee, error } = await supabase.from('users').update(payload).eq('shop_id', shopId).eq('id', id).select().single();
   if (error) {
     console.error("Error updating employee:", error);
     throw error;

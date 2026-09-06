@@ -248,12 +248,13 @@ export async function createProduct(shopId: string, data: CreateProductInput, us
   }
 
   const supabase = await createServerSupabaseClient();
+  const normalizedProductName = (data.name || '').trim().toUpperCase();
 
   const rpcParams = {
     p_shop_id: shopId,
     p_user_id: userId || null,
     p_category_id: data.category_id,
-    p_name: data.name,
+    p_name: normalizedProductName,
     p_selling_price: Number(data.selling_price || 0),
     p_unit: data.unit,
     p_brand_id: data.brand_id || null,
@@ -564,16 +565,17 @@ export async function getCategories(shopId: string) {
 }
 
 export async function createCategory(shopId: string, data: { name: string; description?: string | null }) {
+  const normName = data.name.trim().toUpperCase();
   if (isPlaceholderMode()) {
     // Check for duplicate name in demo data
     const allDemo = [...MOCK_CATEGORIES, ...demoCategories];
-    if (allDemo.some(c => c.name.toLowerCase() === data.name.toLowerCase())) {
-      throw new Error(`Category "${data.name}" already exists`);
+    if (allDemo.some(c => c.name.toLowerCase() === normName.toLowerCase())) {
+      throw new Error(`Category "${normName}" already exists`);
     }
 
     const newCategory = {
       id: `cat-demo-${Date.now()}`,
-      name: data.name,
+      name: normName,
       description: data.description || null,
       shop_id: shopId,
       is_active: true,
@@ -587,7 +589,7 @@ export async function createCategory(shopId: string, data: { name: string; descr
   const supabase = await createServerSupabaseClient();
   const { data: category, error } = await supabase
     .from('categories')
-    .insert({ ...data, shop_id: shopId })
+    .insert({ ...data, name: normName, shop_id: shopId })
     .select()
     .single();
 
@@ -600,9 +602,13 @@ export async function createCategory(shopId: string, data: { name: string; descr
 
 export async function updateCategory(shopId: string, id: string, data: { name: string; description?: string | null }) {
   const supabase = await createServerSupabaseClient();
+  const payload = {
+    ...data,
+    name: data.name !== undefined ? data.name.trim().toUpperCase() : undefined,
+  };
   const { data: category, error } = await supabase
     .from('categories')
-    .update(data)
+    .update(payload)
     .eq('shop_id', shopId)
     .eq('id', id)
     .select()
@@ -641,16 +647,19 @@ export async function getBrands(shopId: string) {
 }
 
 export async function createBrand(shopId: string, data: { name: string; manufacturer?: string | null }) {
+  const normName = data.name.trim().toUpperCase();
+  const normMfg = data.manufacturer ? data.manufacturer.trim().toUpperCase() : normName;
+
   if (isPlaceholderMode()) {
     const all = [...MOCK_BRANDS, ...demoBrands];
-    const existing = all.find(b => b.name.toLowerCase() === data.name.trim().toLowerCase());
+    const existing = all.find(b => b.name.toLowerCase() === normName.toLowerCase());
     if (existing) {
       return existing;
     }
     const newBrand = {
       id: `b-demo-${Date.now()}`,
-      name: data.name.trim(),
-      manufacturer: data.manufacturer?.trim() || null,
+      name: normName,
+      manufacturer: normMfg,
       shop_id: shopId,
       is_active: true,
       created_at: new Date().toISOString(),
@@ -662,7 +671,7 @@ export async function createBrand(shopId: string, data: { name: string; manufact
   const supabase = await createServerSupabaseClient();
   const { data: brand, error } = await supabase
     .from('brands')
-    .insert({ ...data, shop_id: shopId })
+    .insert({ ...data, name: normName, manufacturer: normMfg, shop_id: shopId })
     .select()
     .single();
 

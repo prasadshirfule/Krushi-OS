@@ -831,7 +831,7 @@ export function getDemoCategoriesClient(): any[] {
 
 export function saveDemoCategoryClient(data: { name: string; description?: string }): any {
   const current = getDemoCategoriesClient();
-  const trimmed = data.name.trim();
+  const trimmed = data.name.trim().toUpperCase();
   const existing = current.find(c => c.name.toLowerCase() === trimmed.toLowerCase());
   if (existing) return existing;
 
@@ -971,7 +971,7 @@ export function saveDemoProductClient(data: any): any {
 
   const newProd = normalizeDemoProduct({
     id,
-    name: data.name.trim(),
+    name: data.name.trim().toUpperCase(),
     category_id: data.category_id || foundCat?.id || 'cat-1',
     category: foundCat || { id: data.category_id || 'cat-1', name: 'General' },
     brand_id: data.brand_id || null,
@@ -1062,6 +1062,7 @@ export function updateDemoProductClient(id: string, data: any): any {
   const updated = normalizeDemoProduct({
     ...current[idx],
     ...data,
+    name: data.name !== undefined ? data.name.trim().toUpperCase() : current[idx].name,
     category_id: catId,
     category: foundCat || current[idx].category,
     batch_number: batchNum,
@@ -1158,7 +1159,8 @@ export function getDemoBrandsClient(): any[] {
 
 export function saveDemoBrandClient(data: { name: string; manufacturer?: string }): any {
   const current = getDemoBrandsClient();
-  const trimmedName = data.name.trim();
+  const trimmedName = data.name.trim().toUpperCase();
+  const trimmedMfg = data.manufacturer ? data.manufacturer.trim().toUpperCase() : trimmedName;
 
   // Return existing if duplicate name
   const existing = current.find(b => b.name.toLowerCase() === trimmedName.toLowerCase());
@@ -1168,7 +1170,7 @@ export function saveDemoBrandClient(data: { name: string; manufacturer?: string 
   const newBrand = {
     id,
     name: trimmedName,
-    manufacturer: data.manufacturer?.trim() || trimmedName,
+    manufacturer: trimmedMfg,
     shop_id: 'demo-shop-1',
     is_active: true,
     created_at: new Date().toISOString(),
