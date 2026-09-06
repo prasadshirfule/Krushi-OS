@@ -9,10 +9,45 @@ import {
 } from '@/lib/shop-details';
 import { getDemoProductsClient } from '@/lib/client-demo-store';
 import { getShopProfileAction } from '@/actions/settings';
-import { formatProductNameWithSize } from '@/lib/validations';
 import { buildUpiUri, generateQrDataUrl } from '@/lib/upi';
-import { formatCurrency } from '@/lib/utils';
 import { InvoiceItemData, InvoiceProps, formatInvoiceExpiry } from './reference-tax-invoice';
+
+/**
+ * Formats product name for 80mm thermal receipt in the exact required structure:
+ * PRODUCT_NAME  (SIZE) with TWO spaces before the opening bracket.
+ */
+export function formatThermalProductName(rawName?: string, packSize?: string, unit?: string): string {
+  let name = (rawName || 'PRODUCT').trim().toUpperCase();
+  
+  // If already formatted with brackets (e.g. "UREA (45KG)" or "UREA(45KG)"), normalize to 2 spaces
+  const bracketMatch = name.match(/^(.*?)\s*\(([^)]+)\)$/);
+  if (bracketMatch) {
+    const base = bracketMatch[1].trim();
+    const sz = bracketMatch[2].trim().toUpperCase();
+    return `${base}  (${sz})`;
+  }
+
+  // Construct from size & unit
+  const sizeVal = (packSize || '').trim();
+  const unitVal = (unit || '').trim();
+  let combinedSize = '';
+
+  if (sizeVal) {
+    if (unitVal && !sizeVal.toUpperCase().includes(unitVal.toUpperCase())) {
+      combinedSize = `${sizeVal}${unitVal}`.toUpperCase();
+    } else {
+      combinedSize = sizeVal.toUpperCase();
+    }
+  } else if (unitVal) {
+    combinedSize = unitVal.toUpperCase();
+  }
+
+  if (combinedSize) {
+    return `${name}  (${combinedSize})`;
+  }
+
+  return name;
+}
 
 export function ThermalReceiptInvoice({ sale, shopDetails: customShopDetails, customItems }: InvoiceProps) {
   const [persistedShop, setPersistedShop] = useState<ShopDetails>(DEFAULT_SHOP_DETAILS);
@@ -90,7 +125,8 @@ export function ThermalReceiptInvoice({ sale, shopDetails: customShopDetails, cu
 
       const packSize = item.pack_size || p.pack_size || ((item.product_size_value || p.product_size_value) ? `${item.product_size_value || p.product_size_value} ${item.product_size_unit || p.product_size_unit || 'KG'}` : '');
       const unit = item.unit || p.unit || '';
-      const prodName = formatProductNameWithSize(prodRawName, packSize, unit);
+      // Exact PRODUCT_NAME  (SIZE) format with 2 spaces
+      const prodName = formatThermalProductName(prodRawName, packSize, unit);
 
       let mfg = item.manufacturer || p.manufacturer || p.brand?.manufacturer || p.brand?.name || '';
       if (!mfg && (item.product_id || item.id)) {
@@ -138,7 +174,7 @@ export function ThermalReceiptInvoice({ sale, shopDetails: customShopDetails, cu
     items = [
       {
         id: 'default-item-1',
-        name: 'UREA (45KG)',
+        name: 'UREA  (45KG)',
         manufacturer: 'IFFCO',
         hsn: '3102',
         batch: '-',
@@ -281,34 +317,117 @@ export function ThermalReceiptInvoice({ sale, shopDetails: customShopDetails, cu
         {/* Divider */}
         <div style={{ borderTop: '1px dashed #000000', margin: '2mm 0' }} />
 
-        {/* ─── 3. PRODUCT ITEMS LIST (VERTICAL CARD STRUCTURE) ─── */}
+        {/* ─── 3. NEW 4-COLUMN PRODUCT TABLE ─── */}
         <div style={{ marginBottom: '2mm' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 900, fontSize: '10px', paddingBottom: '1mm', borderBottom: '1px solid #000' }}>
-            <span>ITEM DETAILS</span>
-            <span>TOTAL</span>
+          {/* Table Header: ITEM DETAILS | QTY | MRP | TOTAL */}
+          <div 
+            style={{ 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'center', 
+              fontWeight: 900, 
+              fontSize: '9.5px', 
+              paddingBottom: '1mm', 
+              borderBottom: '1px solid #000000',
+              textTransform: 'uppercase',
+              letterSpacing: '0.2px'
+            }}
+          >
+            <span style={{ width: '46%', textAlign: 'left' }}>ITEM DETAILS</span>
+            <span style={{ width: '14%', textAlign: 'center' }}>QTY</span>
+            <span style={{ width: '20%', textAlign: 'right' }}>MRP</span>
+            <span style={{ width: '20%', textAlign: 'right' }}>TOTAL</span>
           </div>
 
+          {/* Table Rows */}
           <div style={{ marginTop: '1.5mm' }}>
             {items.map((item, idx) => (
-              <div key={item.id || idx} style={{ paddingBottom: '2mm', marginBottom: '1.5mm', borderBottom: idx < items.length - 1 ? '0.5px dotted #666' : 'none' }}>
-                {/* Product Name (Size) */}
-                <div style={{ fontWeight: 800, fontSize: '10.5px', textTransform: 'uppercase', display: 'flex', justifyContent: 'space-between' }}>
-                  <span>{idx + 1}. {item.name}</span>
-                  <span style={{ fontFamily: 'monospace', fontWeight: 900 }}>₹{item.total.toFixed(2)}</span>
+              <div 
+                key={item.id || idx} 
+                style={{ 
+                  paddingBottom: '2mm', 
+                  marginBottom: '1.5mm', 
+                  borderBottom: idx < items.length - 1 ? '0.5px dotted #888' : 'none' 
+                }}
+              >
+                {/* 4-Column Row: 1. PRODUCT_NAME  (SIZE) | QTY | MRP | TOTAL */}
+                <div 
+                  style={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'flex-start',
+                    fontSize: '10px',
+                    lineHeight: 1.25
+                  }}
+                >
+                  {/* Product Name with Index and EXACT TWO SPACES before (SIZE) */}
+                  <div 
+                    style={{ 
+                      width: '46%', 
+                      textAlign: 'left', 
+                      fontWeight: 800, 
+                      textTransform: 'uppercase', 
+                      whiteSpace: 'pre-wrap', 
+                      wordBreak: 'break-word' 
+                    }}
+                  >
+                    {idx + 1}. {item.name}
+                  </div>
+
+                  {/* Quantity (Centered) */}
+                  <div 
+                    style={{ 
+                      width: '14%', 
+                      textAlign: 'center', 
+                      fontWeight: 700, 
+                      fontFamily: 'monospace' 
+                    }}
+                  >
+                    {item.quantity}
+                  </div>
+
+                  {/* MRP (Selling Price including GST - Right-Aligned) */}
+                  <div 
+                    style={{ 
+                      width: '20%', 
+                      textAlign: 'right', 
+                      fontWeight: 700, 
+                      fontFamily: 'monospace',
+                      fontSize: '9.5px'
+                    }}
+                  >
+                    ₹{item.rate.toFixed(2)}
+                  </div>
+
+                  {/* Line Total (Right-Aligned) */}
+                  <div 
+                    style={{ 
+                      width: '20%', 
+                      textAlign: 'right', 
+                      fontWeight: 900, 
+                      fontFamily: 'monospace',
+                      fontSize: '9.5px'
+                    }}
+                  >
+                    ₹{item.total.toFixed(2)}
+                  </div>
                 </div>
 
-                {/* Metadata line: Mfg | Batch | Expiry */}
-                <div style={{ fontSize: '8.5px', color: '#222', marginTop: '0.5mm' }}>
+                {/* Metadata line directly underneath: Mfg: MANUFACTURER | Batch: BATCH | Exp: EXPIRY */}
+                <div 
+                  style={{ 
+                    fontSize: '8.5px', 
+                    color: '#222', 
+                    marginTop: '1mm', 
+                    lineHeight: 1.2,
+                    paddingLeft: '1mm'
+                  }}
+                >
                   <span>Mfg: {item.manufacturer}</span>
                   <span style={{ margin: '0 1mm' }}>|</span>
                   <span>Batch: {item.batch}</span>
                   <span style={{ margin: '0 1mm' }}>|</span>
                   <span>Exp: {item.expiry}</span>
-                </div>
-
-                {/* Quantity & Rate */}
-                <div style={{ fontSize: '9px', display: 'flex', justifyContent: 'space-between', marginTop: '0.5mm' }}>
-                  <span>Qty: <strong>{item.quantity}</strong> × ₹{item.rate.toFixed(2)} (GST {item.gstRate}%)</span>
                 </div>
               </div>
             ))}

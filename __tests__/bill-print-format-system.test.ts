@@ -10,7 +10,8 @@ import {
   formatShopAddress, 
   getSavedShopDetails 
 } from '../lib/shop-details';
-import { formatProductNameWithSize, isValidUpiId, normalizeUpiId } from '../lib/validations';
+import { formatProductNameWithSize } from '../lib/validations';
+import { formatThermalProductName } from '../components/invoice/thermal-receipt-invoice';
 import { buildUpiUri } from '../lib/upi';
 import { calculateItemGst, formatInvoiceExpiry } from '../components/invoice/reference-tax-invoice';
 
@@ -66,14 +67,27 @@ assert(netFinalTotal === 550.0, 'Test Case 4: Net Total is ₹550.00 (Products �
 
 // 6. TEST CASE 5: Product Details Format & Uppercase
 const ureaFormatted = formatProductNameWithSize('urea', '45kg', '');
-assert(ureaFormatted === 'UREA (45KG)', 'Test Case 5: Product format is "UREA (45KG)" with space');
+assert(ureaFormatted === 'UREA (45KG)', 'A5 Product format is "UREA (45KG)" with single space');
 const stunnerFormatted = formatProductNameWithSize('stunner gold', '1kg', '');
-assert(stunnerFormatted === 'STUNNER GOLD (1KG)', 'Test Case 5: Product format is "STUNNER GOLD (1KG)" with space');
-assert(formatInvoiceExpiry('') === '-', 'Test Case 5: Empty expiry displays as "-"');
-assert(formatInvoiceExpiry(null) === '-', 'Test Case 5: Null expiry displays as "-"');
-assert(formatInvoiceExpiry('2028-07-10') === '10/07/2028', 'Test Case 5: ISO expiry converted to 10/07/2028');
+assert(stunnerFormatted === 'STUNNER GOLD (1KG)', 'A5 Product format is "STUNNER GOLD (1KG)" with single space');
 
-// 7. TEST CASE 6: Quick / Unregistered Customer & Shop Address
+// 7. 80MM EXACT TWO SPACES PRODUCT FORMAT
+const thermalUrea = formatThermalProductName('urea', '45kg');
+assert(thermalUrea === 'UREA  (45KG)', '80mm format is "UREA  (45KG)" with TWO spaces');
+const thermalDap = formatThermalProductName('DAP', '50KG');
+assert(thermalDap === 'DAP  (50KG)', '80mm format is "DAP  (50KG)" with TWO spaces');
+const thermalStunner = formatThermalProductName('STUNNER GOLD', '50ML');
+assert(thermalStunner === 'STUNNER GOLD  (50ML)', '80mm format is "STUNNER GOLD  (50ML)" with TWO spaces');
+const thermalPremium = formatThermalProductName('STUNNER GOLD PREMIUM', '1KG');
+assert(thermalPremium === 'STUNNER GOLD PREMIUM  (1KG)', '80mm format is "STUNNER GOLD PREMIUM  (1KG)" with TWO spaces');
+const thermalNormalized = formatThermalProductName('STUNNER GOLD (50ML)');
+assert(thermalNormalized === 'STUNNER GOLD  (50ML)', '80mm normalizes single space "(50ML)" to TWO spaces');
+
+assert(formatInvoiceExpiry('') === '-', 'Empty expiry displays as "-"');
+assert(formatInvoiceExpiry(null) === '-', 'Null expiry displays as "-"');
+assert(formatInvoiceExpiry('2028-07-10') === '10/07/2028', 'ISO expiry converted to 10/07/2028');
+
+// 8. TEST CASE 6: Quick / Unregistered Customer & Shop Address
 const sampleShop: ShopDetails = {
   ...DEFAULT_SHOP_DETAILS,
   shopName: 'MAULI KRUSHI KENDRA',
@@ -88,7 +102,7 @@ const addrFormatted = formatShopAddress(sampleShop);
 assert(addrFormatted.includes('At Kamari'), 'Test Case 6: Shop address contains "At Kamari"');
 assert(addrFormatted.includes('Himayatnagar'), 'Test Case 6: Shop address contains "Himayatnagar"');
 
-// 8. TEST CASE 7 & 8: GST-Inclusive Pricing Rule
+// 9. TEST CASE 7 & 8: GST-Inclusive Pricing Rule
 const gstCalc = calculateItemGst(250, 1, 18);
 assert(gstCalc.unitWithGst === 250, 'GST-Inclusive: Customer selling price remains ₹250.00');
 assert(gstCalc.taxable === 211.86, 'GST-Inclusive: Taxable base price extracted backward to ₹211.86');
