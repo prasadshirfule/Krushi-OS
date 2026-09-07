@@ -106,7 +106,7 @@ export function CustomerReportTab({ customers = [], onFilterChange }: CustomerRe
   return (
     <div className="space-y-4">
       {/* Metric Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Customers</CardTitle>
@@ -147,7 +147,7 @@ export function CustomerReportTab({ customers = [], onFilterChange }: CustomerRe
 
       {/* Filter Toolbar */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 border rounded-lg bg-card shadow-xs">
-        <div className="w-[180px]">
+        <div className="w-full sm:w-[180px]">
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="h-9 text-xs">
               <SelectValue placeholder="Filter by Status" />

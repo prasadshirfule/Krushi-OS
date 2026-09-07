@@ -79,17 +79,23 @@ export function SalesReport({ data, onFilterChange }: SalesReportProps) {
 
       // Payment filter
       if (paymentFilter !== "all") {
-        const pStatus = (sale.payment_status || "paid").toLowerCase();
-        if (pStatus !== paymentFilter.toLowerCase()) return false;
+        const pMode = (sale.payment_mode || sale.payment_method || sale.payment_status || "N/A").toString().toLowerCase().replace(/[-_]/g, ' ').trim();
+        const target = paymentFilter.toLowerCase().replace(/[-_]/g, ' ').trim();
+        if (target === 'cash' && pMode !== 'cash') return false;
+        if (target === 'upi' && pMode !== 'upi') return false;
+        if (target === 'bank transfer' && pMode !== 'bank transfer') return false;
+        if (target === 'card' && pMode !== 'card') return false;
+        if ((target === 'credit' || target === 'due') && pMode !== 'credit' && pMode !== 'unpaid') return false;
+        if (target === 'partial' && pMode !== 'partial' && pMode !== 'partial payment') return false;
       }
 
       // Search filter
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
         const invMatch = (sale.invoice_number || "").toLowerCase().includes(q);
-        const custMatch = (sale.customer?.name || "").toLowerCase().includes(q);
-        const mobileMatch = (sale.customer?.mobile || "").toLowerCase().includes(q);
-        const villageMatch = (sale.customer?.village || "").toLowerCase().includes(q);
+        const custMatch = (sale.customer?.name || sale.customer_name || "").toLowerCase().includes(q);
+        const mobileMatch = (sale.customer?.mobile || sale.customer_phone || "").toLowerCase().includes(q);
+        const villageMatch = (sale.customer?.village || sale.customer_village || "").toLowerCase().includes(q);
         if (!invMatch && !custMatch && !mobileMatch && !villageMatch) return false;
       }
 
@@ -149,6 +155,18 @@ export function SalesReport({ data, onFilterChange }: SalesReportProps) {
     }
   }, [stats, onFilterChange, dateFrom, dateTo, periodPreset, paymentFilter, searchQuery]);
 
+  // Helper for Payment Badge Styling
+  const formatPaymentBadge = (mode: string) => {
+    const upper = (mode || "N/A").toUpperCase().replace(/[-_]/g, ' ').trim();
+    if (upper === 'CASH') return { label: 'CASH', variant: 'default' as const, className: 'bg-emerald-600 hover:bg-emerald-700 text-white font-semibold' };
+    if (upper === 'UPI') return { label: 'UPI', variant: 'default' as const, className: 'bg-blue-600 hover:bg-blue-700 text-white font-semibold' };
+    if (upper === 'BANK TRANSFER' || upper === 'BANK') return { label: 'BANK TRANSFER', variant: 'secondary' as const, className: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800 font-semibold' };
+    if (upper === 'CARD') return { label: 'CARD', variant: 'secondary' as const, className: 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300 border-purple-200 dark:border-purple-800 font-semibold' };
+    if (upper === 'CREDIT' || upper === 'UDHAAR' || upper === 'DUE') return { label: 'CREDIT', variant: 'destructive' as const, className: 'bg-rose-600 hover:bg-rose-700 text-white font-semibold' };
+    if (upper === 'PARTIAL' || upper === 'PARTIAL PAYMENT') return { label: 'PARTIAL', variant: 'secondary' as const, className: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 border-amber-200 dark:border-amber-800 font-semibold' };
+    return { label: upper || 'N/A', variant: 'secondary' as const, className: 'font-semibold' };
+  };
+
   // Table Columns
   const columns = [
     {
@@ -168,9 +186,9 @@ export function SalesReport({ data, onFilterChange }: SalesReportProps) {
       header: "Customer",
       cell: ({ row }: any) => (
         <div>
-          <div className="font-medium">{row.original.customer?.name || "Walk-in Customer"}</div>
-          {row.original.customer?.mobile && (
-            <div className="text-xs text-muted-foreground">{row.original.customer.mobile}</div>
+          <div className="font-medium">{row.original.customer?.name || row.original.customer_name || "Walk-in Customer"}</div>
+          {(row.original.customer?.mobile || row.original.customer_phone) && (
+            <div className="text-xs text-muted-foreground">{row.original.customer?.mobile || row.original.customer_phone}</div>
           )}
         </div>
       ),
@@ -179,7 +197,7 @@ export function SalesReport({ data, onFilterChange }: SalesReportProps) {
       accessorKey: "items",
       header: "Items",
       cell: ({ row }: any) => {
-        const count = (row.original.sale_items || []).length;
+        const count = (row.original.sale_items || row.original.items || []).length;
         return <Badge variant="secondary">{count} item{count !== 1 ? "s" : ""}</Badge>;
       },
     },
@@ -207,13 +225,14 @@ export function SalesReport({ data, onFilterChange }: SalesReportProps) {
       ),
     },
     {
-      accessorKey: "payment_status",
+      accessorKey: "payment_mode",
       header: "Payment",
       cell: ({ row }: any) => {
-        const status = (row.original.payment_status || "PAID").toUpperCase();
+        const pMode = row.original.payment_mode || row.original.payment_method || (row.original.payment_status === 'credit' ? 'CREDIT' : row.original.payment_status === 'partial' ? 'PARTIAL' : 'N/A');
+        const badge = formatPaymentBadge(pMode);
         return (
-          <Badge variant={status === "PAID" ? "default" : status === "CREDIT" ? "destructive" : "secondary"}>
-            {status}
+          <Badge variant={badge.variant} className={badge.className}>
+            {badge.label}
           </Badge>
         );
       },
@@ -221,14 +240,16 @@ export function SalesReport({ data, onFilterChange }: SalesReportProps) {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6 w-full max-w-full">
       {/* Filter Toolbar */}
-      <div className="flex flex-wrap items-center gap-3 p-4 border rounded-lg bg-card shadow-xs">
-        <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-col gap-3 p-3 sm:p-4 border rounded-lg bg-card shadow-xs">
+        {/* Preset Period Pills (Horizontally scrollable on small screens) */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar -mx-0.5 px-0.5">
           <Button
             variant={periodPreset === "all" ? "default" : "outline"}
             size="sm"
             onClick={() => applyPreset("all")}
+            className="h-8 text-xs shrink-0"
           >
             All Time
           </Button>
@@ -236,6 +257,7 @@ export function SalesReport({ data, onFilterChange }: SalesReportProps) {
             variant={periodPreset === "today" ? "default" : "outline"}
             size="sm"
             onClick={() => applyPreset("today")}
+            className="h-8 text-xs shrink-0"
           >
             Today
           </Button>
@@ -243,6 +265,7 @@ export function SalesReport({ data, onFilterChange }: SalesReportProps) {
             variant={periodPreset === "yesterday" ? "default" : "outline"}
             size="sm"
             onClick={() => applyPreset("yesterday")}
+            className="h-8 text-xs shrink-0"
           >
             Yesterday
           </Button>
@@ -250,6 +273,7 @@ export function SalesReport({ data, onFilterChange }: SalesReportProps) {
             variant={periodPreset === "7days" ? "default" : "outline"}
             size="sm"
             onClick={() => applyPreset("7days")}
+            className="h-8 text-xs shrink-0"
           >
             Last 7 Days
           </Button>
@@ -257,105 +281,112 @@ export function SalesReport({ data, onFilterChange }: SalesReportProps) {
             variant={periodPreset === "month" ? "default" : "outline"}
             size="sm"
             onClick={() => applyPreset("month")}
+            className="h-8 text-xs shrink-0"
           >
             This Month
           </Button>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Input
-            type="date"
-            value={dateFrom}
-            onChange={(e) => {
-              setDateFrom(e.target.value);
-              setPeriodPreset("custom");
-            }}
-            className="w-[140px] text-xs"
-            placeholder="From Date"
-          />
-          <span className="text-xs text-muted-foreground">to</span>
-          <Input
-            type="date"
-            value={dateTo}
-            onChange={(e) => {
-              setDateTo(e.target.value);
-              setPeriodPreset("custom");
-            }}
-            className="w-[140px] text-xs"
-            placeholder="To Date"
-          />
-        </div>
-
-        <div className="w-[130px]">
-          <Select value={paymentFilter} onValueChange={setPaymentFilter}>
-            <SelectTrigger className="text-xs h-9">
-              <SelectValue placeholder="Payment" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Payments</SelectItem>
-              <SelectItem value="paid">Paid</SelectItem>
-              <SelectItem value="partial">Partial</SelectItem>
-              <SelectItem value="credit">Credit / Due</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="ml-auto flex items-center gap-2">
-          <Input
-            placeholder="Search invoice / customer..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-[200px] sm:w-[240px] text-xs h-9"
-          />
-          {(dateFrom || dateTo || paymentFilter !== "all" || searchQuery) && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                applyPreset("all");
-                setPaymentFilter("all");
-                setSearchQuery("");
+        {/* Date Filters, Payment Method Dropdown, Search Input */}
+        <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2.5">
+          <div className="flex items-center gap-2">
+            <Input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => {
+                setDateFrom(e.target.value);
+                setPeriodPreset("custom");
               }}
-              className="text-xs h-9"
-            >
-              Reset
-            </Button>
-          )}
+              className="w-full sm:w-[135px] text-xs h-9"
+              placeholder="From Date"
+            />
+            <span className="text-xs text-muted-foreground shrink-0">to</span>
+            <Input
+              type="date"
+              value={dateTo}
+              onChange={(e) => {
+                setDateTo(e.target.value);
+                setPeriodPreset("custom");
+              }}
+              className="w-full sm:w-[135px] text-xs h-9"
+              placeholder="To Date"
+            />
+          </div>
+
+          <div className="w-full sm:w-[160px]">
+            <Select value={paymentFilter} onValueChange={setPaymentFilter}>
+              <SelectTrigger className="text-xs h-9 w-full">
+                <SelectValue placeholder="All Payments" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Payments</SelectItem>
+                <SelectItem value="cash">Cash</SelectItem>
+                <SelectItem value="upi">UPI</SelectItem>
+                <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                <SelectItem value="card">Card</SelectItem>
+                <SelectItem value="credit">Credit / Due</SelectItem>
+                <SelectItem value="partial">Partial Payment</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex items-center gap-2 flex-1 min-w-[200px]">
+            <Input
+              placeholder="Search invoice / customer..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full text-xs h-9"
+            />
+            {(dateFrom || dateTo || paymentFilter !== "all" || searchQuery) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  applyPreset("all");
+                  setPaymentFilter("all");
+                  setSearchQuery("");
+                }}
+                className="text-xs h-9 px-2.5 shrink-0"
+              >
+                Reset
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Sales</CardTitle>
+      {/* KPI Cards Grid (Responsive 2 columns on mobile, 4 on desktop) */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <Card className="shadow-xs">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 sm:p-4 pb-1 sm:pb-2">
+            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">Total Sales</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.totalCount}</div>
+          <CardContent className="p-3 sm:p-4 pt-0">
+            <div className="text-lg sm:text-2xl font-bold text-foreground">{stats.totalCount}</div>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
+        <Card className="shadow-xs">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 sm:p-4 pb-1 sm:pb-2">
+            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">Total Revenue</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">{formatCurrency(stats.totalRevenue)}</div>
+          <CardContent className="p-3 sm:p-4 pt-0">
+            <div className="text-lg sm:text-2xl font-bold text-emerald-600 dark:text-emerald-500">{formatCurrency(stats.totalRevenue)}</div>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Average Bill Value</CardTitle>
+        <Card className="shadow-xs">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 sm:p-4 pb-1 sm:pb-2">
+            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">Average Bill</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(stats.avgBillValue)}</div>
+          <CardContent className="p-3 sm:p-4 pt-0">
+            <div className="text-lg sm:text-2xl font-bold text-foreground">{formatCurrency(stats.avgBillValue)}</div>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Profit</CardTitle>
+        <Card className="shadow-xs">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 sm:p-4 pb-1 sm:pb-2">
+            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">Total Profit</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-500">
+          <CardContent className="p-3 sm:p-4 pt-0">
+            <div className="text-lg sm:text-2xl font-bold text-emerald-700 dark:text-emerald-400">
               {formatCurrency(stats.totalProfit)}
             </div>
           </CardContent>
@@ -363,30 +394,31 @@ export function SalesReport({ data, onFilterChange }: SalesReportProps) {
       </div>
 
       {/* Chart */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base font-semibold">Sales & Profit Overview</CardTitle>
+      <Card className="shadow-xs">
+        <CardHeader className="p-3 sm:p-4 pb-2">
+          <CardTitle className="text-sm sm:text-base font-semibold">Sales & Profit Overview</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-2 sm:p-4">
           {stats.chartData.length === 0 ? (
-            <div className="h-[260px] flex items-center justify-center text-muted-foreground text-sm border border-dashed rounded-md">
+            <div className="h-[200px] sm:h-[260px] flex items-center justify-center text-muted-foreground text-xs sm:text-sm border border-dashed rounded-md">
               No sales records available for the selected period.
             </div>
           ) : (
-            <div className="h-[260px] w-full">
+            <div className="h-[200px] sm:h-[260px] w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={stats.chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                  <XAxis dataKey="date" stroke="var(--muted-foreground)" fontSize={12} />
-                  <YAxis stroke="var(--muted-foreground)" fontSize={12} />
+                <BarChart data={stats.chartData} margin={{ top: 15, right: 15, left: 0, bottom: 5 }}>
+                  <XAxis dataKey="date" stroke="var(--muted-foreground)" fontSize={11} />
+                  <YAxis stroke="var(--muted-foreground)" fontSize={11} />
                   <Tooltip
                     formatter={(value: any) => [formatCurrency(Number(value)), ""]}
                     contentStyle={{
                       backgroundColor: "var(--background)",
                       borderRadius: "8px",
                       border: "1px solid var(--border)",
+                      fontSize: "12px"
                     }}
                   />
-                  <Legend />
+                  <Legend wrapperStyle={{ fontSize: '12px' }} />
                   <Bar dataKey="revenue" name="Revenue (₹)" fill="#16a34a" radius={[4, 4, 0, 0]} />
                   <Bar dataKey="profit" name="Profit (₹)" fill="#0d9488" radius={[4, 4, 0, 0]} />
                 </BarChart>
@@ -397,20 +429,22 @@ export function SalesReport({ data, onFilterChange }: SalesReportProps) {
       </Card>
 
       {/* Sales Transactions Data Table */}
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base font-semibold">Sales Transactions Details</CardTitle>
+      <Card className="shadow-xs overflow-hidden">
+        <CardHeader className="p-3 sm:p-4 pb-2 border-b">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+            <CardTitle className="text-sm sm:text-base font-semibold">Sales Transactions Details</CardTitle>
             <span className="text-xs text-muted-foreground">{filteredSales.length} records matching filters</span>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-0 sm:p-4">
           {filteredSales.length === 0 ? (
-            <div className="p-8 border border-dashed rounded-md text-center text-muted-foreground">
+            <div className="p-8 border-dashed text-center text-muted-foreground text-xs sm:text-sm">
               No sales records found for the selected filter.
             </div>
           ) : (
-            <DataTable columns={columns} data={filteredSales} />
+            <div className="w-full overflow-x-auto">
+              <DataTable columns={columns} data={filteredSales} />
+            </div>
           )}
         </CardContent>
       </Card>

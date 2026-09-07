@@ -169,27 +169,35 @@ export function InventoryReport({
   }
 
   return (
-    <div className="space-y-4">
-      {/* Metric Cards */}
-      <div className="flex flex-col sm:flex-row gap-4 mb-2">
-        <div className="p-4 border rounded-lg bg-card flex-1 shadow-xs">
-          <div className="text-sm font-medium text-muted-foreground">Total Inventory Value</div>
-          <div className="text-2xl font-bold text-green-600 mt-1">
-            {formatCurrency(data?.totalValue || 0)}
+    <div className="space-y-4 sm:space-y-6 w-full max-w-full">
+      {/* Metric Cards Grid */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className="p-3 sm:p-4 border rounded-lg bg-card shadow-xs">
+          <div className="text-xs sm:text-sm font-medium text-muted-foreground">Total Products</div>
+          <div className="text-lg sm:text-2xl font-bold text-foreground mt-0.5 sm:mt-1">{filteredProducts.length}</div>
+        </div>
+        <div className="p-3 sm:p-4 border rounded-lg bg-card shadow-xs">
+          <div className="text-xs sm:text-sm font-medium text-muted-foreground">Inventory Valuation</div>
+          <div className="text-lg sm:text-2xl font-bold text-emerald-600 dark:text-emerald-500 mt-0.5 sm:mt-1">
+            {formatCurrency(totalVal)}
           </div>
         </div>
-        <div className="p-4 border rounded-lg bg-card flex-1 shadow-xs">
-          <div className="text-sm font-medium text-muted-foreground">Low Stock Count</div>
-          <div className="text-2xl font-bold text-red-600 mt-1">{data?.lowStockCount || 0}</div>
+        <div className="p-3 sm:p-4 border rounded-lg bg-card shadow-xs">
+          <div className="text-xs sm:text-sm font-medium text-muted-foreground">Low Stock Items</div>
+          <div className="text-lg sm:text-2xl font-bold text-rose-600 mt-0.5 sm:mt-1">{lowStock.length}</div>
+        </div>
+        <div className="p-3 sm:p-4 border rounded-lg bg-card shadow-xs">
+          <div className="text-xs sm:text-sm font-medium text-muted-foreground">Healthy Stock</div>
+          <div className="text-lg sm:text-2xl font-bold text-foreground mt-0.5 sm:mt-1">{filteredProducts.length - lowStock.length}</div>
         </div>
       </div>
 
       {/* Tabs & Search */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <Tabs value={subTab} onValueChange={setSubTab} className="w-full sm:w-auto">
-          <TabsList className="bg-muted">
-            <TabsTrigger value="current">Current Stock ({filteredProducts.length})</TabsTrigger>
-            <TabsTrigger value="low">Low Stock ({lowStock.length})</TabsTrigger>
+          <TabsList className="bg-muted w-full sm:w-auto grid grid-cols-2 sm:flex">
+            <TabsTrigger value="current" className="text-xs sm:text-sm">Current Stock ({filteredProducts.length})</TabsTrigger>
+            <TabsTrigger value="low" className="text-xs sm:text-sm">Low Stock ({lowStock.length})</TabsTrigger>
           </TabsList>
         </Tabs>
 
@@ -198,22 +206,22 @@ export function InventoryReport({
             placeholder="Filter by product name / SKU..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-9 text-xs"
+            className="h-9 text-xs w-full"
           />
         </div>
       </div>
 
-      <div>
+      <div className="w-full overflow-x-auto border rounded-md">
         {subTab === "current" ? (
           filteredProducts.length === 0 ? (
-            <div className="p-8 border border-dashed rounded-md text-center text-muted-foreground">
+            <div className="p-8 border-dashed text-center text-muted-foreground text-xs sm:text-sm">
               No inventory records found.
             </div>
           ) : (
             <DataTable columns={columns} data={filteredProducts} />
           )
         ) : lowStock.length === 0 ? (
-          <div className="p-8 border border-dashed rounded-md text-center text-muted-foreground">
+          <div className="p-8 border-dashed text-center text-muted-foreground text-xs sm:text-sm">
             No low stock items found.
           </div>
         ) : (

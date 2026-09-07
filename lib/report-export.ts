@@ -52,6 +52,86 @@ export function formatPDFCurrency(num: number | string | undefined | null): stri
   return `Rs. ${formatPDFNumber(num)}`;
 }
 
+/**
+ * Format standard uppercase payment mode display (CASH, UPI, CARD, BANK TRANSFER, CREDIT, PARTIAL, N/A).
+ */
+export function formatPaymentDisplay(val: any): string {
+  if (!val) return 'N/A';
+  const str = String(val).trim();
+  if (!str) return 'N/A';
+
+  const clean = str.toUpperCase().replace(/[-_]/g, ' ').trim();
+  if (clean === 'CASH') return 'CASH';
+  if (clean === 'UPI') return 'UPI';
+  if (clean === 'CARD' || clean === 'DEBIT CARD' || clean === 'CREDIT CARD') return 'CARD';
+  if (clean === 'BANK TRANSFER' || clean === 'BANK' || clean === 'NET BANKING' || clean === 'NEFT' || clean === 'RTGS' || clean === 'IMPS' || clean === 'CHEQUE') return 'BANK TRANSFER';
+  if (clean === 'CREDIT' || clean === 'UDHAAR' || clean === 'DUE' || clean === 'UNPAID') return 'CREDIT';
+  if (clean === 'PARTIAL' || clean === 'PARTIAL PAYMENT' || clean === 'SPLIT') return 'PARTIAL';
+  if (clean === 'PAID' || clean === 'COMPLETED') return 'CASH';
+  return clean || 'N/A';
+}
+
+/**
+ * Extract and resolve the exact payment method to display from a sale or sale item object.
+ */
+export function getSalePaymentMethodDisplay(sale: any): string {
+  if (!sale) return 'N/A';
+
+  // 1. Check direct payment_mode or payment_method if already resolved
+  if (sale.payment_mode && sale.payment_mode !== 'N/A') {
+    return formatPaymentDisplay(sale.payment_mode);
+  }
+  if (sale.payment_method && sale.payment_method !== 'N/A') {
+    return formatPaymentDisplay(sale.payment_method);
+  }
+
+  // 2. Check sale.payments array
+  if (Array.isArray(sale.payments) && sale.payments.length > 0) {
+    const positivePayments = sale.payments.filter((p: any) => Number(p.amount || 0) > 0);
+    const target = positivePayments.length > 0 ? positivePayments : sale.payments;
+    const methods = new Set(
+      target.map((p: any) =>
+        String(p.payment_method || p.method || '').toUpperCase().replace(/[-_]/g, ' ').trim()
+      ).filter(Boolean)
+    );
+    const nonCredit = Array.from(methods).filter(m => m !== 'CREDIT');
+    if (nonCredit.length > 1 || (nonCredit.length >= 1 && methods.has('CREDIT'))) {
+      return 'PARTIAL';
+    }
+    if (methods.size === 1) {
+      return formatPaymentDisplay(Array.from(methods)[0]);
+    }
+  }
+
+  // 3. Check partial_payment object
+  let partialObj = sale.partial_payment || sale.partialPayment || null;
+  if (!partialObj && sale.notes && typeof sale.notes === 'string') {
+    try {
+      const trimmed = sale.notes.trim();
+      if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+        const parsed = JSON.parse(trimmed);
+        if (parsed.partialPayment) partialObj = parsed.partialPayment;
+      }
+    } catch {}
+  }
+  if (partialObj) {
+    const totalPaid = Number(partialObj.total_paid ?? partialObj.totalPaid ?? 0);
+    const rem = Number(partialObj.remaining ?? 0);
+    if (totalPaid > 0 && rem > 0) {
+      return 'PARTIAL';
+    }
+  }
+
+  // 4. Check payment_status
+  if (sale.payment_status) {
+    const status = String(sale.payment_status).toUpperCase().trim();
+    if (status === 'PARTIAL') return 'PARTIAL';
+    if (status === 'CREDIT' || status === 'UNPAID') return 'CREDIT';
+  }
+
+  return 'N/A';
+}
+
 export function formatDateValue(dateStr: string | undefined | null): string {
   if (!dateStr) return '-';
   try {
@@ -147,7 +227,7 @@ export function exportReportToExcel(
     const detailHeaders = [
       'Invoice Number', 'Date', 'Customer Name', 'Customer Mobile', 'Customer Village',
       'Subtotal (₹)', 'Discount (₹)', 'GST / Tax (₹)', 'Total Amount (₹)', 'Profit (₹)',
-      'Payment Status', 'Status'
+      'Payment Method', 'Status'
     ];
 
     const detailRows = sales.map((s: any) => [
@@ -161,7 +241,7 @@ export function exportReportToExcel(
       Number(s.tax_amount || 0),
       Number(s.total_amount || 0),
       Number(s.profit_amount || 0),
-      (s.payment_status || 'PAID').toUpperCase(),
+      getSalePaymentMethodDisplay(s),
       (s.status || 'COMPLETED').toUpperCase()
     ]);
 
@@ -499,7 +579,16 @@ export function exportReportToPDF(
 
     // Available width = 182mm
     // 24 + 18 + 48 + 14 + 24 + 20 + 20 + 14 = 182mm
-    const tableHeaders = ['Invoice #', 'Date', 'Customer', 'Items', 'Total (Rs.)', 'GST (Rs.)', 'Profit (Rs.)', 'Payment'];
+    const tableHeaders = [
+      { content: 'Invoice #', styles: { halign: 'left' } },
+      { content: 'Date', styles: { halign: 'center' } },
+      { content: 'Customer', styles: { halign: 'left' } },
+      { content: 'Items', styles: { halign: 'center' } },
+      { content: 'Total (Rs.)', styles: { halign: 'right' } },
+      { content: 'GST (Rs.)', styles: { halign: 'right' } },
+      { content: 'Profit (Rs.)', styles: { halign: 'right' } },
+      { content: 'Payment', styles: { halign: 'center' } }
+    ];
     const tableBody = sales.map((s: any) => {
       const itemsCount = (s.sale_items || []).length;
       return [
@@ -510,7 +599,7 @@ export function exportReportToPDF(
         formatPDFNumber(s.total_amount),
         formatPDFNumber(s.tax_amount),
         formatPDFNumber(s.profit_amount),
-        (s.payment_status || 'PAID').toUpperCase()
+        getSalePaymentMethodDisplay(s)
       ];
     });
 
@@ -524,17 +613,17 @@ export function exportReportToPDF(
       body: tableBody,
       theme: 'grid',
       styles: { fontSize: 7.5, cellPadding: 2, textColor: [30, 41, 59], overflow: 'linebreak' },
-      headStyles: { fillColor: [22, 101, 52], textColor: [255, 255, 255], fontStyle: 'bold', halign: 'left' },
+      headStyles: { fillColor: [22, 101, 52], textColor: [255, 255, 255], fontStyle: 'bold' },
       alternateRowStyles: { fillColor: [248, 250, 252] },
       columnStyles: {
-        0: { cellWidth: 24, halign: 'left', fontStyle: 'bold' },
-        1: { cellWidth: 18, halign: 'center' },
-        2: { cellWidth: 48, halign: 'left' },
-        3: { cellWidth: 14, halign: 'center' },
+        0: { cellWidth: 26, halign: 'left', fontStyle: 'bold' },
+        1: { cellWidth: 20, halign: 'center' },
+        2: { cellWidth: 38, halign: 'left' },
+        3: { cellWidth: 12, halign: 'center' },
         4: { cellWidth: 24, halign: 'right', fontStyle: 'bold' },
-        5: { cellWidth: 20, halign: 'right' },
-        6: { cellWidth: 20, halign: 'right' },
-        7: { cellWidth: 14, halign: 'center' }
+        5: { cellWidth: 18, halign: 'right' },
+        6: { cellWidth: 18, halign: 'right' },
+        7: { cellWidth: 26, halign: 'center' }
       },
       margin: { left: 14, right: 14, bottom: 15 }
     });
@@ -553,8 +642,16 @@ export function exportReportToPDF(
     ]);
 
     // Available width = 182mm
-    // 50 + 20 + 26 + 22 + 20 + 20 + 24 = 182mm
-    const tableHeaders = ['Product Name', 'SKU', 'Category', 'Stock Level', 'Cost (Rs.)', 'Price (Rs.)', 'Value (Rs.)'];
+    // 50 + 22 + 26 + 22 + 20 + 20 + 22 = 182mm
+    const tableHeaders = [
+      { content: 'Product Name', styles: { halign: 'left' } },
+      { content: 'SKU', styles: { halign: 'left' } },
+      { content: 'Category', styles: { halign: 'left' } },
+      { content: 'Stock Level', styles: { halign: 'center' } },
+      { content: 'Cost (Rs.)', styles: { halign: 'right' } },
+      { content: 'Price (Rs.)', styles: { halign: 'right' } },
+      { content: 'Value (Rs.)', styles: { halign: 'right' } }
+    ];
     const tableBody = products.map((p: any) => {
       const stock = Number(p.current_stock || 0);
       const cost = Number(p.purchase_price || 0);
@@ -581,16 +678,16 @@ export function exportReportToPDF(
       body: tableBody,
       theme: 'grid',
       styles: { fontSize: 7.5, cellPadding: 2, textColor: [30, 41, 59], overflow: 'linebreak' },
-      headStyles: { fillColor: [22, 101, 52], textColor: [255, 255, 255], fontStyle: 'bold', halign: 'left' },
+      headStyles: { fillColor: [22, 101, 52], textColor: [255, 255, 255], fontStyle: 'bold' },
       alternateRowStyles: { fillColor: [248, 250, 252] },
       columnStyles: {
         0: { cellWidth: 50, halign: 'left', fontStyle: 'bold' },
-        1: { cellWidth: 20, halign: 'left' },
+        1: { cellWidth: 22, halign: 'left' },
         2: { cellWidth: 26, halign: 'left' },
         3: { cellWidth: 22, halign: 'center' },
         4: { cellWidth: 20, halign: 'right' },
         5: { cellWidth: 20, halign: 'right' },
-        6: { cellWidth: 24, halign: 'right', fontStyle: 'bold' }
+        6: { cellWidth: 22, halign: 'right', fontStyle: 'bold' }
       },
       margin: { left: 14, right: 14, bottom: 15 }
     });
@@ -625,7 +722,10 @@ export function exportReportToPDF(
 
     renderAutoTable(doc, {
       startY: currentY,
-      head: [['Financial Performance Metric / Statement Item', 'Amount / Ratio']],
+      head: [[
+        { content: 'Financial Performance Metric / Statement Item', styles: { halign: 'left' } },
+        { content: 'Amount / Ratio', styles: { halign: 'right' } }
+      ]],
       body: finRows,
       theme: 'striped',
       styles: { fontSize: 8, cellPadding: 2.5, textColor: [30, 41, 59] },
@@ -659,13 +759,19 @@ export function exportReportToPDF(
         formatDateValue(e.date),
         e.category?.name || 'General',
         e.description || '-',
-        (e.payment_method || 'CASH').toUpperCase(),
+        formatPaymentDisplay(e.payment_method || 'CASH'),
         formatPDFNumber(e.amount)
       ]);
 
       renderAutoTable(doc, {
         startY: lastY,
-        head: [['Date', 'Category', 'Description', 'Payment Mode', 'Amount (Rs.)']],
+        head: [[
+          { content: 'Date', styles: { halign: 'center' } },
+          { content: 'Category', styles: { halign: 'left' } },
+          { content: 'Description', styles: { halign: 'left' } },
+          { content: 'Payment Mode', styles: { halign: 'center' } },
+          { content: 'Amount (Rs.)', styles: { halign: 'right' } }
+        ]],
         body: expBody,
         theme: 'grid',
         styles: { fontSize: 7.5, cellPadding: 2 },
@@ -697,8 +803,15 @@ export function exportReportToPDF(
     ]);
 
     // Available width = 182mm
-    // 44 + 26 + 32 + 28 + 26 + 26 = 182mm
-    const tableHeaders = ['Customer Name', 'Mobile', 'Village', 'Purchases (Rs.)', 'Paid (Rs.)', 'Outstanding (Rs.)'];
+    // 42 + 24 + 32 + 28 + 28 + 28 = 182mm
+    const tableHeaders = [
+      { content: 'Customer Name', styles: { halign: 'left' } },
+      { content: 'Mobile', styles: { halign: 'center' } },
+      { content: 'Village', styles: { halign: 'left' } },
+      { content: 'Purchases (Rs.)', styles: { halign: 'right' } },
+      { content: 'Paid (Rs.)', styles: { halign: 'right' } },
+      { content: 'Outstanding (Rs.)', styles: { halign: 'right' } }
+    ];
     const tableBody = customers.map((c: any) => [
       c.name || 'Unnamed',
       c.mobile || '-',
@@ -718,15 +831,15 @@ export function exportReportToPDF(
       body: tableBody,
       theme: 'grid',
       styles: { fontSize: 7.5, cellPadding: 2, textColor: [30, 41, 59], overflow: 'linebreak' },
-      headStyles: { fillColor: [22, 101, 52], textColor: [255, 255, 255], fontStyle: 'bold', halign: 'left' },
+      headStyles: { fillColor: [22, 101, 52], textColor: [255, 255, 255], fontStyle: 'bold' },
       alternateRowStyles: { fillColor: [248, 250, 252] },
       columnStyles: {
-        0: { cellWidth: 44, halign: 'left', fontStyle: 'bold' },
-        1: { cellWidth: 26, halign: 'left' },
+        0: { cellWidth: 42, halign: 'left', fontStyle: 'bold' },
+        1: { cellWidth: 24, halign: 'center' },
         2: { cellWidth: 32, halign: 'left' },
         3: { cellWidth: 28, halign: 'right' },
-        4: { cellWidth: 26, halign: 'right' },
-        5: { cellWidth: 26, halign: 'right', fontStyle: 'bold' }
+        4: { cellWidth: 28, halign: 'right' },
+        5: { cellWidth: 28, halign: 'right', fontStyle: 'bold' }
       },
       margin: { left: 14, right: 14, bottom: 15 }
     });
@@ -747,8 +860,16 @@ export function exportReportToPDF(
     ]);
 
     // Available width = 182mm
-    // 36 + 32 + 24 + 28 + 22 + 20 + 20 = 182mm
-    const tableHeaders = ['Supplier Name', 'Company', 'Mobile', 'GSTIN', 'Purchases (Rs.)', 'Paid (Rs.)', 'Payable (Rs.)'];
+    // 36 + 30 + 24 + 28 + 22 + 20 + 22 = 182mm
+    const tableHeaders = [
+      { content: 'Supplier Name', styles: { halign: 'left' } },
+      { content: 'Company', styles: { halign: 'left' } },
+      { content: 'Mobile', styles: { halign: 'center' } },
+      { content: 'GSTIN', styles: { halign: 'center' } },
+      { content: 'Purchases (Rs.)', styles: { halign: 'right' } },
+      { content: 'Paid (Rs.)', styles: { halign: 'right' } },
+      { content: 'Payable (Rs.)', styles: { halign: 'right' } }
+    ];
     const tableBody = suppliers.map((s: any) => [
       s.name || 'Unnamed',
       s.company || '-',
@@ -769,16 +890,16 @@ export function exportReportToPDF(
       body: tableBody,
       theme: 'grid',
       styles: { fontSize: 7.5, cellPadding: 2, textColor: [30, 41, 59], overflow: 'linebreak' },
-      headStyles: { fillColor: [22, 101, 52], textColor: [255, 255, 255], fontStyle: 'bold', halign: 'left' },
+      headStyles: { fillColor: [22, 101, 52], textColor: [255, 255, 255], fontStyle: 'bold' },
       alternateRowStyles: { fillColor: [248, 250, 252] },
       columnStyles: {
         0: { cellWidth: 36, halign: 'left', fontStyle: 'bold' },
-        1: { cellWidth: 32, halign: 'left' },
-        2: { cellWidth: 24, halign: 'left' },
-        3: { cellWidth: 28, halign: 'left' },
+        1: { cellWidth: 30, halign: 'left' },
+        2: { cellWidth: 24, halign: 'center' },
+        3: { cellWidth: 28, halign: 'center' },
         4: { cellWidth: 22, halign: 'right' },
         5: { cellWidth: 20, halign: 'right' },
-        6: { cellWidth: 20, halign: 'right', fontStyle: 'bold' }
+        6: { cellWidth: 22, halign: 'right', fontStyle: 'bold' }
       },
       margin: { left: 14, right: 14, bottom: 15 }
     });
@@ -798,8 +919,17 @@ export function exportReportToPDF(
     ]);
 
     // Available width = 182mm
-    // 24 + 18 + 48 + 14 + 24 + 20 + 20 + 14 = 182mm
-    const tableHeaders = ['Invoice #', 'Date', 'Customer', 'Qty', 'Selling Price (Rs.)', 'GST (Rs.)', 'Total (Rs.)', 'Payment'];
+    // 26 + 20 + 40 + 14 + 20 + 18 + 20 + 24 = 182mm
+    const tableHeaders = [
+      { content: 'Invoice #', styles: { halign: 'left' } },
+      { content: 'Date', styles: { halign: 'center' } },
+      { content: 'Customer', styles: { halign: 'left' } },
+      { content: 'Qty', styles: { halign: 'center' } },
+      { content: 'Price (Rs.)', styles: { halign: 'right' } },
+      { content: 'GST (Rs.)', styles: { halign: 'right' } },
+      { content: 'Total (Rs.)', styles: { halign: 'right' } },
+      { content: 'Payment', styles: { halign: 'center' } }
+    ];
     const tableBody = items.map((it: any) => [
       it.invoice_number || '-',
       formatDateValue(it.sale_date),
@@ -808,7 +938,7 @@ export function exportReportToPDF(
       formatPDFNumber(it.unit_price),
       formatPDFNumber(it.gst_amount),
       formatPDFNumber(it.total_amount),
-      (it.payment_status || 'PAID').toUpperCase()
+      getSalePaymentMethodDisplay(it)
     ]);
 
     if (items.length === 0) {
@@ -821,17 +951,17 @@ export function exportReportToPDF(
       body: tableBody,
       theme: 'grid',
       styles: { fontSize: 7.5, cellPadding: 2, textColor: [30, 41, 59], overflow: 'linebreak' },
-      headStyles: { fillColor: [22, 101, 52], textColor: [255, 255, 255], fontStyle: 'bold', halign: 'left' },
+      headStyles: { fillColor: [22, 101, 52], textColor: [255, 255, 255], fontStyle: 'bold' },
       alternateRowStyles: { fillColor: [248, 250, 252] },
       columnStyles: {
-        0: { cellWidth: 24, halign: 'left', fontStyle: 'bold' },
-        1: { cellWidth: 18, halign: 'center' },
-        2: { cellWidth: 48, halign: 'left' },
-        3: { cellWidth: 14, halign: 'center', fontStyle: 'bold' },
-        4: { cellWidth: 24, halign: 'right' },
-        5: { cellWidth: 20, halign: 'right' },
+        0: { cellWidth: 26, halign: 'left', fontStyle: 'bold' },
+        1: { cellWidth: 20, halign: 'center' },
+        2: { cellWidth: 40, halign: 'left' },
+        3: { cellWidth: 14, halign: 'center' },
+        4: { cellWidth: 20, halign: 'right' },
+        5: { cellWidth: 18, halign: 'right' },
         6: { cellWidth: 20, halign: 'right', fontStyle: 'bold' },
-        7: { cellWidth: 14, halign: 'center' }
+        7: { cellWidth: 24, halign: 'center' }
       },
       margin: { left: 14, right: 14, bottom: 15 }
     });
@@ -879,28 +1009,28 @@ export function printReportDocument(
 
     tableHeadersHtml = `
       <tr>
-        <th style="width: 14%;">Invoice #</th>
-        <th style="width: 10%;">Date</th>
-        <th style="width: 24%;">Customer</th>
-        <th style="width: 8%; text-align: center;">Items</th>
-        <th style="width: 12%; text-align: right;">Total</th>
-        <th style="width: 11%; text-align: right;">GST</th>
-        <th style="width: 11%; text-align: right;">Profit</th>
-        <th style="width: 10%; text-align: center;">Status</th>
+        <th style="width: 14%; text-align: left;">Invoice #</th>
+        <th style="width: 11%; text-align: center;">Date</th>
+        <th style="width: 21%; text-align: left;">Customer</th>
+        <th style="width: 7%; text-align: center;">Items</th>
+        <th style="width: 13%; text-align: right;">Total</th>
+        <th style="width: 10%; text-align: right;">GST</th>
+        <th style="width: 10%; text-align: right;">Profit</th>
+        <th style="width: 14%; text-align: center;">Payment</th>
       </tr>
     `;
 
     tableRowsHtml = sales.length > 0 
       ? sales.map((s: any) => `
         <tr>
-          <td><strong>${s.invoice_number || '-'}</strong></td>
-          <td>${formatDateValue(s.sale_date)}</td>
-          <td>${s.customer?.name || 'Walk-in'}${s.customer?.mobile ? `<br><small style="color: #666;">${s.customer.mobile}</small>` : ''}</td>
+          <td style="text-align: left;"><strong>${s.invoice_number || '-'}</strong></td>
+          <td style="text-align: center;">${formatDateValue(s.sale_date)}</td>
+          <td style="text-align: left;">${s.customer?.name || 'Walk-in'}${s.customer?.mobile ? `<br><small style="color: #64748b;">${s.customer.mobile}</small>` : ''}</td>
           <td style="text-align: center;">${(s.sale_items || []).length}</td>
           <td style="text-align: right;"><strong>${formatCurrencyValue(s.total_amount)}</strong></td>
           <td style="text-align: right;">${formatCurrencyValue(s.tax_amount)}</td>
           <td style="text-align: right; color: #0f766e;">${formatCurrencyValue(s.profit_amount)}</td>
-          <td style="text-align: center;"><span class="badge">${(s.payment_status || 'PAID').toUpperCase()}</span></td>
+          <td style="text-align: center;"><span class="badge">${getSalePaymentMethodDisplay(s)}</span></td>
         </tr>
       `).join('')
       : `<tr><td colspan="8" class="text-center empty-cell">No sales records found for the selected period.</td></tr>`;
@@ -1088,28 +1218,28 @@ export function printReportDocument(
 
     tableHeadersHtml = `
       <tr>
-        <th style="width: 14%;">Invoice #</th>
-        <th style="width: 10%;">Date</th>
-        <th style="width: 24%;">Customer</th>
+        <th style="width: 14%; text-align: left;">Invoice #</th>
+        <th style="width: 11%; text-align: center;">Date</th>
+        <th style="width: 22%; text-align: left;">Customer</th>
         <th style="width: 8%; text-align: center;">Qty</th>
-        <th style="width: 12%; text-align: right;">Price</th>
-        <th style="width: 11%; text-align: right;">GST</th>
+        <th style="width: 11%; text-align: right;">Price</th>
+        <th style="width: 10%; text-align: right;">GST</th>
         <th style="width: 11%; text-align: right;">Total</th>
-        <th style="width: 10%; text-align: center;">Payment</th>
+        <th style="width: 13%; text-align: center;">Payment</th>
       </tr>
     `;
 
     tableRowsHtml = items.length > 0
       ? items.map((it: any) => `
         <tr>
-          <td><strong>${it.invoice_number || '-'}</strong></td>
-          <td>${formatDateValue(it.sale_date)}</td>
-          <td>${it.customer_name || 'Walk-in'}</td>
+          <td style="text-align: left;"><strong>${it.invoice_number || '-'}</strong></td>
+          <td style="text-align: center;">${formatDateValue(it.sale_date)}</td>
+          <td style="text-align: left;">${it.customer_name || 'Walk-in Customer'}${it.customer_mobile && it.customer_mobile !== '-' ? `<br><small style="color: #64748b;">${it.customer_mobile}</small>` : ''}</td>
           <td style="text-align: center;"><strong>${it.quantity}</strong></td>
           <td style="text-align: right;">${formatCurrencyValue(it.unit_price)}</td>
           <td style="text-align: right;">${formatCurrencyValue(it.gst_amount)}</td>
           <td style="text-align: right;"><strong>${formatCurrencyValue(it.total_amount)}</strong></td>
-          <td style="text-align: center;"><span class="badge">${(it.payment_status || 'PAID').toUpperCase()}</span></td>
+          <td style="text-align: center;"><span class="badge">${getSalePaymentMethodDisplay(it)}</span></td>
         </tr>
       `).join('')
       : `<tr><td colspan="8" class="text-center empty-cell">No sales records found for this product.</td></tr>`;

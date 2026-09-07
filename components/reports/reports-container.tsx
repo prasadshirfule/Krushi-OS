@@ -150,34 +150,34 @@ export function ReportsContainer({
   const isBusy = isExportingPdf || isPrinting;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6 w-full max-w-full">
       {/* Header & Export Toolbar */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 sm:gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">Analytics & Reports</h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">Analytics & Reports</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 sm:mt-1">
             Generate and export comprehensive agribusiness performance, inventory valuation, and ledgers.
           </p>
         </div>
 
         {/* Global Clean Export Toolbar (PDF & Print only) */}
-        <div className="flex items-center gap-2 p-1.5 bg-muted/60 dark:bg-muted/30 border rounded-lg shadow-xs">
+        <div className="grid grid-cols-2 sm:flex items-center gap-2 p-1.5 bg-muted/60 dark:bg-muted/30 border rounded-lg shadow-xs w-full sm:w-auto">
           <Button
             variant="outline"
             size="sm"
             onClick={handleExportPDF}
             disabled={isBusy}
-            className="h-9 px-3.5 bg-background hover:bg-accent hover:text-accent-foreground font-medium text-xs sm:text-sm transition-all shadow-xs"
+            className="h-9 px-3 bg-background hover:bg-accent hover:text-accent-foreground font-medium text-xs sm:text-sm transition-all shadow-xs justify-center w-full sm:w-auto"
             title="Download PDF document"
           >
             {isExportingPdf ? (
               <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin text-rose-600" />
-                <span>Generating PDF...</span>
+                <Loader2 className="mr-1.5 h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin text-rose-600" />
+                <span>Generating...</span>
               </>
             ) : (
               <>
-                <FileText className="mr-2 h-4 w-4 text-rose-600" />
+                <FileText className="mr-1.5 h-3.5 w-3.5 sm:h-4 sm:w-4 text-rose-600" />
                 <span>Download PDF</span>
               </>
             )}
@@ -188,17 +188,17 @@ export function ReportsContainer({
             size="sm"
             onClick={handlePrint}
             disabled={isBusy}
-            className="h-9 px-3.5 bg-background hover:bg-accent hover:text-accent-foreground font-medium text-xs sm:text-sm transition-all shadow-xs"
+            className="h-9 px-3 bg-background hover:bg-accent hover:text-accent-foreground font-medium text-xs sm:text-sm transition-all shadow-xs justify-center w-full sm:w-auto"
             title="Print A4 Report"
           >
             {isPrinting ? (
               <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin text-blue-600" />
-                <span>Preparing Print...</span>
+                <Loader2 className="mr-1.5 h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin text-blue-600" />
+                <span>Printing...</span>
               </>
             ) : (
               <>
-                <Printer className="mr-2 h-4 w-4 text-blue-600" />
+                <Printer className="mr-1.5 h-3.5 w-3.5 sm:h-4 sm:w-4 text-blue-600" />
                 <span>Print</span>
               </>
             )}
@@ -206,25 +206,27 @@ export function ReportsContainer({
         </div>
       </div>
 
-      {/* Report Tabs */}
+      {/* Report Tabs with Smooth Horizontal Scroll on Mobile */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid grid-cols-2 sm:grid-cols-5 w-full sm:w-auto h-auto p-1 bg-muted/80">
-          <TabsTrigger value="sales" className="py-2 text-xs sm:text-sm">
-            Sales Report
-          </TabsTrigger>
-          <TabsTrigger value="inventory" className="py-2 text-xs sm:text-sm">
-            Inventory Report
-          </TabsTrigger>
-          <TabsTrigger value="financial" className="py-2 text-xs sm:text-sm">
-            Financial Report
-          </TabsTrigger>
-          <TabsTrigger value="customer" className="py-2 text-xs sm:text-sm">
-            Customer Report
-          </TabsTrigger>
-          <TabsTrigger value="supplier" className="py-2 text-xs sm:text-sm">
-            Supplier Report
-          </TabsTrigger>
-        </TabsList>
+        <div className="w-full overflow-x-auto pb-1 no-scrollbar -mx-0.5 px-0.5">
+          <TabsList className="inline-flex w-max min-w-full sm:w-full sm:grid sm:grid-cols-5 h-auto p-1 bg-muted/80 gap-1 sm:gap-0">
+            <TabsTrigger value="sales" className="py-2 px-3 text-xs sm:text-sm whitespace-nowrap">
+              Sales Report
+            </TabsTrigger>
+            <TabsTrigger value="inventory" className="py-2 px-3 text-xs sm:text-sm whitespace-nowrap">
+              Inventory Report
+            </TabsTrigger>
+            <TabsTrigger value="financial" className="py-2 px-3 text-xs sm:text-sm whitespace-nowrap">
+              Financial Report
+            </TabsTrigger>
+            <TabsTrigger value="customer" className="py-2 px-3 text-xs sm:text-sm whitespace-nowrap">
+              Customer Report
+            </TabsTrigger>
+            <TabsTrigger value="supplier" className="py-2 px-3 text-xs sm:text-sm whitespace-nowrap">
+              Supplier Report
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="sales" className="mt-4 focus-visible:outline-none">
           <SalesReport

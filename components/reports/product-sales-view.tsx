@@ -23,7 +23,7 @@ import {
 import { formatCurrency } from "@/lib/utils";
 import { ShopDetails } from "@/lib/shop-details";
 import { formatProductNameWithSize } from "@/lib/validations";
-import { exportReportToPDF, printReportDocument, formatDateValue } from "@/lib/report-export";
+import { exportReportToPDF, printReportDocument, formatDateValue, getSalePaymentMethodDisplay } from "@/lib/report-export";
 import { getProductSalesReportAction } from "@/actions/reports";
 import { toast } from "sonner";
 
@@ -254,21 +254,25 @@ export function ProductSalesReportView({
       ),
     },
     {
-      accessorKey: "payment_status",
+      accessorKey: "payment_mode",
       header: "Payment",
       cell: ({ row }: any) => {
-        const status = (row.original.payment_status || "PAID").toUpperCase();
+        const mode = getSalePaymentMethodDisplay(row.original);
+        let badgeStyle = "bg-muted text-muted-foreground border-muted";
+        if (mode.includes("CASH")) {
+          badgeStyle = "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20";
+        } else if (mode.includes("UPI")) {
+          badgeStyle = "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20";
+        } else if (mode.includes("BANK") || mode.includes("CARD")) {
+          badgeStyle = "bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 border-indigo-500/20";
+        } else if (mode.includes("CREDIT")) {
+          badgeStyle = "bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/20";
+        } else if (mode.includes("PARTIAL")) {
+          badgeStyle = "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20";
+        }
         return (
-          <Badge
-            variant={
-              status === "PAID"
-                ? "default"
-                : status === "CREDIT"
-                ? "destructive"
-                : "secondary"
-            }
-          >
-            {status}
+          <Badge variant="outline" className={`font-semibold tracking-wide text-[11px] ${badgeStyle}`}>
+            {mode}
           </Badge>
         );
       },

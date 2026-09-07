@@ -23,7 +23,7 @@ export default async function ReportsPage() {
   ]);
 
   return (
-    <div className="p-6">
+    <div className="p-3 sm:p-4 md:p-6 w-full max-w-full overflow-hidden">
       <ReportsContainer
         initialSales={salesReport}
         initialInventory={inventoryReport}
