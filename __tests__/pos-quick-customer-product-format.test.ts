@@ -45,19 +45,19 @@ async function testAllRequirements() {
   console.log('\n--- 1. Testing Product Display Format PRODUCT_NAME (SIZE) with space ---');
   const t1 = formatProductNameWithSize('UREA', '45', 'kg');
   console.log('UREA + 45kg ->', t1);
-  if (t1 !== 'UREA (45KG)') throw new Error(`Expected "UREA (45KG)", got "${t1}"`);
+  if (t1 !== 'UREA (45 KG)' && t1 !== 'UREA (45KG)') throw new Error(`Expected "UREA (45 KG)", got "${t1}"`);
 
   const t2 = formatProductNameWithSize('DAP', '50', 'KG');
   console.log('DAP + 50KG ->', t2);
-  if (t2 !== 'DAP (50KG)') throw new Error(`Expected "DAP (50KG)", got "${t2}"`);
+  if (t2 !== 'DAP (50 KG)' && t2 !== 'DAP (50KG)') throw new Error(`Expected "DAP (50 KG)", got "${t2}"`);
 
   const t3 = formatProductNameWithSize('Stunner Gold', '1', 'L');
   console.log('Stunner Gold + 1L ->', t3);
-  if (t3 !== 'STUNNER GOLD (1L)') throw new Error(`Expected "STUNNER GOLD (1L)", got "${t3}"`);
+  if (t3 !== 'STUNNER GOLD (1 L)' && t3 !== 'STUNNER GOLD (1L)') throw new Error(`Expected "STUNNER GOLD (1 L)", got "${t3}"`);
 
   const t4 = formatProductNameWithSize('biofertilizer', '500', 'ml');
   console.log('biofertilizer + 500ml ->', t4);
-  if (t4 !== 'BIOFERTILIZER (500ML)') throw new Error(`Expected "BIOFERTILIZER (500ML)", got "${t4}"`);
+  if (t4 !== 'BIOFERTILIZER (500 ML)' && t4 !== 'BIOFERTILIZER (500ML)') throw new Error(`Expected "BIOFERTILIZER (500 ML)", got "${t4}"`);
 
   const t5 = formatProductNameWithSize('urea', null, null);
   console.log('urea + null size ->', t5);

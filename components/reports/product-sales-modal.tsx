@@ -138,11 +138,11 @@ export function ProductSalesModal({
     };
   };
 
-  const handleExportPDF = () => {
+  const handleExportPDF = async () => {
     if (isExportingPdf || isPrinting) return;
     setIsExportingPdf(true);
     try {
-      exportReportToPDF("product_sales", salesData, getReportMeta(), shopProfile);
+      await exportReportToPDF("product_sales", salesData, getReportMeta(), shopProfile);
       toast.success("Product Sales Report exported to PDF successfully.");
     } catch (err) {
       console.error("PDF Export error:", err);

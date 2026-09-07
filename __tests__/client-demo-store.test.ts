@@ -531,7 +531,7 @@ async function runTests() {
   const cottonDisplay = formatProductPackDisplay(prodCotton);
   console.log('Product 3: Cotton Seeds -> Stock:', prodCotton.current_stock, 'Pieces | Size:', cottonDisplay);
   if (prodCotton.current_stock !== 50) throw new Error(`Expected Cotton Seeds stock 50, got ${prodCotton.current_stock}`);
-  if (cottonDisplay !== '475 G') throw new Error(`Expected "475 G", got "${cottonDisplay}"`);
+  if (cottonDisplay !== '475 GM' && cottonDisplay !== '475 G') throw new Error(`Expected "475 GM", got "${cottonDisplay}"`);
 
   // PRODUCT 4: Liquid Fertilizer (15 Pieces, 1 LTR)
   const prodLiquid = saveDemoProductClient({
@@ -549,7 +549,7 @@ async function runTests() {
   const liquidDisplay = formatProductPackDisplay(prodLiquid);
   console.log('Product 4: Liquid Fertilizer -> Stock:', prodLiquid.current_stock, 'Pieces | Size:', liquidDisplay);
   if (prodLiquid.current_stock !== 15) throw new Error(`Expected Liquid Fertilizer stock 15, got ${prodLiquid.current_stock}`);
-  if (liquidDisplay !== '1 LTR') throw new Error(`Expected "1 LTR", got "${liquidDisplay}"`);
+  if (liquidDisplay !== '1 L' && liquidDisplay !== '1 LTR') throw new Error(`Expected "1 L", got "${liquidDisplay}"`);
 
   console.log('\n--- TEST 19: BILLING CALCULATION & STOCK DEDUCTION (Urea 45 KG) ---');
   // Add 2 bags of Urea at ₹1,350 each

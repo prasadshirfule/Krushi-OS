@@ -1,4 +1,4 @@
-import { getSalesReport, getInventoryReport, getFinancialReport, getCustomerReport, getSupplierReport } from "@/services/reports.service";
+import { getSalesReport } from "@/services/reports.service";
 import { getShopProfile } from "@/services/settings.service";
 import { getAuthAndPermissions } from "@/lib/auth-helper";
 import { ReportsContainer } from "@/components/reports/reports-container";
@@ -13,12 +13,8 @@ export default async function ReportsPage() {
   const user = await getAuthAndPermissions();
   const shopId = user.shop_id;
 
-  const [salesReport, inventoryReport, financialReport, customerReport, supplierReport, shopProfile] = await Promise.all([
+  const [salesReport, shopProfile] = await Promise.all([
     getSalesReport(shopId, {}),
-    getInventoryReport(shopId),
-    getFinancialReport(shopId, {}),
-    getCustomerReport(shopId),
-    getSupplierReport(shopId),
     getShopProfile(shopId)
   ]);
 
@@ -26,10 +22,6 @@ export default async function ReportsPage() {
     <div className="p-3 sm:p-4 md:p-6 w-full max-w-full overflow-hidden">
       <ReportsContainer
         initialSales={salesReport}
-        initialInventory={inventoryReport}
-        initialFinancial={financialReport}
-        initialCustomer={customerReport}
-        initialSupplier={supplierReport}
         shopProfile={shopProfile}
       />
     </div>

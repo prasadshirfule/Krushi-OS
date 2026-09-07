@@ -1,6 +1,4 @@
-import * as XLSX from 'xlsx';
-import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import type { jsPDF } from 'jspdf';
 import { ShopDetails, formatShopAddress } from '@/lib/shop-details';
 import { formatProductNameWithSize } from '@/lib/validations';
 
@@ -162,13 +160,13 @@ export function getReportFilename(reportType: string, extension: 'xlsx' | 'pdf',
   return `KrushiOS_${label}${cleanExtra}_Report_${today}.${extension}`;
 }
 
-function renderAutoTable(doc: jsPDF, options: any) {
-  if (typeof (doc as any).autoTable === 'function') {
-    (doc as any).autoTable(options);
-  } else if (typeof autoTable === 'function') {
-    (autoTable as any)(doc, options);
-  } else if (typeof (autoTable as any)?.default === 'function') {
-    (autoTable as any).default(doc, options);
+function renderAutoTable(doc: any, options: any, autoTableFn?: any) {
+  if (typeof doc.autoTable === 'function') {
+    doc.autoTable(options);
+  } else if (typeof autoTableFn === 'function') {
+    autoTableFn(doc, options);
+  } else if (typeof autoTableFn?.default === 'function') {
+    autoTableFn.default(doc, options);
   }
 }
 
@@ -176,12 +174,13 @@ function renderAutoTable(doc: jsPDF, options: any) {
    1. EXCEL EXPORT ENGINE (.xlsx)
    ========================================================================== */
 
-export function exportReportToExcel(
+export async function exportReportToExcel(
   reportType: 'sales' | 'inventory' | 'financial' | 'customer' | 'supplier' | 'product_sales',
   data: any,
   meta: ReportFilterMeta,
   shop: ShopDetails
 ) {
+  const XLSX = await import('xlsx');
   const wb = XLSX.utils.book_new();
   const dateStr = meta.generatedAt || new Date().toLocaleString('en-IN');
   const shopAddr = formatShopAddress(shop);
@@ -427,12 +426,16 @@ export function exportReportToExcel(
    2. PDF EXPORT ENGINE (Clean A4 Document - Free of Unicode corruptions)
    ========================================================================== */
 
-export function exportReportToPDF(
+export async function exportReportToPDF(
   reportType: 'sales' | 'inventory' | 'financial' | 'customer' | 'supplier' | 'product_sales',
   data: any,
   meta: ReportFilterMeta,
   shop: ShopDetails
 ) {
+  const { jsPDF } = await import('jspdf');
+  const autoTableModule = await import('jspdf-autotable');
+  const autoTableFn = autoTableModule.default || autoTableModule;
+
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',

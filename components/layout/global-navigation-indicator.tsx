@@ -31,12 +31,12 @@ export function GlobalNavigationIndicator() {
   const [isNavigating, setIsNavigating] = useState(false);
   const [indicatorText, setIndicatorText] = useState('Rendering...');
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const safetyTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Detect route / searchParam changes to complete loading
   useEffect(() => {
-    if (timerRef.current) {
-      clearTimeout(timerRef.current);
-    }
+    if (timerRef.current) clearTimeout(timerRef.current);
+    if (safetyTimerRef.current) clearTimeout(safetyTimerRef.current);
     setIsNavigating(false);
   }, [pathname, searchParams]);
 
@@ -67,13 +67,20 @@ export function GlobalNavigationIndicator() {
       if (timerRef.current) clearTimeout(timerRef.current);
       timerRef.current = setTimeout(() => {
         setIsNavigating(true);
-      }, 200);
+
+        // Safety fallback timer: guarantee auto-dismissal after 3.5s
+        if (safetyTimerRef.current) clearTimeout(safetyTimerRef.current);
+        safetyTimerRef.current = setTimeout(() => {
+          setIsNavigating(false);
+        }, 3500);
+      }, 180);
     };
 
     document.addEventListener('click', handleAnchorClick, true);
     return () => {
       document.removeEventListener('click', handleAnchorClick, true);
       if (timerRef.current) clearTimeout(timerRef.current);
+      if (safetyTimerRef.current) clearTimeout(safetyTimerRef.current);
     };
   }, [pathname]);
 

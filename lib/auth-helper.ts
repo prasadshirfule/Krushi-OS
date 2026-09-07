@@ -1,3 +1,4 @@
+import { cache } from 'react';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { createServerAdminClient } from '@/lib/supabase/admin';
 import { hasPermission } from '@/lib/permissions';
@@ -107,10 +108,9 @@ export async function ensureUserAndShop(authUser: { id: string; email?: string; 
 }
 
 /**
- * Resolves the currently authenticated user and verifies required permissions.
- * Throws an authentication error if no active session exists.
+ * Request-scoped cached resolver for the base authenticated user.
  */
-export async function getAuthAndPermissions(requiredPermission?: string): Promise<AuthenticatedUser> {
+const resolveAuthenticatedUser = cache(async (): Promise<AuthenticatedUser> => {
   const supabase = await createServerSupabaseClient();
   const { data: { user }, error: authError } = await supabase.auth.getUser();
 
@@ -123,6 +123,16 @@ export async function getAuthAndPermissions(requiredPermission?: string): Promis
   if (!userData?.shop_id) {
     throw new Error("Your shop profile is not configured. Please complete setup.");
   }
+
+  return userData;
+});
+
+/**
+ * Resolves the currently authenticated user and verifies required permissions.
+ * Throws an authentication error if no active session exists.
+ */
+export async function getAuthAndPermissions(requiredPermission?: string): Promise<AuthenticatedUser> {
+  const userData = await resolveAuthenticatedUser();
 
   if (requiredPermission && userData.roles?.name && !hasPermission(userData.roles.name, requiredPermission)) {
     throw new Error(`Permission denied: requires '${requiredPermission}'`);

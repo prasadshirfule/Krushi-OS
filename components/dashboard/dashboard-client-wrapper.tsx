@@ -63,35 +63,29 @@ export default function DashboardClientWrapper({
     setExpiringBatches(initialExpiring);
     setActivities(initialActivities);
 
-    const handleStorageOrEvent = () => {
-      syncData();
-      router.refresh();
-    };
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
+    let debounceTimer: NodeJS.Timeout | null = null;
+    const handleDataMutationEvent = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
         syncData();
-      }
+      }, 300);
     };
 
-    window.addEventListener('krushi-sales-updated', handleStorageOrEvent);
-    window.addEventListener('krushi-products-updated', handleStorageOrEvent);
-    window.addEventListener('krushi-customers-updated', handleStorageOrEvent);
-    window.addEventListener('krushi-ledger-updated', handleStorageOrEvent);
-    window.addEventListener('storage', handleStorageOrEvent);
-    window.addEventListener('focus', handleStorageOrEvent);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('krushi-sales-updated', handleDataMutationEvent);
+    window.addEventListener('krushi-products-updated', handleDataMutationEvent);
+    window.addEventListener('krushi-customers-updated', handleDataMutationEvent);
+    window.addEventListener('krushi-ledger-updated', handleDataMutationEvent);
+    window.addEventListener('storage', handleDataMutationEvent);
 
     return () => {
-      window.removeEventListener('krushi-sales-updated', handleStorageOrEvent);
-      window.removeEventListener('krushi-products-updated', handleStorageOrEvent);
-      window.removeEventListener('krushi-customers-updated', handleStorageOrEvent);
-      window.removeEventListener('krushi-ledger-updated', handleStorageOrEvent);
-      window.removeEventListener('storage', handleStorageOrEvent);
-      window.removeEventListener('focus', handleStorageOrEvent);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      if (debounceTimer) clearTimeout(debounceTimer);
+      window.removeEventListener('krushi-sales-updated', handleDataMutationEvent);
+      window.removeEventListener('krushi-products-updated', handleDataMutationEvent);
+      window.removeEventListener('krushi-customers-updated', handleDataMutationEvent);
+      window.removeEventListener('krushi-ledger-updated', handleDataMutationEvent);
+      window.removeEventListener('storage', handleDataMutationEvent);
     };
-  }, [initialStats, initialLowStock, initialExpiring, initialActivities, syncData, router]);
+  }, [initialStats, initialLowStock, initialExpiring, initialActivities, syncData]);
 
   return (
     <div className="flex flex-col gap-6 p-6">

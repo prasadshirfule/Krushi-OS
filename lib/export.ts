@@ -1,7 +1,3 @@
-import * as XLSX from 'xlsx'
-import { jsPDF } from 'jspdf'
-import 'jspdf-autotable'
-
 export function exportToCSV(data: any[], filename: string, columns: { key: string; header: string }[]) {
   const csvRows = []
   const headers = columns.map(c => c.header)
@@ -30,7 +26,8 @@ export function exportToCSV(data: any[], filename: string, columns: { key: strin
   document.body.removeChild(link)
 }
 
-export function exportToExcel(data: any[], filename: string, columns: { key: string; header: string }[]) {
+export async function exportToExcel(data: any[], filename: string, columns: { key: string; header: string }[]) {
+  const XLSX = await import('xlsx')
   const formattedData = data.map(item => {
     const row: Record<string, any> = {}
     columns.forEach(col => {
@@ -46,11 +43,13 @@ export function exportToExcel(data: any[], filename: string, columns: { key: str
   XLSX.writeFile(workbook, `${filename}.xlsx`)
 }
 
-export function generateLedgerPDF(
+export async function generateLedgerPDF(
   entries: any[], 
   entity: any, 
   settings: any
 ) {
+  const { jsPDF } = await import('jspdf')
+  await import('jspdf-autotable')
   const doc = new jsPDF()
   
   doc.setFontSize(18)
@@ -70,23 +69,29 @@ export function generateLedgerPDF(
     entry.balanceAfter.toFixed(2)
   ])
 
-  doc.autoTable({
-    startY: 45,
-    head: [['Date', 'Description', 'Debit', 'Credit', 'Balance']],
-    body: tableData,
-    theme: 'grid'
-  })
+  // @ts-ignore
+  if (typeof doc.autoTable === 'function') {
+    // @ts-ignore
+    doc.autoTable({
+      startY: 45,
+      head: [['Date', 'Description', 'Debit', 'Credit', 'Balance']],
+      body: tableData,
+      theme: 'grid'
+    })
+  }
 
   return doc
 }
 
-export function generateReportPDF(
+export async function generateReportPDF(
   title: string, 
   data: any[], 
   columns: { key: string; header: string }[], 
   settings: any,
   summary?: Record<string, string>
 ) {
+  const { jsPDF } = await import('jspdf')
+  await import('jspdf-autotable')
   const doc = new jsPDF()
   
   doc.setFontSize(18)
@@ -97,15 +102,19 @@ export function generateReportPDF(
   const headers = columns.map(c => c.header)
   const tableData = data.map(row => columns.map(c => row[c.key]?.toString() || '-'))
 
-  doc.autoTable({
-    startY: 35,
-    head: [headers],
-    body: tableData,
-    theme: 'grid'
-  })
+  // @ts-ignore
+  if (typeof doc.autoTable === 'function') {
+    // @ts-ignore
+    doc.autoTable({
+      startY: 35,
+      head: [headers],
+      body: tableData,
+      theme: 'grid'
+    })
+  }
 
   // @ts-ignore
-  let finalY = doc.lastAutoTable.finalY || 50
+  let finalY = doc.lastAutoTable?.finalY || 50
 
   if (summary) {
     finalY += 10
