@@ -1,12 +1,12 @@
 "use client";
 
-import React, { useState, useTransition } from "react";
+import React, { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { FileSpreadsheet, FileText, Printer, Loader2 } from "lucide-react";
+import { FileText, Printer, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { ShopDetails } from "@/lib/shop-details";
-import { exportReportToExcel, exportReportToPDF, printReportDocument, ReportFilterMeta } from "@/lib/report-export";
+import { exportReportToPDF, printReportDocument, ReportFilterMeta } from "@/lib/report-export";
 import { SalesReport } from "@/components/reports/sales-report";
 import { InventoryReport } from "@/components/reports/inventory-report";
 import { FinancialReport } from "@/components/reports/financial-report";
@@ -31,7 +31,6 @@ export function ReportsContainer({
   shopProfile,
 }: ReportsContainerProps) {
   const [activeTab, setActiveTab] = useState<string>("sales");
-  const [isExportingExcel, setIsExportingExcel] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
 
@@ -117,23 +116,8 @@ export function ReportsContainer({
     }
   };
 
-  const handleExportExcel = async () => {
-    if (isExportingExcel || isExportingPdf || isPrinting) return;
-    setIsExportingExcel(true);
-    try {
-      const { type, data, meta } = getCurrentReportContext();
-      exportReportToExcel(type, data, meta, shopProfile);
-      toast.success(`${meta.title} exported to Excel successfully.`);
-    } catch (err) {
-      console.error("Excel Export error:", err);
-      toast.error("Unable to generate report. Please try again.");
-    } finally {
-      setIsExportingExcel(false);
-    }
-  };
-
   const handleExportPDF = async () => {
-    if (isExportingExcel || isExportingPdf || isPrinting) return;
+    if (isExportingPdf || isPrinting) return;
     setIsExportingPdf(true);
     try {
       const { type, data, meta } = getCurrentReportContext();
@@ -148,7 +132,7 @@ export function ReportsContainer({
   };
 
   const handlePrint = async () => {
-    if (isExportingExcel || isExportingPdf || isPrinting) return;
+    if (isExportingPdf || isPrinting) return;
     setIsPrinting(true);
     try {
       const { type, data, meta } = getCurrentReportContext();
@@ -163,7 +147,7 @@ export function ReportsContainer({
     }
   };
 
-  const isBusy = isExportingExcel || isExportingPdf || isPrinting;
+  const isBusy = isExportingPdf || isPrinting;
 
   return (
     <div className="space-y-6">
@@ -176,29 +160,8 @@ export function ReportsContainer({
           </p>
         </div>
 
-        {/* Global Clean Export Toolbar */}
-        <div className="flex flex-wrap items-center gap-2 p-1.5 bg-muted/60 dark:bg-muted/30 border rounded-lg shadow-sm">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleExportExcel}
-            disabled={isBusy}
-            className="h-9 px-3.5 bg-background hover:bg-accent hover:text-accent-foreground font-medium text-xs sm:text-sm transition-all shadow-xs"
-            title="Download Excel (.xlsx)"
-          >
-            {isExportingExcel ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin text-emerald-600" />
-                <span>Generating Excel...</span>
-              </>
-            ) : (
-              <>
-                <FileSpreadsheet className="mr-2 h-4 w-4 text-emerald-600" />
-                <span>Download Excel</span>
-              </>
-            )}
-          </Button>
-
+        {/* Global Clean Export Toolbar (PDF & Print only) */}
+        <div className="flex items-center gap-2 p-1.5 bg-muted/60 dark:bg-muted/30 border rounded-lg shadow-xs">
           <Button
             variant="outline"
             size="sm"
@@ -276,6 +239,7 @@ export function ReportsContainer({
         <TabsContent value="inventory" className="mt-4 focus-visible:outline-none">
           <InventoryReport
             data={initialInventory}
+            shopProfile={shopProfile}
             onFilterChange={(filteredData, meta) => {
               setInventoryData(filteredData);
               setInventoryMeta(meta);

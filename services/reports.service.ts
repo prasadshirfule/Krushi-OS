@@ -149,6 +149,77 @@ export async function getSupplierReport(shopId: string, params: any = {}) {
   }
 }
 
+export async function getProductSalesReport(
+  shopId: string,
+  productId: string,
+  params: { dateFrom?: string; dateTo?: string } = {}
+) {
+  try {
+    const supabase = await createServerSupabaseClient();
+    
+    // 1. Fetch Product details
+    const { data: product } = await supabase
+      .from('products')
+      .select('*, category:categories(name)')
+      .eq('id', productId)
+      .eq('shop_id', shopId)
+      .maybeSingle();
+
+    // 2. Fetch sale items joined with sales
+    let query = supabase
+      .from('sale_items')
+      .select('*, sale:sales!inner(id, invoice_number, sale_date, payment_status, status, shop_id, customer:customers(name, mobile, village))')
+      .eq('product_id', productId)
+      .eq('sale.shop_id', shopId)
+      .eq('sale.status', 'completed');
+
+    if (params.dateFrom) query = query.gte('sale.sale_date', params.dateFrom);
+    if (params.dateTo) query = query.lte('sale.sale_date', params.dateTo);
+
+    query = query.order('created_at', { ascending: false });
+
+    const { data, error } = await query;
+    if (error) {
+      console.error("Error fetching product sales report:", error);
+      return { product, items: [], totalQuantity: 0, totalSales: 0, totalGST: 0, totalInvoices: 0 };
+    }
+
+    const items = (data || []).map((item: any) => ({
+      id: item.id,
+      invoice_number: item.sale?.invoice_number || '-',
+      sale_date: item.sale?.sale_date || item.created_at,
+      customer_name: item.sale?.customer?.name || 'Walk-in Customer',
+      customer_mobile: item.sale?.customer?.mobile || '-',
+      customer_village: item.sale?.customer?.village || '-',
+      quantity: Number(item.quantity || 0),
+      unit_price: Number(item.unit_price || 0),
+      gst_rate: Number(item.gst_rate || 0),
+      gst_amount: Number(item.tax_amount || 0),
+      total_amount: Number(item.total_amount || 0),
+      profit_amount: Number(item.profit_amount || 0),
+      payment_status: (item.sale?.payment_status || 'PAID').toUpperCase(),
+    }));
+
+    const totalQuantity = items.reduce((acc: number, it: any) => acc + it.quantity, 0);
+    const totalSales = items.reduce((acc: number, it: any) => acc + it.total_amount, 0);
+    const totalGST = items.reduce((acc: number, it: any) => acc + it.gst_amount, 0);
+    const uniqueInvoices = new Set(items.map((it: any) => it.invoice_number)).size;
+
+    return {
+      product,
+      items,
+      totalQuantity,
+      totalSales,
+      totalGST,
+      totalInvoices: uniqueInvoices
+    };
+  } catch (error) {
+    console.error("Failed to load product sales report:", error);
+    return { product: null, items: [], totalQuantity: 0, totalSales: 0, totalGST: 0, totalInvoices: 0 };
+  }
+}
+
 export async function exportReport(shopId: string, params: any = {}) {
   return { success: true, downloadUrl: '' };
 }
+

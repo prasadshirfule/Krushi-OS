@@ -55,6 +55,16 @@ export async function getSupplierReportAction(params: { supplierId?: string, dat
   }
 }
 
+export async function getProductSalesReportAction(productId: string, params: { dateFrom?: string, dateTo?: string } = {}): Promise<ActionResult<any>> {
+  try {
+    const userData = await getAuthAndPermissions('reports.view');
+    const result = await reportsService.getProductSalesReport(userData.shop_id, productId, params);
+    return { success: true, data: result };
+  } catch (error: any) {
+    return { success: false, error: error.message || 'An unexpected error occurred' };
+  }
+}
+
 export async function exportReportAction(params: { type: string, format: 'csv'|'excel'|'pdf', [key: string]: any }): Promise<ActionResult<any>> {
   try {
     const userData = await getAuthAndPermissions('reports.export');
@@ -64,3 +74,4 @@ export async function exportReportAction(params: { type: string, format: 'csv'|'
     return { success: false, error: error.message || 'An unexpected error occurred' };
   }
 }
+

@@ -32,7 +32,7 @@ export default function StatsCards({ stats }: StatsCardsProps) {
   const totalOutstanding = Number(stats?.totalOutstanding ?? 0);
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Today's Sales</CardTitle>
@@ -41,17 +41,6 @@ export default function StatsCards({ stats }: StatsCardsProps) {
         <CardContent>
           <div className="text-2xl font-bold">{formatCurrency(salesAmount)}</div>
           <p className="text-xs text-muted-foreground">{salesCount} bills today</p>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Today's Profit</CardTitle>
-          <TrendingUp className="h-4 w-4 text-blue-600" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{formatCurrency(salesProfit)}</div>
-          <p className="text-xs text-muted-foreground">Estimated margin</p>
         </CardContent>
       </Card>
 

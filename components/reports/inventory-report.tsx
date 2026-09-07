@@ -5,8 +5,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DataTable } from "@/components/ui/data-table";
 import { formatCurrency } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { History } from "lucide-react";
 import { ReportFilterMeta } from "@/lib/report-export";
+import { ShopDetails, DEFAULT_SHOP_DETAILS } from "@/lib/shop-details";
+import { formatProductNameWithSize } from "@/lib/validations";
+import { ProductSalesModal } from "@/components/reports/product-sales-modal";
 
 interface InventoryReportProps {
   data?: {
@@ -14,12 +19,19 @@ interface InventoryReportProps {
     totalValue: number;
     lowStockCount: number;
   };
+  shopProfile?: ShopDetails;
   onFilterChange?: (filteredData: any, meta: Partial<ReportFilterMeta>) => void;
 }
 
-export function InventoryReport({ data, onFilterChange }: InventoryReportProps) {
+export function InventoryReport({
+  data,
+  shopProfile = DEFAULT_SHOP_DETAILS,
+  onFilterChange,
+}: InventoryReportProps) {
   const [subTab, setSubTab] = useState<string>("current");
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [selectedProductForSales, setSelectedProductForSales] = useState<any | null>(null);
+  const [isSalesModalOpen, setIsSalesModalOpen] = useState(false);
 
   const rawProducts = useMemo(() => data?.products || [], [data?.products]);
 
@@ -28,10 +40,11 @@ export function InventoryReport({ data, onFilterChange }: InventoryReportProps) 
     if (!searchQuery.trim()) return rawProducts;
     const q = searchQuery.toLowerCase().trim();
     return rawProducts.filter((p: any) => {
-      const nameMatch = (p.name || "").toLowerCase().includes(q);
+      const formattedName = formatProductNameWithSize(p.name, p.pack_size, p.unit).toLowerCase();
+      const rawName = (p.name || "").toLowerCase();
       const skuMatch = (p.sku || "").toLowerCase().includes(q);
       const catMatch = (p.category?.name || "").toLowerCase().includes(q);
-      return nameMatch || skuMatch || catMatch;
+      return formattedName.includes(q) || rawName.includes(q) || skuMatch || catMatch;
     });
   }, [rawProducts, searchQuery]);
 
@@ -67,8 +80,24 @@ export function InventoryReport({ data, onFilterChange }: InventoryReportProps) 
     }
   }, [activeProducts, totalVal, lowStock.length, subTab, searchQuery, onFilterChange]);
 
+  const handleOpenProductSales = (prod: any) => {
+    setSelectedProductForSales(prod);
+    setIsSalesModalOpen(true);
+  };
+
   const columns = [
-    { accessorKey: "name", header: "Product Name" },
+    {
+      accessorKey: "name",
+      header: "Product Name",
+      cell: ({ row }: any) => {
+        const displayName = formatProductNameWithSize(
+          row.original.name,
+          row.original.pack_size,
+          row.original.unit
+        );
+        return <span className="font-semibold text-foreground">{displayName || row.original.name}</span>;
+      },
+    },
     {
       accessorKey: "sku",
       header: "SKU",
@@ -103,6 +132,24 @@ export function InventoryReport({ data, onFilterChange }: InventoryReportProps) 
           <Badge variant={isLow ? "destructive" : "default"}>
             {isLow ? "Low Stock" : "In Stock"}
           </Badge>
+        );
+      },
+    },
+    {
+      id: "actions",
+      header: "Action",
+      cell: ({ row }: any) => {
+        return (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handleOpenProductSales(row.original)}
+            className="h-7 px-2 text-xs font-medium text-primary hover:bg-primary/10 border-primary/30"
+            title="View Product Sales History"
+          >
+            <History className="h-3.5 w-3.5 mr-1" />
+            Sales
+          </Button>
         );
       },
     },
@@ -160,6 +207,19 @@ export function InventoryReport({ data, onFilterChange }: InventoryReportProps) 
           <DataTable columns={columns} data={lowStock} />
         )}
       </div>
+
+      {/* Product Sales History Modal */}
+      {selectedProductForSales && (
+        <ProductSalesModal
+          product={selectedProductForSales}
+          isOpen={isSalesModalOpen}
+          onClose={() => {
+            setIsSalesModalOpen(false);
+            setSelectedProductForSales(null);
+          }}
+          shopProfile={shopProfile}
+        />
+      )}
     </div>
   );
 }
