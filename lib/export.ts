@@ -123,3 +123,5 @@ export function generateReportPDF(
 
   return doc
 }
+
+export * from './report-export';

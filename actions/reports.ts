@@ -5,7 +5,7 @@ import { getAuthAndPermissions } from '@/lib/auth-helper';
 import * as reportsService from '@/services/reports.service';
 import { ActionResult } from './types';
 
-export async function getSalesReportAction(params: { period: string, dateFrom?: string, dateTo?: string, groupBy?: string }): Promise<ActionResult<any>> {
+export async function getSalesReportAction(params: { period?: string, dateFrom?: string, dateTo?: string, groupBy?: string }): Promise<ActionResult<any>> {
   try {
     const userData = await getAuthAndPermissions('reports.view');
     const result = await reportsService.getSalesReport(userData.shop_id, params);

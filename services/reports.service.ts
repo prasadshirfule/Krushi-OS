@@ -5,7 +5,7 @@ export async function getSalesReport(shopId: string, params: { period?: string, 
     const supabase = await createServerSupabaseClient();
     let query = supabase
       .from('sales')
-      .select('*, customer:customers(name), sale_items(*, product:products(name))')
+      .select('*, customer:customers(name, mobile, village), sale_items(*, product:products(name, sku, unit))')
       .eq('shop_id', shopId)
       .eq('status', 'completed');
 
@@ -52,7 +52,8 @@ export async function getInventoryReport(shopId: string, params: any = {}) {
     const { data, error } = await supabase
       .from('products')
       .select('*, category:categories(name), batches:product_batches(*)')
-      .eq('shop_id', shopId);
+      .eq('shop_id', shopId)
+      .order('name', { ascending: true });
 
     if (error) {
       console.error("Error fetching inventory report:", error);
@@ -73,16 +74,23 @@ export async function getInventoryReport(shopId: string, params: any = {}) {
 export async function getFinancialReport(shopId: string, params: { dateFrom?: string, dateTo?: string } = {}) {
   try {
     const supabase = await createServerSupabaseClient();
-    let expenseQuery = supabase.from('expenses').select('amount').eq('shop_id', shopId);
+    let expenseQuery = supabase
+      .from('expenses')
+      .select('id, date, amount, description, payment_method, category:expense_categories(name)')
+      .eq('shop_id', shopId);
+
     if (params.dateFrom) expenseQuery = expenseQuery.gte('date', params.dateFrom);
     if (params.dateTo) expenseQuery = expenseQuery.lte('date', params.dateTo);
+
+    expenseQuery = expenseQuery.order('date', { ascending: false });
 
     const [salesReport, expenseRes] = await Promise.all([
       getSalesReport(shopId, params),
       expenseQuery
     ]);
 
-    const totalExpenses = (expenseRes.data || []).reduce((acc, e) => acc + Number(e.amount || 0), 0);
+    const expenses = expenseRes.data || [];
+    const totalExpenses = expenses.reduce((acc, e) => acc + Number(e.amount || 0), 0);
     const grossProfit = salesReport.totalProfit;
     const netProfit = grossProfit - totalExpenses;
 
@@ -91,11 +99,13 @@ export async function getFinancialReport(shopId: string, params: { dateFrom?: st
       totalExpenses, 
       grossProfit, 
       netProfit,
-      salesCount: salesReport.totalCount
+      salesCount: salesReport.totalCount,
+      sales: salesReport.sales,
+      expenses
     };
   } catch (error) {
     console.error("Failed to load financial report:", error);
-    return { revenue: 0, totalExpenses: 0, grossProfit: 0, netProfit: 0, salesCount: 0 };
+    return { revenue: 0, totalExpenses: 0, grossProfit: 0, netProfit: 0, salesCount: 0, sales: [], expenses: [] };
   }
 }
 
