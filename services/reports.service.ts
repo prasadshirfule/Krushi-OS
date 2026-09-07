@@ -157,53 +157,97 @@ export async function getProductSalesReport(
   try {
     const supabase = await createServerSupabaseClient();
     
-    // 1. Fetch Product details
-    const { data: product } = await supabase
+    // 1. Fetch Product details for verification and metadata
+    const { data: product, error: prodError } = await supabase
       .from('products')
       .select('*, category:categories(name)')
       .eq('id', productId)
       .eq('shop_id', shopId)
       .maybeSingle();
 
+    if (prodError) {
+      console.error("Error fetching product details for sales report:", prodError);
+    }
+
     // 2. Fetch sale items joined with sales
+    let rawItems: any[] = [];
+
+    // Primary: Join sale_items with sales
     let query = supabase
       .from('sale_items')
-      .select('*, sale:sales!inner(id, invoice_number, sale_date, payment_status, status, shop_id, customer:customers(name, mobile, village))')
+      .select('*, sales!inner(id, invoice_number, sale_date, payment_status, status, shop_id, customer:customers(name, mobile, village))')
       .eq('product_id', productId)
-      .eq('sale.shop_id', shopId)
-      .eq('sale.status', 'completed');
+      .eq('sales.shop_id', shopId)
+      .eq('sales.status', 'completed');
 
-    if (params.dateFrom) query = query.gte('sale.sale_date', params.dateFrom);
-    if (params.dateTo) query = query.lte('sale.sale_date', params.dateTo);
+    if (params.dateFrom) query = query.gte('sales.sale_date', `${params.dateFrom}T00:00:00.000Z`);
+    if (params.dateTo) query = query.lte('sales.sale_date', `${params.dateTo}T23:59:59.999Z`);
 
     query = query.order('created_at', { ascending: false });
 
     const { data, error } = await query;
-    if (error) {
-      console.error("Error fetching product sales report:", error);
-      return { product, items: [], totalQuantity: 0, totalSales: 0, totalGST: 0, totalInvoices: 0 };
+
+    if (!error && Array.isArray(data)) {
+      rawItems = data;
+    } else {
+      console.warn("Direct join query issue, using resilient fallback:", error?.message);
+      
+      // Fallback: Query completed sales for the shop, then match sale_items
+      let salesQuery = supabase
+        .from('sales')
+        .select('id, invoice_number, sale_date, payment_status, status, shop_id, customer:customers(name, mobile, village)')
+        .eq('shop_id', shopId)
+        .eq('status', 'completed');
+
+      if (params.dateFrom) salesQuery = salesQuery.gte('sale_date', `${params.dateFrom}T00:00:00.000Z`);
+      if (params.dateTo) salesQuery = salesQuery.lte('sale_date', `${params.dateTo}T23:59:59.999Z`);
+
+      const { data: shopSales, error: salesErr } = await salesQuery;
+
+      if (!salesErr && Array.isArray(shopSales) && shopSales.length > 0) {
+        const saleIds = shopSales.map((s: any) => s.id);
+        const salesMap = new Map<string, any>(shopSales.map((s: any) => [s.id, s]));
+
+        const { data: dbSaleItems, error: itemsErr } = await supabase
+          .from('sale_items')
+          .select('*')
+          .eq('product_id', productId)
+          .in('sale_id', saleIds)
+          .order('created_at', { ascending: false });
+
+        if (!itemsErr && Array.isArray(dbSaleItems)) {
+          rawItems = dbSaleItems.map((it: any) => ({
+            ...it,
+            sales: salesMap.get(it.sale_id)
+          }));
+        }
+      }
     }
 
-    const items = (data || []).map((item: any) => ({
-      id: item.id,
-      invoice_number: item.sale?.invoice_number || '-',
-      sale_date: item.sale?.sale_date || item.created_at,
-      customer_name: item.sale?.customer?.name || 'Walk-in Customer',
-      customer_mobile: item.sale?.customer?.mobile || '-',
-      customer_village: item.sale?.customer?.village || '-',
-      quantity: Number(item.quantity || 0),
-      unit_price: Number(item.unit_price || 0),
-      gst_rate: Number(item.gst_rate || 0),
-      gst_amount: Number(item.tax_amount || 0),
-      total_amount: Number(item.total_amount || 0),
-      profit_amount: Number(item.profit_amount || 0),
-      payment_status: (item.sale?.payment_status || 'PAID').toUpperCase(),
-    }));
+    const items = rawItems.map((item: any) => {
+      const saleObj = item.sales || item.sale || {};
+      const customerObj = saleObj.customer || {};
+      return {
+        id: item.id,
+        invoice_number: saleObj.invoice_number || '-',
+        sale_date: saleObj.sale_date || item.created_at,
+        customer_name: customerObj.name || 'Walk-in Customer',
+        customer_mobile: customerObj.mobile || '-',
+        customer_village: customerObj.village || '-',
+        quantity: Number(item.quantity || 0),
+        unit_price: Number(item.unit_price || 0),
+        gst_rate: Number(item.gst_rate || 0),
+        gst_amount: Number(item.tax_amount || (Number(item.cgst_amount || 0) + Number(item.sgst_amount || 0)) || 0),
+        total_amount: Number(item.total_amount || 0),
+        profit_amount: Number(item.profit_amount || 0),
+        payment_status: (saleObj.payment_status || 'PAID').toUpperCase(),
+      };
+    });
 
     const totalQuantity = items.reduce((acc: number, it: any) => acc + it.quantity, 0);
     const totalSales = items.reduce((acc: number, it: any) => acc + it.total_amount, 0);
     const totalGST = items.reduce((acc: number, it: any) => acc + it.gst_amount, 0);
-    const uniqueInvoices = new Set(items.map((it: any) => it.invoice_number)).size;
+    const uniqueInvoices = new Set(items.map((it: any) => it.invoice_number).filter((inv: string) => inv && inv !== '-')).size;
 
     return {
       product,

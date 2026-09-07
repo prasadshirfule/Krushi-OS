@@ -11,6 +11,7 @@ import { History } from "lucide-react";
 import { ReportFilterMeta } from "@/lib/report-export";
 import { ShopDetails, DEFAULT_SHOP_DETAILS } from "@/lib/shop-details";
 import { formatProductNameWithSize } from "@/lib/validations";
+import { ProductSalesReportView } from "@/components/reports/product-sales-view";
 import { ProductSalesModal } from "@/components/reports/product-sales-modal";
 
 interface InventoryReportProps {
@@ -154,6 +155,18 @@ export function InventoryReport({
       },
     },
   ];
+
+  if (selectedProductForSales) {
+    return (
+      <ProductSalesReportView
+        product={selectedProductForSales}
+        shopProfile={shopProfile}
+        onBack={() => {
+          setSelectedProductForSales(null);
+        }}
+      />
+    );
+  }
 
   return (
     <div className="space-y-4">

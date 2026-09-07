@@ -285,8 +285,61 @@ export function exportReportToExcel(
     const wsSuppliers = XLSX.utils.aoa_to_sheet([...createMetaRows('Supplier Accounts Report'), suppHeaders, ...suppRows]);
     XLSX.utils.book_append_sheet(wb, wsSuppliers, 'Supplier Ledger');
   }
+  else if (reportType === 'product_sales') {
+    const items = data?.items || [];
+    const totalQty = Number(data?.totalQuantity || 0);
+    const totalSales = Number(data?.totalSales || 0);
+    const totalGST = Number(data?.totalGST || 0);
+    const totalInvoices = Number(data?.totalInvoices || 0);
 
-  const filename = getReportFilename(reportType, 'xlsx');
+    const pName = meta.productInfo ? formatProductNameWithSize(meta.productInfo.name, meta.productInfo.pack_size, meta.productInfo.unit) : 'Product';
+    const summaryRows = [
+      ...createMetaRows(`Product Sales Report - ${pName}`),
+      ['PRODUCT SALES METRICS', ''],
+      ['Metric', 'Value'],
+      ['Product Name', pName],
+      ['Product SKU', meta.productInfo?.sku || '-'],
+      ['Total Quantity Sold', totalQty],
+      ['Total Sales Revenue (₹)', totalSales],
+      ['Total GST Collected (₹)', totalGST],
+      ['Number of Invoices', totalInvoices]
+    ];
+    const wsSummary = XLSX.utils.aoa_to_sheet(summaryRows);
+    wsSummary['!cols'] = [{ wch: 32 }, { wch: 25 }];
+    XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary');
+
+    const detailHeaders = [
+      'Invoice #', 'Date', 'Customer Name', 'Customer Mobile', 'Customer Village',
+      'Quantity Sold', 'Selling Price (₹)', 'GST Rate (%)', 'GST Amount (₹)', 'Total Amount (₹)', 'Payment Status'
+    ];
+
+    const detailRows = items.map((it: any) => [
+      it.invoice_number || '-',
+      formatDateValue(it.sale_date),
+      it.customer_name || 'Walk-in Customer',
+      it.customer_mobile || '-',
+      it.customer_village || '-',
+      Number(it.quantity || 0),
+      Number(it.unit_price || 0),
+      Number(it.gst_rate || 0),
+      Number(it.gst_amount || 0),
+      Number(it.total_amount || 0),
+      (it.payment_status || 'PAID').toUpperCase()
+    ]);
+
+    const wsDetails = XLSX.utils.aoa_to_sheet([
+      ...createMetaRows(`Product Sales Transactions - ${pName}`),
+      detailHeaders,
+      ...detailRows
+    ]);
+    wsDetails['!cols'] = [
+      { wch: 18 }, { wch: 12 }, { wch: 25 }, { wch: 16 }, { wch: 18 },
+      { wch: 14 }, { wch: 16 }, { wch: 14 }, { wch: 14 }, { wch: 16 }, { wch: 16 }
+    ];
+    XLSX.utils.book_append_sheet(wb, wsDetails, 'Product Sales');
+  }
+
+  const filename = getReportFilename(reportType, 'xlsx', meta.productInfo?.name);
   XLSX.writeFile(wb, filename);
 }
 
