@@ -42,3 +42,4 @@ next-env.d.ts
 
 # demo store local persistence
 .demo-store/
+supabase/.temp/
