@@ -40,24 +40,18 @@ export function ReportsContainer({
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
 
-  // Tab Data Cache & Loading States
-  const [salesData, setSalesData] = useState<any>(initialSales);
-  const [salesMeta, setSalesMeta] = useState<Partial<ReportFilterMeta>>({ periodLabel: "All Time" });
-
-  const [inventoryData, setInventoryData] = useState<any>(initialInventory);
-  const [inventoryMeta, setInventoryMeta] = useState<Partial<ReportFilterMeta>>({ statusFilter: "All Products" });
-
-  const [financialData, setFinancialData] = useState<any>(initialFinancial);
-  const [financialMeta, setFinancialMeta] = useState<Partial<ReportFilterMeta>>({ periodLabel: "All Time" });
-
-  const [customerData, setCustomerData] = useState<any>(initialCustomer);
-  const [customerMeta, setCustomerMeta] = useState<Partial<ReportFilterMeta>>({ statusFilter: "All Customers" });
-
-  const [supplierData, setSupplierData] = useState<any>(initialSupplier);
-  const [supplierMeta, setSupplierMeta] = useState<Partial<ReportFilterMeta>>({ statusFilter: "All Suppliers" });
+  // Raw Tab Data Cache & Loading States (Stored once and never mutated by child filters)
+  const [rawSales] = useState<any>(initialSales);
+  const [rawInventory, setRawInventory] = useState<any>(initialInventory);
+  const [rawFinancial, setRawFinancial] = useState<any>(initialFinancial);
+  const [rawCustomer, setRawCustomer] = useState<any>(initialCustomer);
+  const [rawSupplier, setRawSupplier] = useState<any>(initialSupplier);
 
   const [loadingTab, setLoadingTab] = useState<string | null>(null);
   const [tabError, setTabError] = useState<{ tab: string; message: string } | null>(null);
+
+  // Store active filtered data and meta in a ref for PDF / Print export to avoid triggering parent re-render loops
+  const exportContextMapRef = useRef<Record<string, { data: any; meta: Partial<ReportFilterMeta> }>>({});
 
   // Track request IDs and mounted state to safely cancel/ignore stale responses
   const activeRequestIdRef = useRef<number>(0);
@@ -75,7 +69,7 @@ export function ReportsContainer({
     async (tab: string) => {
       if (!isMountedRef.current) return;
 
-      if (tab === "inventory" && !inventoryData) {
+      if (tab === "inventory" && !rawInventory) {
         setLoadingTab("inventory");
         setTabError(null);
         const reqId = ++activeRequestIdRef.current;
@@ -83,7 +77,7 @@ export function ReportsContainer({
           const res = await getInventoryReportAction({ type: "current" });
           if (!isMountedRef.current || reqId !== activeRequestIdRef.current) return;
           if (res.success && res.data) {
-            setInventoryData(res.data);
+            setRawInventory(res.data);
           } else {
             setTabError({ tab: "inventory", message: (res as any).error || "Failed to load inventory report" });
           }
@@ -95,7 +89,7 @@ export function ReportsContainer({
             setLoadingTab(null);
           }
         }
-      } else if (tab === "financial" && !financialData) {
+      } else if (tab === "financial" && !rawFinancial) {
         setLoadingTab("financial");
         setTabError(null);
         const reqId = ++activeRequestIdRef.current;
@@ -103,7 +97,7 @@ export function ReportsContainer({
           const res = await getFinancialReportAction({});
           if (!isMountedRef.current || reqId !== activeRequestIdRef.current) return;
           if (res.success && res.data) {
-            setFinancialData(res.data);
+            setRawFinancial(res.data);
           } else {
             setTabError({ tab: "financial", message: (res as any).error || "Failed to load financial report" });
           }
@@ -115,7 +109,7 @@ export function ReportsContainer({
             setLoadingTab(null);
           }
         }
-      } else if (tab === "customer" && !customerData) {
+      } else if (tab === "customer" && !rawCustomer) {
         setLoadingTab("customer");
         setTabError(null);
         const reqId = ++activeRequestIdRef.current;
@@ -123,7 +117,7 @@ export function ReportsContainer({
           const res = await getCustomerReportAction({});
           if (!isMountedRef.current || reqId !== activeRequestIdRef.current) return;
           if (res.success && res.data) {
-            setCustomerData(res.data);
+            setRawCustomer(res.data);
           } else {
             setTabError({ tab: "customer", message: (res as any).error || "Failed to load customer report" });
           }
@@ -135,7 +129,7 @@ export function ReportsContainer({
             setLoadingTab(null);
           }
         }
-      } else if (tab === "supplier" && !supplierData) {
+      } else if (tab === "supplier" && !rawSupplier) {
         setLoadingTab("supplier");
         setTabError(null);
         const reqId = ++activeRequestIdRef.current;
@@ -143,7 +137,7 @@ export function ReportsContainer({
           const res = await getSupplierReportAction({});
           if (!isMountedRef.current || reqId !== activeRequestIdRef.current) return;
           if (res.success && res.data) {
-            setSupplierData(res.data);
+            setRawSupplier(res.data);
           } else {
             setTabError({ tab: "supplier", message: (res as any).error || "Failed to load supplier report" });
           }
@@ -157,7 +151,7 @@ export function ReportsContainer({
         }
       }
     },
-    [inventoryData, financialData, customerData, supplierData]
+    [rawInventory, rawFinancial, rawCustomer, rawSupplier]
   );
 
   const handleTabChange = (val: string) => {
@@ -165,93 +159,95 @@ export function ReportsContainer({
     loadTabData(val);
   };
 
-  // Stable callbacks for child tabs to prevent cascading re-renders
+  // Stable callbacks that store filtered data in refs without triggering parent re-render loops
   const handleSalesFilterChange = useCallback((filteredData: any, meta: Partial<ReportFilterMeta>) => {
-    setSalesData(filteredData);
-    setSalesMeta(meta);
+    exportContextMapRef.current["sales"] = { data: filteredData, meta };
   }, []);
 
   const handleInventoryFilterChange = useCallback((filteredData: any, meta: Partial<ReportFilterMeta>) => {
-    setInventoryData(filteredData);
-    setInventoryMeta(meta);
+    exportContextMapRef.current["inventory"] = { data: filteredData, meta };
   }, []);
 
   const handleFinancialFilterChange = useCallback((filteredData: any, meta: Partial<ReportFilterMeta>) => {
-    setFinancialData(filteredData);
-    setFinancialMeta(meta);
+    exportContextMapRef.current["financial"] = { data: filteredData, meta };
   }, []);
 
   const handleCustomerFilterChange = useCallback((filteredData: any, meta: Partial<ReportFilterMeta>) => {
-    setCustomerData(filteredData);
-    setCustomerMeta(meta);
+    exportContextMapRef.current["customer"] = { data: filteredData, meta };
   }, []);
 
   const handleSupplierFilterChange = useCallback((filteredData: any, meta: Partial<ReportFilterMeta>) => {
-    setSupplierData(filteredData);
-    setSupplierMeta(meta);
+    exportContextMapRef.current["supplier"] = { data: filteredData, meta };
   }, []);
 
   // Determine current active payload and metadata based on selected tab
   const getCurrentReportContext = () => {
+    const cached = exportContextMapRef.current[activeTab];
     switch (activeTab) {
       case "sales":
         return {
           type: "sales" as const,
-          data: salesData,
+          data: cached?.data || rawSales,
           meta: {
             reportType: "sales" as const,
             title: "Sales Report",
-            ...salesMeta,
+            periodLabel: "All Time",
+            ...cached?.meta,
           },
         };
       case "inventory":
         return {
           type: "inventory" as const,
-          data: inventoryData,
+          data: cached?.data || rawInventory,
           meta: {
             reportType: "inventory" as const,
             title: "Inventory Report",
-            ...inventoryMeta,
+            statusFilter: "All Products",
+            ...cached?.meta,
           },
         };
       case "financial":
         return {
           type: "financial" as const,
-          data: financialData,
+          data: cached?.data || rawFinancial,
           meta: {
             reportType: "financial" as const,
             title: "Financial Report",
-            ...financialMeta,
+            periodLabel: "All Time",
+            ...cached?.meta,
           },
         };
       case "customer":
         return {
           type: "customer" as const,
-          data: customerData,
+          data: cached?.data || rawCustomer,
           meta: {
             reportType: "customer" as const,
             title: "Customer Report",
-            ...customerMeta,
+            statusFilter: "All Customers",
+            ...cached?.meta,
           },
         };
       case "supplier":
         return {
           type: "supplier" as const,
-          data: supplierData,
+          data: cached?.data || rawSupplier,
           meta: {
             reportType: "supplier" as const,
             title: "Supplier Report",
-            ...supplierMeta,
+            statusFilter: "All Suppliers",
+            ...cached?.meta,
           },
         };
       default:
         return {
           type: "sales" as const,
-          data: salesData,
+          data: cached?.data || rawSales,
           meta: {
             reportType: "sales" as const,
             title: "Sales Report",
-            ...salesMeta,
+            periodLabel: "All Time",
+            ...cached?.meta,
           },
         };
     }
@@ -399,7 +395,7 @@ export function ReportsContainer({
 
         <TabsContent value="sales" className="mt-4 focus-visible:outline-none">
           <SalesReport
-            data={salesData}
+            data={rawSales}
             onFilterChange={handleSalesFilterChange}
           />
         </TabsContent>
@@ -409,9 +405,9 @@ export function ReportsContainer({
             renderLoadingSkeleton("Inventory Report")
           ) : tabError?.tab === "inventory" ? (
             renderErrorState("Inventory Report", "inventory")
-          ) : inventoryData ? (
+          ) : rawInventory ? (
             <InventoryReport
-              data={inventoryData}
+              data={rawInventory}
               shopProfile={shopProfile}
               onFilterChange={handleInventoryFilterChange}
             />
@@ -423,9 +419,9 @@ export function ReportsContainer({
             renderLoadingSkeleton("Financial Report")
           ) : tabError?.tab === "financial" ? (
             renderErrorState("Financial Report", "financial")
-          ) : financialData ? (
+          ) : rawFinancial ? (
             <FinancialReport
-              data={financialData}
+              data={rawFinancial}
               onFilterChange={handleFinancialFilterChange}
             />
           ) : null}
@@ -436,9 +432,9 @@ export function ReportsContainer({
             renderLoadingSkeleton("Customer Report")
           ) : tabError?.tab === "customer" ? (
             renderErrorState("Customer Report", "customer")
-          ) : customerData ? (
+          ) : rawCustomer ? (
             <CustomerReportTab
-              customers={customerData?.customers || (Array.isArray(customerData) ? customerData : [])}
+              customers={rawCustomer?.customers || (Array.isArray(rawCustomer) ? rawCustomer : [])}
               onFilterChange={handleCustomerFilterChange}
             />
           ) : null}
@@ -449,9 +445,9 @@ export function ReportsContainer({
             renderLoadingSkeleton("Supplier Report")
           ) : tabError?.tab === "supplier" ? (
             renderErrorState("Supplier Report", "supplier")
-          ) : supplierData ? (
+          ) : rawSupplier ? (
             <SupplierReportTab
-              suppliers={supplierData?.suppliers || (Array.isArray(supplierData) ? supplierData : [])}
+              suppliers={rawSupplier?.suppliers || (Array.isArray(rawSupplier) ? rawSupplier : [])}
               onFilterChange={handleSupplierFilterChange}
             />
           ) : null}

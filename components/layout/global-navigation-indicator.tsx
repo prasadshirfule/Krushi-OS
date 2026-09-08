@@ -40,14 +40,30 @@ export function GlobalNavigationIndicator() {
     setIsNavigating(false);
   }, [pathname, searchParams]);
 
-  // Intercept click on internal links
+  // Non-blocking, passive click observer for internal links
   useEffect(() => {
     const handleAnchorClick = (e: MouseEvent) => {
+      // Ignore if event was already prevented or non-standard click (modifier keys, right click, etc.)
+      if (
+        e.defaultPrevented ||
+        e.button !== 0 ||
+        e.metaKey ||
+        e.ctrlKey ||
+        e.altKey ||
+        e.shiftKey
+      ) {
+        return;
+      }
+
       const target = (e.target as HTMLElement).closest('a');
       if (!target) return;
+
+      // Ignore external, download, or blank target links
+      if (target.target && target.target !== '_self') return;
+      if (target.hasAttribute('download')) return;
       
       const href = target.getAttribute('href');
-      if (!href || href.startsWith('#') || href.startsWith('http') || href.startsWith('mailto')) return;
+      if (!href || href.startsWith('#') || href.startsWith('http') || href.startsWith('mailto') || href.startsWith('tel:')) return;
 
       const targetPath = href.split('?')[0];
       if (targetPath === pathname) return; // Same page click
@@ -63,22 +79,23 @@ export function GlobalNavigationIndicator() {
       
       setIndicatorText(label);
 
-      // Debounce 180ms before showing indicator
+      // Debounce 150ms before showing indicator
       if (timerRef.current) clearTimeout(timerRef.current);
       timerRef.current = setTimeout(() => {
         setIsNavigating(true);
 
-        // Safety fallback timer: guarantee auto-dismissal after 3.5s
+        // Safety fallback timer: guarantee auto-dismissal after 3.0s
         if (safetyTimerRef.current) clearTimeout(safetyTimerRef.current);
         safetyTimerRef.current = setTimeout(() => {
           setIsNavigating(false);
-        }, 3500);
-      }, 180);
+        }, 3000);
+      }, 150);
     };
 
-    document.addEventListener('click', handleAnchorClick, true);
+    // Use passive bubbling listener (false) to never intercept or block Next.js router
+    document.addEventListener('click', handleAnchorClick, false);
     return () => {
-      document.removeEventListener('click', handleAnchorClick, true);
+      document.removeEventListener('click', handleAnchorClick, false);
       if (timerRef.current) clearTimeout(timerRef.current);
       if (safetyTimerRef.current) clearTimeout(safetyTimerRef.current);
     };
