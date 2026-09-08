@@ -597,9 +597,9 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- 10. Grant RPC permissions
-GRANT EXECUTE ON FUNCTION generate_return_number(UUID, VARCHAR) TO authenticated, service_role, anon;
-GRANT EXECUTE ON FUNCTION process_sale_return(UUID, UUID, JSONB, UUID, VARCHAR, TEXT) TO authenticated, service_role, anon;
-GRANT EXECUTE ON FUNCTION cancel_sale(UUID, UUID, UUID, TEXT) TO authenticated, service_role, anon;
+GRANT EXECUTE ON FUNCTION generate_return_number(UUID, VARCHAR) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION process_sale_return(UUID, UUID, JSONB, UUID, VARCHAR, TEXT) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION cancel_sale(UUID, UUID, UUID, TEXT) TO authenticated, service_role;
 
 -- 11. Refresh PostgREST Schema Cache
 NOTIFY pgrst, 'reload schema';
