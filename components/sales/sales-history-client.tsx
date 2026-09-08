@@ -6,15 +6,30 @@ import { formatCurrency } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { FileText, Receipt, RefreshCw, AlertCircle, ShoppingCart } from 'lucide-react';
+import { 
+  FileText, 
+  Receipt, 
+  RefreshCw, 
+  AlertCircle, 
+  ShoppingCart, 
+  RotateCcw, 
+  Printer, 
+  AlertTriangle,
+  CheckCircle2,
+  Loader2
+} from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { 
   isClientDemoMode, 
-  getDemoSalesClient 
+  getDemoSalesClient,
+  cancelDemoSaleClient 
 } from '@/lib/client-demo-store';
 import { isTodayIST } from '@/services/dashboard-data.service';
-import { getSalesAction } from '@/actions/sales';
+import { getSalesAction, cancelSaleAction } from '@/actions/sales';
 import { toast } from 'sonner';
+import SaleReturnDialog from '@/components/billing/sale-return-dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { printInvoiceDirectly, InvoiceRenderer } from '@/components/invoice/invoice-renderer';
 
 interface SalesHistoryClientProps {
   initialSales?: any[];
@@ -36,6 +51,14 @@ export function SalesHistoryClient({ initialSales = [], initialError }: SalesHis
   const [sales, setSales] = useState<any[]>(initialSales);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(initialError || null);
+
+  // Return & Cancel modals state
+  const [returnTargetSale, setReturnTargetSale] = useState<any | null>(null);
+  const [cancelTargetSale, setCancelTargetSale] = useState<any | null>(null);
+  const [isCancelling, setIsCancelling] = useState(false);
+
+  // Print hidden target
+  const [printTargetSale, setPrintTargetSale] = useState<any | null>(null);
 
   const fetchLatestSales = useCallback(async (isManual = false) => {
     if (isClientDemoMode()) {
@@ -89,7 +112,8 @@ export function SalesHistoryClient({ initialSales = [], initialError }: SalesHis
 
   // Dynamic calculations from actual persisted sales using India Standard Time
   const todaySales = sales.filter((s: any) => {
-    if (s.status?.toString().toUpperCase() === 'CANCELLED') return false;
+    const st = (s.status || '').toString().toLowerCase();
+    if (st === 'cancelled') return false;
     const val = s.sale_date || s.created_at;
     return val ? isTodayIST(val) : false;
   });
@@ -99,12 +123,50 @@ export function SalesHistoryClient({ initialSales = [], initialError }: SalesHis
     return acc + amt;
   }, 0);
 
+  const handleExecuteCancel = async () => {
+    if (!cancelTargetSale) return;
+    const invNo = cancelTargetSale.invoice_number || cancelTargetSale.invoiceNumber || cancelTargetSale.id;
+
+    setIsCancelling(true);
+    try {
+      if (isClientDemoMode()) {
+        cancelDemoSaleClient(cancelTargetSale.id, 'User cancelled from history');
+        try {
+          cancelSaleAction(cancelTargetSale.id, 'User cancelled from history').catch(() => {});
+        } catch {}
+        toast.success(`Invoice ${invNo} cancelled successfully`);
+        setCancelTargetSale(null);
+        fetchLatestSales();
+      } else {
+        const res = await cancelSaleAction(cancelTargetSale.id, 'User cancelled from history');
+        if (res.success) {
+          toast.success(`Invoice ${invNo} cancelled successfully`);
+          setCancelTargetSale(null);
+          fetchLatestSales();
+        } else {
+          toast.error(res.error || 'Failed to cancel invoice');
+        }
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to cancel invoice');
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
+  const handlePrintSale = (sale: any) => {
+    setPrintTargetSale(sale);
+    setTimeout(() => {
+      printInvoiceDirectly('printable-tax-invoice-history', 'A5');
+    }, 200);
+  };
+
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
       <div className="flex justify-between items-center flex-wrap gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Sales History</h1>
-          <p className="text-sm text-muted-foreground mt-1">View and manage all customer bills and sales transactions</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Sales History</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-1">View and manage all customer bills, returns, and sales transactions</p>
         </div>
         <div className="flex items-center gap-2.5">
           <Button 
@@ -112,14 +174,14 @@ export function SalesHistoryClient({ initialSales = [], initialError }: SalesHis
             size="sm" 
             onClick={() => fetchLatestSales(true)}
             disabled={loading}
-            className="border-border shadow-sm text-foreground hover:bg-accent"
+            className="border-border shadow-sm text-foreground hover:bg-accent text-xs sm:text-sm"
           >
-            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`h-4 w-4 mr-1.5 ${loading ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
           <Link href="/billing">
-            <Button className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold shadow-sm">
-              <Receipt className="h-4 w-4 mr-2" /> New Bill
+            <Button className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold shadow-sm text-xs sm:text-sm">
+              <Receipt className="h-4 w-4 mr-1.5" /> New Bill
             </Button>
           </Link>
         </div>
@@ -147,40 +209,40 @@ export function SalesHistoryClient({ initialSales = [], initialError }: SalesHis
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-        <Card className="border border-border bg-card">
+        <Card className="border border-border bg-card shadow-sm">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Today&apos;s Revenue</CardTitle>
+            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">Today&apos;s Revenue</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-extrabold text-primary">{formatCurrency(todayRevenue)}</div>
+            <div className="text-2xl sm:text-3xl font-extrabold text-primary">{formatCurrency(todayRevenue)}</div>
             <p className="text-xs text-muted-foreground mt-1">
               {todaySales.length} {todaySales.length === 1 ? 'bill' : 'bills'} today
             </p>
           </CardContent>
         </Card>
 
-        <Card className="border border-border bg-card">
+        <Card className="border border-border bg-card shadow-sm">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Invoices</CardTitle>
+            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">Total Invoices</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-extrabold text-foreground">{sales.length}</div>
+            <div className="text-2xl sm:text-3xl font-extrabold text-foreground">{sales.length}</div>
             <p className="text-xs text-muted-foreground mt-1">Recorded in system</p>
           </CardContent>
         </Card>
       </div>
 
-      <Card className="border border-border bg-card overflow-hidden">
+      <Card className="border border-border bg-card shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-muted/50 border-b border-border text-muted-foreground text-xs uppercase font-semibold">
               <tr>
-                <th className="p-4 text-left">Invoice #</th>
-                <th className="p-4 text-left">Date</th>
-                <th className="p-4 text-left">Customer</th>
-                <th className="p-4 text-right">Total</th>
-                <th className="p-4 text-center">Status</th>
-                <th className="p-4 text-right">Action</th>
+                <th className="p-3.5 text-left">Invoice #</th>
+                <th className="p-3.5 text-left">Date</th>
+                <th className="p-3.5 text-left">Customer</th>
+                <th className="p-3.5 text-right">Total</th>
+                <th className="p-3.5 text-center">Status</th>
+                <th className="p-3.5 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/50">
@@ -215,42 +277,94 @@ export function SalesHistoryClient({ initialSales = [], initialError }: SalesHis
                   const invNo = sale.invoice_number || sale.invoiceNumber || (sale.id ? (sale.id.startsWith('KOS-') ? sale.id : `KOS-${sale.id.substring(0, 8).toUpperCase()}`) : 'INV');
                   const custName = sale.customer?.name || (typeof sale.customer === 'string' ? sale.customer : null) || sale.customer_name || 'Walk-in Customer';
                   const totalAmt = Number(sale.grand_total ?? sale.total_amount ?? sale.totalAmount ?? sale.payableAmount ?? 0);
-                  const statusUpper = (sale.status || '').toString().toUpperCase();
-                  const paymentUpper = (sale.payment_status || '').toString().toUpperCase();
-                  const isCompleted = statusUpper === 'COMPLETED' || paymentUpper === 'PAID';
-                  const isPending = paymentUpper === 'CREDIT' || paymentUpper === 'UNPAID' || statusUpper === 'PENDING';
-                  const isCancelled = statusUpper === 'CANCELLED';
-                  const isRefunded = statusUpper === 'REFUNDED';
-                  const displayStatus = isCancelled ? 'CANCELLED' : (isRefunded ? 'REFUNDED' : (isPending ? 'PENDING' : 'COMPLETED'));
+                  
+                  const rawStatus = (sale.status || '').toString().toLowerCase().trim();
+                  const isCancelled = rawStatus === 'cancelled';
+                  const isFullyReturned = rawStatus === 'returned';
+                  const isPartiallyReturned = rawStatus === 'partially_returned';
+                  const isCompleted = rawStatus === 'completed' || (!isCancelled && !isFullyReturned && !isPartiallyReturned);
 
                   return (
                     <tr key={sale.id} className="hover:bg-accent/30 transition-colors">
-                      <td className="p-4 font-mono font-bold text-foreground">{invNo}</td>
-                      <td className="p-4 text-muted-foreground">{safeFormatDate(sale.sale_date || sale.created_at, 'dd MMM yyyy, hh:mm a')}</td>
-                      <td className="p-4 font-semibold text-foreground">{custName}</td>
-                      <td className="p-4 text-right font-black text-foreground">{formatCurrency(totalAmt)}</td>
-                      <td className="p-4 text-center">
-                        <Badge 
-                          variant={isCompleted ? 'default' : 'secondary'} 
-                          className={
-                            isCancelled 
-                              ? 'bg-destructive/20 text-destructive border-destructive/30 font-semibold' 
-                              : isPending 
-                              ? 'bg-amber-500/20 text-amber-500 border-amber-500/30 font-semibold'
-                              : isCompleted 
-                              ? 'bg-primary text-primary-foreground font-semibold' 
-                              : 'bg-muted text-muted-foreground'
-                          }
-                        >
-                          {displayStatus}
-                        </Badge>
-                      </td>
-                      <td className="p-4 text-right">
-                        <Link href={`/sales/${sale.id}`}>
-                          <Button variant="ghost" size="sm" className="hover:bg-accent text-foreground">
-                            <FileText className="h-4 w-4 mr-1.5" /> View
-                          </Button>
+                      <td className="p-3.5 font-mono font-bold text-foreground">
+                        <Link href={`/sales/${sale.id}`} className="hover:underline text-primary">
+                          {invNo}
                         </Link>
+                      </td>
+                      <td className="p-3.5 text-muted-foreground text-xs whitespace-nowrap">
+                        {safeFormatDate(sale.sale_date || sale.created_at, 'dd MMM yyyy, hh:mm a')}
+                      </td>
+                      <td className="p-3.5 font-semibold text-foreground">
+                        {custName}
+                      </td>
+                      <td className="p-3.5 text-right font-black text-foreground font-mono">
+                        {formatCurrency(totalAmt)}
+                      </td>
+                      <td className="p-3.5 text-center">
+                        {isCancelled && (
+                          <Badge variant="destructive" className="font-bold text-[10px] uppercase">
+                            CANCELLED
+                          </Badge>
+                        )}
+                        {isFullyReturned && (
+                          <Badge className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-[10px] uppercase">
+                            FULLY RETURNED
+                          </Badge>
+                        )}
+                        {isPartiallyReturned && (
+                          <Badge className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-[10px] uppercase">
+                            PARTIALLY RETURNED
+                          </Badge>
+                        )}
+                        {isCompleted && (
+                          <Badge className="bg-primary text-primary-foreground font-bold text-[10px] uppercase">
+                            COMPLETED
+                          </Badge>
+                        )}
+                      </td>
+                      <td className="p-3.5 text-right">
+                        <div className="flex items-center justify-end gap-1 flex-wrap">
+                          <Link href={`/sales/${sale.id}`}>
+                            <Button variant="ghost" size="sm" className="h-8 px-2 text-xs hover:bg-accent text-foreground">
+                              <FileText className="h-3.5 w-3.5 mr-1" /> View
+                            </Button>
+                          </Link>
+
+                          {/* Show Return and Cancel actions only for Completed and Partially Returned */}
+                          {(isCompleted || isPartiallyReturned) && !isCancelled && !isFullyReturned && (
+                            <>
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                onClick={() => setReturnTargetSale(sale)}
+                                className="h-8 px-2 text-xs text-destructive hover:bg-destructive/10"
+                                title="Return Products"
+                              >
+                                <RotateCcw className="h-3.5 w-3.5 mr-1" /> Return
+                              </Button>
+
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                onClick={() => setCancelTargetSale(sale)}
+                                className="h-8 px-2 text-xs text-destructive hover:bg-destructive/10"
+                                title="Cancel Entire Bill"
+                              >
+                                Cancel
+                              </Button>
+                            </>
+                          )}
+
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={() => handlePrintSale(sale)}
+                            className="h-8 px-2 text-xs hover:bg-accent text-muted-foreground hover:text-foreground"
+                            title="Print Invoice"
+                          >
+                            <Printer className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -260,6 +374,97 @@ export function SalesHistoryClient({ initialSales = [], initialError }: SalesHis
           </table>
         </div>
       </Card>
+
+      {/* ─── RETURN MODAL ─── */}
+      {returnTargetSale && (
+        <SaleReturnDialog
+          sale={returnTargetSale}
+          onClose={() => setReturnTargetSale(null)}
+          onSuccess={() => {
+            setReturnTargetSale(null);
+            fetchLatestSales();
+          }}
+        />
+      )}
+
+      {/* ─── CANCEL CONFIRMATION MODAL ─── */}
+      {cancelTargetSale && (
+        <Dialog open={true} onOpenChange={() => setCancelTargetSale(null)}>
+          <DialogContent className="max-w-md bg-card border-border rounded-2xl shadow-2xl p-6">
+            <DialogHeader className="space-y-2">
+              <div className="w-12 h-12 rounded-full bg-destructive/10 text-destructive flex items-center justify-center mx-auto mb-1">
+                <AlertTriangle className="h-6 w-6" />
+              </div>
+              <DialogTitle className="text-xl font-bold text-center text-foreground">
+                Cancel Bill?
+              </DialogTitle>
+              <p className="text-xs text-center text-muted-foreground font-mono">
+                Invoice: <strong className="text-foreground">{cancelTargetSale.invoice_number || cancelTargetSale.id}</strong>
+              </p>
+            </DialogHeader>
+
+            <div className="space-y-3 py-3 text-sm">
+              <div className="bg-muted/40 rounded-xl p-3.5 border border-border/70 space-y-2 text-xs text-muted-foreground">
+                <p className="font-semibold text-foreground">This cancellation will:</p>
+                <ul className="space-y-1 pl-1">
+                  <li className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
+                    <CheckCircle2 className="h-3.5 w-3.5 shrink-0" /> Cancel the entire invoice
+                  </li>
+                  <li className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
+                    <CheckCircle2 className="h-3.5 w-3.5 shrink-0" /> Restore sold stock to product batches
+                  </li>
+                  <li className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
+                    <CheckCircle2 className="h-3.5 w-3.5 shrink-0" /> Reverse applicable customer ledger effects
+                  </li>
+                  <li className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
+                    <CheckCircle2 className="h-3.5 w-3.5 shrink-0" /> Record payment reversals where applicable
+                  </li>
+                </ul>
+              </div>
+              <p className="text-xs text-muted-foreground text-center italic">
+                The original invoice will remain in Sales History with status <span className="font-bold text-destructive">CANCELLED</span>.
+              </p>
+            </div>
+
+            <DialogFooter className="grid grid-cols-2 gap-3 pt-2">
+              <Button 
+                variant="outline" 
+                onClick={() => setCancelTargetSale(null)}
+                disabled={isCancelling}
+                className="w-full"
+              >
+                Keep Bill
+              </Button>
+              <Button 
+                variant="destructive" 
+                onClick={handleExecuteCancel}
+                disabled={isCancelling}
+                className="w-full font-bold shadow-md"
+              >
+                {isCancelling ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Cancelling...
+                  </>
+                ) : (
+                  'Cancel Bill'
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* ─── HIDDEN PRINT RENDERER FOR QUICK ROW PRINT ─── */}
+      {printTargetSale && (
+        <div className="hidden">
+          <div id="printable-tax-invoice-history">
+            <InvoiceRenderer
+              format="A5"
+              sale={printTargetSale}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

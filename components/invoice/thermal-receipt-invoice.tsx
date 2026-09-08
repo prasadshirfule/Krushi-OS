@@ -37,6 +37,10 @@ export function ThermalReceiptInvoice({ sale, shopDetails: customShopDetails, cu
   const s = sale || {};
   const hasRealSale = Boolean(s.id || s.invoice_number || (s.items && s.items.length > 0) || (s.sale_items && s.sale_items.length > 0));
 
+  const isReturnDoc = Boolean(s.return_number || s.returnNumber || s.is_return || s.document_type === 'SALE_RETURN' || s.documentType === 'SALE_RETURN');
+  const returnNumber = s.return_number || s.returnNumber || '';
+  const origInvoiceNo = s.invoice_number || s.invoiceNumber || s.sale?.invoice_number || s.sale?.invoiceNumber || (s.sale_id ? `KOS-${s.sale_id.substring(0, 8).toUpperCase()}` : '-');
+
   const customerName = (s.customer?.name || (typeof s.customer === 'string' ? s.customer : null) || s.customer_name || (hasRealSale ? 'WALK-IN CUSTOMER' : 'DEMO CUSTOMER NAME')).toUpperCase();
   const customerPhone = s.customer?.phone || s.customer?.mobile || s.customer_phone || '';
   const customerAddress = [
@@ -45,16 +49,28 @@ export function ThermalReceiptInvoice({ sale, shopDetails: customShopDetails, cu
     s.customer?.state || ''
   ].filter(Boolean).join(', ');
 
-  const invoiceNo = s.invoice_number || s.invoiceNumber || (s.id ? (s.id.startsWith('KOS-') ? s.id : `KOS-${s.id.substring(0, 8).toUpperCase()}`) : 'KOS-2026-001');
-  const dateObj = s.sale_date || s.created_at ? new Date(s.sale_date || s.created_at) : new Date();
+  const invoiceNo = isReturnDoc ? returnNumber : (s.invoice_number || s.invoiceNumber || (s.id ? (s.id.startsWith('KOS-') ? s.id : `KOS-${s.id.substring(0, 8).toUpperCase()}`) : 'KOS-2026-001'));
+  const dateObj = s.return_date || s.sale_date || s.created_at ? new Date(s.return_date || s.sale_date || s.created_at) : new Date();
   const formattedDate = dateObj.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
   const formattedTime = dateObj.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+
+  const refundModeMap: Record<string, string> = {
+    'CREDIT_ADJUSTMENT': 'Customer Adjustment',
+    'CASH': 'Cash Refund',
+    'UPI': 'UPI Refund',
+    'BANK_TRANSFER': 'Bank Transfer',
+    'CARD': 'Card Refund',
+  };
+  const rawRefundMode = s.refund_mode || s.refundMode || '';
+  const displayRefundMode = refundModeMap[rawRefundMode] || rawRefundMode || 'Return Refund';
 
   const rawPaymentMethod = (s.payment_method || s.payment_mode || s.paymentMethod || s.payments?.[0]?.method || 'CASH').toString().toUpperCase();
   const isCredit = rawPaymentMethod === 'CREDIT';
   const isUpi = rawPaymentMethod === 'UPI';
   const isPartial = rawPaymentMethod.includes('PARTIAL') || (Array.isArray(s.payments) && s.payments.length > 1);
-  const paymentMode = isPartial ? 'PARTIAL' : (isUpi ? 'UPI' : (isCredit ? 'CREDIT' : (rawPaymentMethod === 'BANK_TRANSFER' ? 'BANK TRANSFER' : rawPaymentMethod)));
+  const paymentMode = isReturnDoc
+    ? displayRefundMode.toUpperCase()
+    : (isPartial ? 'PARTIAL' : (isUpi ? 'UPI' : (isCredit ? 'CREDIT' : (rawPaymentMethod === 'BANK_TRANSFER' ? 'BANK TRANSFER' : rawPaymentMethod))));
 
   /* ---------- Items ---------- */
   const rawItems = customItems || s.items || s.sale_items || [];
@@ -348,10 +364,16 @@ export function ThermalReceiptInvoice({ sale, shopDetails: customShopDetails, cu
 
         {/* ─── 2. INVOICE & CUSTOMER INFO ─── */}
         <div style={{ fontSize: '10px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span style={{ fontWeight: 700 }}>Bill No: <span style={{ fontFamily: 'monospace' }}>{invoiceNo}</span></span>
-            <span style={{ fontWeight: 700, textTransform: 'uppercase', padding: '0 3px', border: '1px solid #000' }}>{paymentMode}</span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontWeight: 700 }}>{isReturnDoc ? 'Return No' : 'Bill No'}: <span style={{ fontFamily: 'monospace' }}>{invoiceNo}</span></span>
+            <span style={{ fontWeight: 700, textTransform: 'uppercase', padding: '0 3px', border: '1px solid #000', fontSize: '9px' }}>{paymentMode}</span>
           </div>
+          {isReturnDoc && (
+            <div style={{ fontSize: '9.5px', marginTop: '0.5mm' }}>
+              <span style={{ fontWeight: 700 }}>Orig Bill: </span>
+              <span style={{ fontFamily: 'monospace' }}>{origInvoiceNo}</span>
+            </div>
+          )}
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9.5px', marginTop: '0.5mm' }}>
             <span>Date: {formattedDate}</span>
             <span>{formattedTime}</span>

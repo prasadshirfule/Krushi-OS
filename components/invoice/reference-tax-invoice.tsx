@@ -140,6 +140,10 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
   const s = sale || {};
   const hasRealSale = Boolean(s.id || s.invoice_number || (s.items && s.items.length > 0) || (s.sale_items && s.sale_items.length > 0));
 
+  const isReturnDoc = Boolean(s.return_number || s.returnNumber || s.is_return || s.document_type === 'SALE_RETURN' || s.documentType === 'SALE_RETURN');
+  const returnNumber = s.return_number || s.returnNumber || '';
+  const origInvoiceNo = s.invoice_number || s.invoiceNumber || s.sale?.invoice_number || s.sale?.invoiceNumber || (s.sale_id ? `KOS-${s.sale_id.substring(0, 8).toUpperCase()}` : '-');
+
   const customerName = (s.customer?.name || (typeof s.customer === 'string' ? s.customer : null) || s.customer_name || (hasRealSale ? 'WALK-IN CUSTOMER' : 'DEMO CUSTOMER NAME')).toUpperCase();
   const customerPhone = s.customer?.phone || s.customer?.mobile || s.customer_phone || (hasRealSale ? '' : '9876543210');
   const customerAddress = [
@@ -148,16 +152,31 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
     s.customer?.state || (!hasRealSale ? 'Demo State' : '')
   ].filter(Boolean).join(', ');
 
-  const invoiceNo = s.invoice_number || s.invoiceNumber || (s.id ? (s.id.startsWith('KOS-') ? s.id : `KOS-${s.id.substring(0, 8).toUpperCase()}`) : 'KOS-2026-001');
-  const dateObj = s.sale_date || s.created_at ? new Date(s.sale_date || s.created_at) : new Date();
+  const invoiceNo = isReturnDoc ? returnNumber : (s.invoice_number || s.invoiceNumber || (s.id ? (s.id.startsWith('KOS-') ? s.id : `KOS-${s.id.substring(0, 8).toUpperCase()}`) : 'KOS-2026-001'));
+  const dateObj = s.return_date || s.sale_date || s.created_at ? new Date(s.return_date || s.sale_date || s.created_at) : new Date();
   const formattedDate = dateObj.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
   const formattedTime = dateObj.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+  
+  const refundModeMap: Record<string, string> = {
+    'CREDIT_ADJUSTMENT': 'Customer Balance Adjustment',
+    'CASH': 'Cash Refund',
+    'UPI': 'UPI Refund',
+    'BANK_TRANSFER': 'Bank Transfer',
+    'CARD': 'Card Refund',
+  };
+  const rawRefundMode = s.refund_mode || s.refundMode || '';
+  const displayRefundMode = refundModeMap[rawRefundMode] || rawRefundMode || 'Credit Note';
+
   const rawPaymentMethod = (s.payment_method || s.payment_mode || s.paymentMethod || s.payments?.[0]?.method || 'CASH').toString().toUpperCase();
   const isCredit = rawPaymentMethod === 'CREDIT';
   const isUpi = rawPaymentMethod === 'UPI';
   const isPartial = rawPaymentMethod.includes('PARTIAL') || (Array.isArray(s.payments) && s.payments.length > 1);
-  const paymentBadge = isPartial ? '[R] Partial Bill' : (isCredit ? '[R] Credit Bill' : (isUpi ? '[R] UPI Bill' : '[R] Cash Bill'));
-  const paymentMode = isPartial ? 'PARTIAL' : (isUpi ? 'UPI' : (isCredit ? 'CREDIT' : (rawPaymentMethod === 'BANK_TRANSFER' ? 'BANK TRANSFER' : rawPaymentMethod)));
+  const paymentBadge = isReturnDoc
+    ? `[R] ${displayRefundMode}`
+    : (isPartial ? '[R] Partial Bill' : (isCredit ? '[R] Credit Bill' : (isUpi ? '[R] UPI Bill' : '[R] Cash Bill')));
+  const paymentMode = isReturnDoc
+    ? displayRefundMode.toUpperCase()
+    : (isPartial ? 'PARTIAL' : (isUpi ? 'UPI' : (isCredit ? 'CREDIT' : (rawPaymentMethod === 'BANK_TRANSFER' ? 'BANK TRANSFER' : rawPaymentMethod))));
 
   /* ---------- items ---------- */
   const rawItems = customItems || s.items || s.sale_items || [];
@@ -706,17 +725,24 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
           }}>
             <tbody>
               <tr>
-                <td style={{ width: mm(15), fontWeight: 'bold', verticalAlign: 'middle', padding: '0.2px 0' }}>Bill No</td>
+                <td style={{ width: mm(15), fontWeight: 'bold', verticalAlign: 'middle', padding: '0.2px 0' }}>{isReturnDoc ? 'Return No' : 'Bill No'}</td>
                 <td style={{ width: mm(3), fontWeight: 'bold', verticalAlign: 'middle', padding: '0.2px 0' }}>:</td>
                 <td style={{ fontWeight: 'bold', fontFamily: 'monospace', verticalAlign: 'middle', padding: '0.2px 0', fontSize: '10.5px' }}>{invoiceNo}</td>
               </tr>
+              {isReturnDoc && (
+                <tr>
+                  <td style={{ width: mm(15), fontWeight: 'bold', verticalAlign: 'middle', padding: '0.2px 0' }}>Orig Bill</td>
+                  <td style={{ width: mm(3), fontWeight: 'bold', verticalAlign: 'middle', padding: '0.2px 0' }}>:</td>
+                  <td style={{ fontWeight: 'bold', fontFamily: 'monospace', verticalAlign: 'middle', padding: '0.2px 0', fontSize: '10px', color: '#111' }}>{origInvoiceNo}</td>
+                </tr>
+              )}
               <tr>
                 <td style={{ width: mm(15), fontWeight: 'bold', verticalAlign: 'middle', padding: '0.2px 0' }}>Date</td>
                 <td style={{ width: mm(3), fontWeight: 'bold', verticalAlign: 'middle', padding: '0.2px 0' }}>:</td>
                 <td style={{ fontWeight: '600', verticalAlign: 'middle', padding: '0.2px 0', fontSize: '9.5px' }}>{formattedDate} ({formattedTime})</td>
               </tr>
               <tr>
-                <td style={{ width: mm(15), fontWeight: 'bold', verticalAlign: 'middle', padding: '0.2px 0' }}>Payment</td>
+                <td style={{ width: mm(15), fontWeight: 'bold', verticalAlign: 'middle', padding: '0.2px 0' }}>{isReturnDoc ? 'Refund' : 'Payment'}</td>
                 <td style={{ width: mm(3), fontWeight: 'bold', verticalAlign: 'middle', padding: '0.2px 0' }}>:</td>
                 <td style={{ fontWeight: 'bold', textTransform: 'uppercase', verticalAlign: 'middle', padding: '0.2px 0', fontSize: '10px' }}>
                   {paymentMode}
@@ -1307,7 +1333,7 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
         fontWeight: 'bold',
         boxSizing: 'border-box',
       }}>
-        <span>THIS IS COMPUTER GENERATED TAX INVOICE</span>
+        <span>THIS IS COMPUTER GENERATED {isReturnDoc ? 'SALES RETURN / CREDIT NOTE' : 'TAX INVOICE'}</span>
         <span>SUBJECT TO {shop.district ? shop.district.toUpperCase() : (shop.state ? shop.state.toUpperCase() : 'LOCAL')} JURISDICTION</span>
         <span>PAGE 1 OF 1</span>
       </div>
