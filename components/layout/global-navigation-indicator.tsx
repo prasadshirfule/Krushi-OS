@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 
@@ -22,6 +22,7 @@ const ROUTE_LABELS: Record<string, string> = {
   '/notifications': 'Loading Notifications...',
   '/settings': 'Loading Settings...',
   '/audit': 'Loading Audit Trail...',
+  '/shop-details': 'Loading Shop Details...',
 };
 
 export function GlobalNavigationIndicator() {
@@ -29,16 +30,21 @@ export function GlobalNavigationIndicator() {
   const searchParams = useSearchParams();
   
   const [isNavigating, setIsNavigating] = useState(false);
-  const [indicatorText, setIndicatorText] = useState('Rendering...');
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const [indicatorText, setIndicatorText] = useState('Loading...');
   const safetyTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Detect route / searchParam changes to complete loading
-  useEffect(() => {
-    if (timerRef.current) clearTimeout(timerRef.current);
-    if (safetyTimerRef.current) clearTimeout(safetyTimerRef.current);
+  const stopNavigating = useCallback(() => {
+    if (safetyTimerRef.current) {
+      clearTimeout(safetyTimerRef.current);
+      safetyTimerRef.current = null;
+    }
     setIsNavigating(false);
-  }, [pathname, searchParams]);
+  }, []);
+
+  // Dismiss immediately when route or search parameters change (navigation completed)
+  useEffect(() => {
+    stopNavigating();
+  }, [pathname, searchParams, stopNavigating]);
 
   // Non-blocking, passive click observer for internal links
   useEffect(() => {
@@ -66,10 +72,10 @@ export function GlobalNavigationIndicator() {
       if (!href || href.startsWith('#') || href.startsWith('http') || href.startsWith('mailto') || href.startsWith('tel:')) return;
 
       const targetPath = href.split('?')[0];
-      if (targetPath === pathname) return; // Same page click
+      if (targetPath === pathname) return; // Ignore same-page click
 
-      // Determine label
-      let label = 'Rendering...';
+      // Determine human-readable label
+      let label = 'Loading...';
       for (const [route, routeLabel] of Object.entries(ROUTE_LABELS)) {
         if (targetPath === route || targetPath.startsWith(`${route}/`)) {
           label = routeLabel;
@@ -78,25 +84,38 @@ export function GlobalNavigationIndicator() {
       }
       
       setIndicatorText(label);
+      setIsNavigating(true);
 
-      // Debounce 150ms before showing indicator
-      if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(() => {
-        setIsNavigating(true);
-
-        // Safety fallback timer: guarantee auto-dismissal after 3.0s
-        if (safetyTimerRef.current) clearTimeout(safetyTimerRef.current);
-        safetyTimerRef.current = setTimeout(() => {
-          setIsNavigating(false);
-        }, 3000);
-      }, 150);
+      // Reset and start safety fallback timer (auto-dismiss after 4s maximum if navigation stalls)
+      if (safetyTimerRef.current) clearTimeout(safetyTimerRef.current);
+      safetyTimerRef.current = setTimeout(() => {
+        setIsNavigating(false);
+      }, 4000);
     };
 
-    // Use passive bubbling listener (false) to never intercept or block Next.js router
+    // Listen for programmatic navigation start events
+    const handleCustomNavStart = (e: Event) => {
+      const customEvent = e as CustomEvent<{ label?: string }>;
+      if (customEvent.detail?.label) {
+        setIndicatorText(customEvent.detail.label);
+      } else {
+        setIndicatorText('Loading...');
+      }
+      setIsNavigating(true);
+
+      if (safetyTimerRef.current) clearTimeout(safetyTimerRef.current);
+      safetyTimerRef.current = setTimeout(() => {
+        setIsNavigating(false);
+      }, 4000);
+    };
+
+    // Use passive bubbling listener (false) to never intercept, block, or delay Next.js navigation
     document.addEventListener('click', handleAnchorClick, false);
+    window.addEventListener('krushi:nav-start', handleCustomNavStart);
+
     return () => {
       document.removeEventListener('click', handleAnchorClick, false);
-      if (timerRef.current) clearTimeout(timerRef.current);
+      window.removeEventListener('krushi:nav-start', handleCustomNavStart);
       if (safetyTimerRef.current) clearTimeout(safetyTimerRef.current);
     };
   }, [pathname]);
@@ -104,13 +123,39 @@ export function GlobalNavigationIndicator() {
   if (!isNavigating) return null;
 
   return (
-    <div 
-      className="fixed bottom-5 right-5 z-40 flex items-center gap-2.5 rounded-full bg-slate-900/90 text-white px-4 py-2 text-xs font-semibold shadow-xl border border-slate-700/60 backdrop-blur-md animate-in fade-in slide-in-from-bottom-2 duration-200 pointer-events-none"
-      role="status"
-      aria-live="polite"
-    >
-      <Loader2 className="h-3.5 w-3.5 animate-spin text-green-400" />
-      <span>{indicatorText}</span>
-    </div>
+    <>
+      <style>{`
+        @keyframes navProgressAnimation {
+          0% { transform: translateX(-100%) scaleX(0.2); }
+          50% { transform: translateX(30%) scaleX(0.7); }
+          100% { transform: translateX(110%) scaleX(0.3); }
+        }
+      `}</style>
+
+      {/* Top Instant Gradient Progress Bar */}
+      <div 
+        className="fixed top-0 left-0 right-0 z-50 h-[3px] pointer-events-none bg-emerald-500/20 overflow-hidden shadow-xs"
+        aria-hidden="true"
+      >
+        <div 
+          className="h-full w-full bg-gradient-to-r from-emerald-500 via-green-400 to-teal-400 shadow-sm shadow-emerald-500/50"
+          style={{
+            animation: 'navProgressAnimation 1.4s ease-in-out infinite',
+            transformOrigin: '0% 50%',
+          }}
+        />
+      </div>
+
+      {/* Bottom Floating Status Badge */}
+      <div 
+        className="fixed bottom-5 right-5 z-50 flex items-center gap-2.5 rounded-full bg-slate-900/95 text-white px-4 py-2 text-xs font-semibold shadow-2xl border border-slate-700/70 backdrop-blur-md animate-in fade-in slide-in-from-bottom-2 duration-150 pointer-events-none select-none"
+        role="status"
+        aria-live="polite"
+      >
+        <Loader2 className="h-3.5 w-3.5 animate-spin text-green-400 shrink-0" />
+        <span>{indicatorText}</span>
+      </div>
+    </>
   );
 }
+
