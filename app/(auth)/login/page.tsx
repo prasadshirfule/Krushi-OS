@@ -18,7 +18,6 @@ import {
   ArrowLeft,
   ShieldCheck,
 } from 'lucide-react';
-import { syncCustomerAccountAction } from '@/actions/customer-auth';
 
 type LoginRole = 'select' | 'shopkeeper' | 'customer';
 
@@ -127,14 +126,6 @@ function LoginFormContent() {
       }
 
       if (data?.session) {
-        // Sync customer account after successful login
-        const syncRes = await syncCustomerAccountAction({
-          email: customerEmail.trim(),
-        });
-        if (!syncRes.success) {
-          console.warn('Customer account sync notice:', syncRes.error);
-        }
-
         toast.success('Signed in successfully! Redirecting...');
         router.push('/customer/dashboard');
         router.refresh();
