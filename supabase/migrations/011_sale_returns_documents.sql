@@ -80,7 +80,15 @@ DROP POLICY IF EXISTS "Users can insert sale return items in their shop" ON sale
 CREATE POLICY "Users can insert sale return items in their shop" ON sale_return_items
   FOR INSERT WITH CHECK (shop_id = get_user_shop_id());
 
--- 6. Helper: Concurrency-safe Return Number Generation
+-- 6. Drop legacy/overloaded function signatures first to avoid ambiguous RPC signatures in PostgREST
+DROP FUNCTION IF EXISTS process_sale_return(UUID, UUID, JSONB, UUID);
+DROP FUNCTION IF EXISTS process_sale_return(UUID, UUID, JSONB, UUID, VARCHAR);
+DROP FUNCTION IF EXISTS process_sale_return(UUID, UUID, JSONB, UUID, VARCHAR, TEXT);
+DROP FUNCTION IF EXISTS cancel_sale(UUID, UUID, UUID);
+DROP FUNCTION IF EXISTS cancel_sale(UUID, UUID, UUID, TEXT);
+DROP FUNCTION IF EXISTS generate_return_number(UUID, VARCHAR);
+
+-- 7. Helper: Concurrency-safe Return Number Generation
 CREATE OR REPLACE FUNCTION generate_return_number(
   p_shop_id UUID,
   p_invoice_number VARCHAR
@@ -111,7 +119,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- 7. Atomic RPC: process_sale_return
+-- 8. Atomic RPC: process_sale_return
 CREATE OR REPLACE FUNCTION process_sale_return(
   p_shop_id UUID,
   p_sale_id UUID,
@@ -587,3 +595,12 @@ BEGIN
   );
 END;
 $$ LANGUAGE plpgsql;
+
+-- 10. Grant RPC permissions
+GRANT EXECUTE ON FUNCTION generate_return_number(UUID, VARCHAR) TO authenticated, service_role, anon;
+GRANT EXECUTE ON FUNCTION process_sale_return(UUID, UUID, JSONB, UUID, VARCHAR, TEXT) TO authenticated, service_role, anon;
+GRANT EXECUTE ON FUNCTION cancel_sale(UUID, UUID, UUID, TEXT) TO authenticated, service_role, anon;
+
+-- 11. Refresh PostgREST Schema Cache
+NOTIFY pgrst, 'reload schema';
+
