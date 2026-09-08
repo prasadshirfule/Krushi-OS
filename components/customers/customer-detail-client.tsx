@@ -45,13 +45,13 @@ export function CustomerDetailClient({ initialCustomer, customerId }: CustomerDe
       if (isClientDemoMode()) {
         const allSales = getDemoSalesClient();
         const filtered = allSales.filter(
-          (s: any) => s.customer_id === customerId && s.status !== 'CANCELLED'
+          (s: any) => s.customer_id === customerId
         );
         setCustomerSales(filtered);
       } else {
         const res = await getSalesAction({ customerId, limit: 200 });
         if (res.success && res.data?.sales) {
-          setCustomerSales(res.data.sales.filter((s: any) => s.status !== 'CANCELLED'));
+          setCustomerSales(res.data.sales);
         }
       }
     } catch (err) {
@@ -96,12 +96,17 @@ export function CustomerDetailClient({ initialCustomer, customerId }: CustomerDe
     }
   }, [customerId]);
 
-  // Calculate Total Purchases from actual customer sales
+  // Calculate Total Purchases from actual customer sales (excluding cancelled bills)
   const totalPurchases = useMemo(() => {
     if (customerSales.length > 0) {
-      return customerSales.reduce((sum: number, s: any) => {
-        return sum + Number(s.grand_total ?? s.total_amount ?? s.totalAmount ?? s.payableAmount ?? 0);
-      }, 0);
+      return customerSales
+        .filter((s: any) => {
+          const st = (s.status || '').toString().toLowerCase();
+          return st !== 'cancelled';
+        })
+        .reduce((sum: number, s: any) => {
+          return sum + Number(s.grand_total ?? s.total_amount ?? s.totalAmount ?? s.payableAmount ?? 0);
+        }, 0);
     }
     // Fallback to stored value while sales are loading
     return Number(customer?.total_purchases ?? customer?.totalPurchases ?? 0);
@@ -290,14 +295,30 @@ function CustomerPurchaseHistory({
                 : '-';
               const displayItems = itemsSummary.length > 40 ? itemsSummary.substring(0, 37) + '...' : itemsSummary;
               const total = Number(sale.grand_total ?? sale.total_amount ?? sale.totalAmount ?? sale.payableAmount ?? 0);
-              const paymentMethod = sale.payment_method || sale.payment_mode || 'Cash';
-              const status = sale.status || 'COMPLETED';
-              const paymentStatus = sale.payment_status || 'PAID';
+              const rawPaymentMethod = (sale.payment_method || sale.payment_mode || sale.payments?.[0]?.payment_method || sale.payments?.[0]?.method || (sale.payment_status?.toLowerCase() === 'credit' ? 'CREDIT' : 'CASH')).toString().toUpperCase();
+              const rawPaymentStatus = (sale.payment_status || '').toString().toLowerCase().trim();
+              const rawStatus = (sale.status || '').toString().toLowerCase().trim();
+
+              const isCancelled = rawStatus === 'cancelled' || rawPaymentStatus === 'cancelled';
+              const isFullyReturned = rawStatus === 'returned' || rawStatus === 'fully returned';
+              const isPartiallyReturned = rawStatus === 'partially_returned';
+              const isCredit = rawPaymentStatus === 'credit' || rawPaymentStatus === 'unpaid' || rawPaymentMethod === 'CREDIT';
+              const isPartial = rawPaymentStatus === 'partial' || rawPaymentMethod === 'PARTIAL';
+              const isPaid = !isCancelled && !isCredit && !isPartial;
+
+              let displayPaymentMethod = 'Cash';
+              if (rawPaymentMethod === 'CREDIT') displayPaymentMethod = 'Credit';
+              else if (rawPaymentMethod === 'UPI') displayPaymentMethod = 'UPI';
+              else if (rawPaymentMethod === 'BANK_TRANSFER') displayPaymentMethod = 'Bank Transfer';
+              else if (rawPaymentMethod === 'CARD') displayPaymentMethod = 'Card';
+              else if (rawPaymentMethod === 'PARTIAL') displayPaymentMethod = 'Partial';
+              else if (rawPaymentMethod === 'CASH') displayPaymentMethod = 'Cash';
+              else if (sale.payment_method || sale.payment_mode) displayPaymentMethod = sale.payment_method || sale.payment_mode;
 
               return (
                 <tr key={sale.id} className="border-b border-border last:border-b-0 hover:bg-muted/30 transition-colors">
                   <td className="px-4 py-3 text-foreground whitespace-nowrap">{dateStr}</td>
-                  <td className="px-4 py-3 font-mono text-xs text-foreground">{invoiceNum}</td>
+                  <td className="px-4 py-3 font-mono text-xs text-foreground font-bold">{invoiceNum}</td>
                   <td className="px-4 py-3 text-foreground max-w-[200px]" title={itemsSummary}>
                     {displayItems}
                     {items.length > 0 && (
@@ -306,22 +327,41 @@ function CustomerPurchaseHistory({
                   </td>
                   <td className="px-4 py-3">
                     <Badge 
-                      variant={paymentMethod.toUpperCase() === 'CREDIT' ? 'destructive' : 'secondary'}
-                      className="text-xs"
+                      variant={rawPaymentMethod === 'CREDIT' ? 'destructive' : 'secondary'}
+                      className="text-xs font-medium"
                     >
-                      {paymentMethod}
+                      {displayPaymentMethod}
                     </Badge>
                   </td>
-                  <td className="px-4 py-3 text-right font-semibold text-foreground whitespace-nowrap">
+                  <td className="px-4 py-3 text-right font-bold text-foreground font-mono whitespace-nowrap">
                     {formatCurrency(total)}
                   </td>
                   <td className="px-4 py-3 text-center">
-                    <Badge 
-                      variant={paymentStatus === 'PAID' ? 'default' : 'destructive'}
-                      className={`text-xs ${paymentStatus === 'PAID' ? 'bg-green-600/15 text-green-600 border-green-600/20' : ''}`}
-                    >
-                      {paymentStatus === 'PAID' ? 'Paid' : 'Unpaid'}
-                    </Badge>
+                    {isCancelled ? (
+                      <Badge variant="destructive" className="text-[10px] font-bold uppercase">
+                        CANCELLED
+                      </Badge>
+                    ) : isFullyReturned ? (
+                      <Badge className="bg-purple-600 hover:bg-purple-700 text-white text-[10px] font-bold uppercase">
+                        FULLY RETURNED
+                      </Badge>
+                    ) : isPartiallyReturned ? (
+                      <Badge className="bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-bold uppercase">
+                        PARTIALLY RETURNED
+                      </Badge>
+                    ) : isPaid ? (
+                      <Badge className="bg-emerald-600/15 text-emerald-600 dark:text-emerald-400 border-emerald-600/30 text-[10px] font-bold uppercase">
+                        PAID
+                      </Badge>
+                    ) : isPartial ? (
+                      <Badge className="bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30 text-[10px] font-bold uppercase">
+                        PARTIAL
+                      </Badge>
+                    ) : (
+                      <Badge variant="destructive" className="text-[10px] font-bold uppercase">
+                        CREDIT
+                      </Badge>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-center">
                     <Link href={`/sales/${sale.id}`}>

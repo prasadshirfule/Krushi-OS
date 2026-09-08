@@ -139,7 +139,23 @@ export function normalizeSale(sale: any) {
 
   const rawStatus = (sale.status || '').toString().toLowerCase().trim();
   const rawPaymentStatus = (sale.payment_status || '').toString().toLowerCase().trim();
+  const rawPaymentMethod = (sale.payment_method || sale.payment_mode || '').toString().toUpperCase().trim();
 
+  // Normalize payment_status cleanly
+  let normalizedPaymentStatus = 'PAID';
+  if (rawStatus === 'cancelled' || rawPaymentStatus === 'cancelled') {
+    normalizedPaymentStatus = 'CANCELLED';
+  } else if (rawPaymentStatus === 'partial' || rawPaymentMethod === 'PARTIAL' || partialPayment) {
+    normalizedPaymentStatus = 'PARTIAL';
+  } else if (rawPaymentStatus === 'credit' || rawPaymentStatus === 'unpaid' || rawPaymentMethod === 'CREDIT') {
+    normalizedPaymentStatus = 'CREDIT';
+  } else if (rawPaymentStatus === 'paid' || rawPaymentStatus === 'completed') {
+    normalizedPaymentStatus = 'PAID';
+  } else {
+    normalizedPaymentStatus = (rawPaymentMethod === 'CREDIT') ? 'CREDIT' : 'PAID';
+  }
+
+  // Resolve sale-level lifecycle status
   let resolvedStatus = 'COMPLETED';
   if (rawStatus === 'cancelled') {
     resolvedStatus = 'CANCELLED';
@@ -149,10 +165,23 @@ export function normalizeSale(sale: any) {
     resolvedStatus = 'PARTIALLY RETURNED';
   } else if (rawStatus === 'refunded') {
     resolvedStatus = 'REFUNDED';
-  } else if (rawPaymentStatus === 'credit' || rawPaymentStatus === 'unpaid') {
+  } else if (normalizedPaymentStatus === 'CREDIT') {
     resolvedStatus = 'PENDING';
   } else {
     resolvedStatus = 'COMPLETED';
+  }
+
+  // Resolve payment_method/mode
+  let resolvedPaymentMethod = sale.payment_method || sale.payment_mode || '';
+  if (!resolvedPaymentMethod && Array.isArray(sale.payments) && sale.payments.length > 0) {
+    if (sale.payments.length > 1) {
+      resolvedPaymentMethod = 'PARTIAL';
+    } else {
+      resolvedPaymentMethod = sale.payments[0].payment_method || sale.payments[0].method || 'CASH';
+    }
+  }
+  if (!resolvedPaymentMethod) {
+    resolvedPaymentMethod = normalizedPaymentStatus === 'CREDIT' ? 'CREDIT' : 'CASH';
   }
 
   const custObj = resolvedCustomer || sale.customer || null;
@@ -182,6 +211,9 @@ export function normalizeSale(sale: any) {
     returns: returnsList,
     sale_returns: returnsList,
     status: resolvedStatus,
+    payment_status: normalizedPaymentStatus,
+    payment_method: resolvedPaymentMethod,
+    payment_mode: resolvedPaymentMethod,
     db_status: rawStatus || 'completed',
     sale_date: sale.sale_date || sale.created_at,
     created_at: sale.created_at || sale.sale_date,

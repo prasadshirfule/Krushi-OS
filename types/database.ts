@@ -122,10 +122,13 @@ export interface StockTransaction extends BaseEntity {
 export interface Customer extends BaseEntity {
   name: string;
   phone?: string;
+  mobile?: string;
   email?: string;
   address?: string;
+  village?: string;
   gst_number?: string;
   shop_id: ID;
+  customer_account_id?: ID | null;
 }
 
 export const LedgerTransactionType = {
@@ -283,3 +286,32 @@ export interface AuditLog extends BaseEntity {
   new_data?: string;
   ip_address?: string;
 }
+
+export interface CustomerAccount extends BaseEntity {
+  auth_user_id: ID;
+  mobile: string;
+  name: string;
+  email?: string | null;
+  village?: string | null;
+}
+
+export const CustomerNotificationType = {
+  NEW_BILL: 'NEW_BILL',
+  PAYMENT_RECEIVED: 'PAYMENT_RECEIVED',
+  OUTSTANDING_REMINDER: 'OUTSTANDING_REMINDER',
+  SALE_RETURN: 'SALE_RETURN',
+  INFO: 'INFO',
+} as const;
+
+export type CustomerNotificationTypeEnum = typeof CustomerNotificationType[keyof typeof CustomerNotificationType];
+
+export interface CustomerNotification extends BaseEntity {
+  customer_account_id: ID;
+  shop_id: ID;
+  sale_id?: ID | null;
+  type: CustomerNotificationTypeEnum;
+  title: string;
+  message: string;
+  is_read: boolean;
+}
+
