@@ -492,6 +492,24 @@ export const supplierPaymentSchema = z.object({
   notes: z.string().optional().nullable(),
 });
 
+export const saleReturnItemInputSchema = z.object({
+  saleItemId: z.string().uuid(),
+  quantity: z.number().int().positive('Return quantity must be a positive whole number'),
+  reason: z.string().optional().nullable(),
+});
+
+export const saleReturnSchema = z.object({
+  saleId: z.string().uuid(),
+  items: z.array(saleReturnItemInputSchema).min(1, 'At least one item must be returned'),
+  refundMode: z.enum(['CREDIT_ADJUSTMENT', 'CASH', 'UPI', 'BANK_TRANSFER', 'CARD']).default('CREDIT_ADJUSTMENT'),
+  reason: z.string().min(1, 'Return reason is required'),
+});
+
+export const saleCancelSchema = z.object({
+  saleId: z.string().uuid(),
+  reason: z.string().min(1, 'Cancellation reason is required'),
+});
+
 export type LoginInput = z.infer<typeof loginSchema>;
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type ProductInput = z.infer<typeof productSchema>;
@@ -503,6 +521,9 @@ export type PurchaseItemInput = z.infer<typeof purchaseItemSchema>;
 export type SaleInput = z.infer<typeof saleSchema>;
 export type SaleItemInput = z.infer<typeof saleItemSchema>;
 export type PaymentSplitInput = z.infer<typeof paymentSplitSchema>;
+export type SaleReturnItemInput = z.infer<typeof saleReturnItemInputSchema>;
+export type SaleReturnInput = z.infer<typeof saleReturnSchema>;
+export type SaleCancelInput = z.infer<typeof saleCancelSchema>;
 export type ExpenseInput = z.infer<typeof expenseSchema>;
 export type StockAdjustmentInput = z.infer<typeof stockAdjustmentSchema>;
 export type SettingsInput = z.infer<typeof settingsSchema>;

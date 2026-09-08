@@ -74,26 +74,98 @@ export async function getSaleAction(id: string): Promise<ActionResult<any>> {
 export async function cancelSaleAction(id: string, reason: string): Promise<ActionResult<any>> {
   try {
     const userData = await getAuthAndPermissions('sales.cancel');
-    const result = await salesService.cancelSale(userData.shop_id, id, userData.id, reason);
+    
+    if (!id || typeof id !== 'string') {
+      return { success: false, error: 'Sale ID is required' };
+    }
+    if (!reason || !reason.trim()) {
+      return { success: false, error: 'Cancellation reason is required' };
+    }
+
+    const result = await salesService.cancelSale(userData.shop_id, id, userData.id, reason.trim());
+    
     safeRevalidatePath('/sales');
+    safeRevalidatePath('/sales', 'page');
     safeRevalidatePath(`/sales/${id}`);
+    safeRevalidatePath(`/sales/${id}`, 'page');
+    safeRevalidatePath('/dashboard');
+    safeRevalidatePath('/dashboard', 'page');
+    safeRevalidatePath('/billing');
     safeRevalidatePath('/inventory');
+    safeRevalidatePath('/customers');
+    safeRevalidatePath('/reports');
+    
     return { success: true, data: result };
   } catch (error: any) {
-    return { success: false, error: error.message || 'An unexpected error occurred' };
+    console.error('cancelSaleAction error:', error);
+    return { success: false, error: error.message || 'Unable to cancel bill. Please try again.' };
   }
 }
 
-export async function returnSaleAction(id: string, items: { saleItemId: string, quantity: number, reason: string }[]): Promise<ActionResult<any>> {
+export async function returnSaleAction(
+  id: string,
+  items: { saleItemId: string; quantity: number; reason?: string }[],
+  refundMode: string = 'CREDIT_ADJUSTMENT',
+  reason: string = 'Customer Return'
+): Promise<ActionResult<any>> {
   try {
     const userData = await getAuthAndPermissions('sales.return');
-    const result = await salesService.returnSale(userData.shop_id, id, items, userData.id);
+    
+    if (!id || typeof id !== 'string') {
+      return { success: false, error: 'Sale ID is required' };
+    }
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return { success: false, error: 'At least one item must be returned' };
+    }
+
+    const result = await salesService.returnSale(userData.shop_id, id, items, userData.id, refundMode, reason);
+    
     safeRevalidatePath('/sales');
+    safeRevalidatePath('/sales', 'page');
     safeRevalidatePath(`/sales/${id}`);
+    safeRevalidatePath(`/sales/${id}`, 'page');
+    safeRevalidatePath('/dashboard');
+    safeRevalidatePath('/dashboard', 'page');
+    safeRevalidatePath('/billing');
     safeRevalidatePath('/inventory');
+    safeRevalidatePath('/customers');
+    safeRevalidatePath('/reports');
+    
     return { success: true, data: result };
   } catch (error: any) {
-    return { success: false, error: error.message || 'An unexpected error occurred' };
+    console.error('returnSaleAction error:', error);
+    return { success: false, error: error.message || 'Unable to process return. Please try again.' };
+  }
+}
+
+export async function getSaleReturnsAction(saleId: string): Promise<ActionResult<any>> {
+  try {
+    const userData = await getAuthAndPermissions('sales.view');
+    if (!saleId) {
+      return { success: false, error: 'Sale ID is required' };
+    }
+    const result = await salesService.getSaleReturns(userData.shop_id, saleId);
+    return { success: true, data: result };
+  } catch (error: any) {
+    console.error('getSaleReturnsAction error:', error);
+    return { success: false, error: error.message || 'Unable to load return history' };
+  }
+}
+
+export async function getSaleReturnAction(returnId: string): Promise<ActionResult<any>> {
+  try {
+    const userData = await getAuthAndPermissions('sales.view');
+    if (!returnId) {
+      return { success: false, error: 'Return ID is required' };
+    }
+    const result = await salesService.getSaleReturnById(userData.shop_id, returnId);
+    if (!result) {
+      return { success: false, error: 'Return document not found' };
+    }
+    return { success: true, data: result };
+  } catch (error: any) {
+    console.error('getSaleReturnAction error:', error);
+    return { success: false, error: error.message || 'Unable to load return document' };
   }
 }
 
@@ -106,3 +178,4 @@ export async function getTodaySalesAction(): Promise<ActionResult<any>> {
     return { success: false, error: error.message || 'An unexpected error occurred' };
   }
 }
+

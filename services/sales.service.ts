@@ -24,7 +24,10 @@ export function normalizeSale(sale: any) {
     const expiryDate = it.expiry_date || b.expiry_date || p.expiry_date || p.batches?.[0]?.expiry_date || null;
     const mfg = it.manufacturer || p.manufacturer || p.brand?.manufacturer || p.brand?.name || null;
 
-    const qty = Math.max(1, Number(it.quantity || 1));
+    const qty = Math.max(0, Number(it.quantity || 0));
+    const retQty = Math.max(0, Number(it.returned_quantity ?? it.returnedQuantity ?? 0));
+    const availQty = Math.max(0, qty - retQty);
+
     const unitPrice = Number(it.unit_price ?? it.unitPrice ?? it.selling_price ?? it.rate ?? 0);
     const discPercent = Number(it.discount_percent ?? it.discountPercent ?? 0);
     const discAmt = Number(
@@ -44,6 +47,11 @@ export function normalizeSale(sale: any) {
 
     return {
       ...it,
+      quantity: qty,
+      returned_quantity: retQty,
+      returnedQuantity: retQty,
+      available_to_return: availQty,
+      availableToReturn: availQty,
       hsn_code: hsnCode,
       batch_number: batchNumber,
       expiry_date: expiryDate,
@@ -129,22 +137,27 @@ export function normalizeSale(sale: any) {
     ? Math.max(0, calculatedGrandTotal + totalAdditions - totalDeductions)
     : Number(sale.total_amount ?? sale.grand_total ?? sale.totalAmount ?? 0);
 
-  const rawStatus = (sale.status || '').toString().toUpperCase();
-  const rawPaymentStatus = (sale.payment_status || '').toString().toUpperCase();
+  const rawStatus = (sale.status || '').toString().toLowerCase().trim();
+  const rawPaymentStatus = (sale.payment_status || '').toString().toLowerCase().trim();
 
   let resolvedStatus = 'COMPLETED';
-  if (rawStatus === 'CANCELLED') {
+  if (rawStatus === 'cancelled') {
     resolvedStatus = 'CANCELLED';
-  } else if (rawStatus === 'REFUNDED' || rawStatus === 'RETURNED') {
+  } else if (rawStatus === 'returned') {
+    resolvedStatus = 'RETURNED';
+  } else if (rawStatus === 'partially_returned') {
+    resolvedStatus = 'PARTIALLY RETURNED';
+  } else if (rawStatus === 'refunded') {
     resolvedStatus = 'REFUNDED';
-  } else if (rawPaymentStatus === 'CREDIT' || rawPaymentStatus === 'UNPAID') {
+  } else if (rawPaymentStatus === 'credit' || rawPaymentStatus === 'unpaid') {
     resolvedStatus = 'PENDING';
-  } else if (rawPaymentStatus === 'PAID' || rawStatus === 'COMPLETED') {
+  } else {
     resolvedStatus = 'COMPLETED';
   }
 
   const custObj = resolvedCustomer || sale.customer || null;
   const custName = custObj?.name || sale.customer_name || (sale.customer_id ? 'CUSTOMER' : 'WALK-IN CUSTOMER');
+  const returnsList = Array.isArray(sale.returns) ? sale.returns : (Array.isArray(sale.sale_returns) ? sale.sale_returns : []);
 
   return {
     ...sale,
@@ -166,11 +179,15 @@ export function normalizeSale(sale: any) {
     payableAmount: effectiveTotal,
     items: normalizedItems,
     sale_items: normalizedItems,
+    returns: returnsList,
+    sale_returns: returnsList,
     status: resolvedStatus,
+    db_status: rawStatus || 'completed',
     sale_date: sale.sale_date || sale.created_at,
     created_at: sale.created_at || sale.sale_date,
   };
 }
+
 
 export function getDemoSales(): any[] {
   return getStoredDemoSales(normalizeSale);
@@ -773,6 +790,41 @@ export async function getSaleById(shopId: string, saleId: string) {
           .maybeSingle();
         if (dbCust) data.customer = dbCust;
       }
+
+      // Fetch return documents for this sale
+      try {
+        const { data: returnsData } = await supabase
+          .from('sale_returns')
+          .select('*, items:sale_return_items(*, product:products(name, sku, unit)), batches:sale_return_item_batches(*)')
+          .eq('shop_id', shopId)
+          .eq('sale_id', data.id)
+          .order('return_date', { ascending: false });
+
+        data.returns = returnsData || [];
+        data.sale_returns = returnsData || [];
+
+        // Ensure returned_quantity is aggregated accurately from return items if present
+        if (Array.isArray(data.items) && Array.isArray(returnsData) && returnsData.length > 0) {
+          const retQtyByItem = new Map<string, number>();
+          for (const retDoc of returnsData) {
+            for (const retItem of (retDoc.items || [])) {
+              const current = retQtyByItem.get(retItem.sale_item_id) || 0;
+              retQtyByItem.set(retItem.sale_item_id, current + Number(retItem.quantity || 0));
+            }
+          }
+          data.items = data.items.map((it: any) => {
+            const sumRet = retQtyByItem.get(it.id);
+            if (sumRet !== undefined) {
+              return { ...it, returned_quantity: Math.max(Number(it.returned_quantity || 0), sumRet) };
+            }
+            return it;
+          });
+        }
+      } catch (err) {
+        console.warn("Could not load return history for sale:", err);
+        data.returns = [];
+        data.sale_returns = [];
+      }
     }
 
     return data ? normalizeSale(data) : null;
@@ -829,6 +881,21 @@ export async function getSaleByInvoice(shopId: string, invoiceNumber: string) {
           .maybeSingle();
         if (dbCust) data.customer = dbCust;
       }
+
+      try {
+        const { data: returnsData } = await supabase
+          .from('sale_returns')
+          .select('*, items:sale_return_items(*, product:products(name, sku, unit)), batches:sale_return_item_batches(*)')
+          .eq('shop_id', shopId)
+          .eq('sale_id', data.id)
+          .order('return_date', { ascending: false });
+
+        data.returns = returnsData || [];
+        data.sale_returns = returnsData || [];
+      } catch {
+        data.returns = [];
+        data.sale_returns = [];
+      }
     }
 
     return data ? normalizeSale(data) : null;
@@ -838,55 +905,163 @@ export async function getSaleByInvoice(shopId: string, invoiceNumber: string) {
   }
 }
 
-export async function cancelSale(shopId: string, saleId: string, userId: string, reason: string) {
+export async function getSaleReturns(shopId: string, saleId: string) {
+  if (isPlaceholderMode()) {
+    return [];
+  }
+
+  const supabase = await createServerSupabaseClient();
+  const { data, error } = await supabase
+    .from('sale_returns')
+    .select('*, customer:customers(*), items:sale_return_items(*, product:products(name, sku, unit, hsn_code), batch:product_batches(batch_number, expiry_date)), batches:sale_return_item_batches(*, batch:product_batches(batch_number, expiry_date))')
+    .eq('shop_id', shopId)
+    .eq('sale_id', saleId)
+    .order('return_date', { ascending: false });
+
+  if (error) {
+    console.error("Error fetching sale returns:", error);
+    throw new Error(error.message || 'Unable to load return history');
+  }
+
+  return data || [];
+}
+
+export async function getSaleReturnById(shopId: string, returnId: string) {
+  if (isPlaceholderMode()) {
+    return null;
+  }
+
+  const supabase = await createServerSupabaseClient();
+  const { data, error } = await supabase
+    .from('sale_returns')
+    .select('*, sale:sales(*, customer:customers(*)), customer:customers(*), items:sale_return_items(*, product:products(name, sku, unit, hsn_code, category:categories(name), brand:brands(name)), batch:product_batches(batch_number, expiry_date)), batches:sale_return_item_batches(*, batch:product_batches(batch_number, expiry_date))')
+    .eq('shop_id', shopId)
+    .eq('id', returnId)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Error fetching sale return by ID:", error);
+    throw new Error(error.message || 'Unable to load return document');
+  }
+
+  return data || null;
+}
+
+export async function cancelSale(shopId: string, saleId: string, userId: string, reason: string = 'Sale Cancelled') {
   if (isPlaceholderMode()) {
     const store = getStoredDemoSales(normalizeSale);
     const found = store.find(s => s.id === saleId || s.invoice_number === saleId);
-    if (found) {
-      found.status = 'CANCELLED';
-      found.cancel_reason = reason;
-      saveStoredDemoSales(store);
+    if (!found) {
+      throw new Error('Sale not found');
     }
-    return;
+    found.status = 'CANCELLED';
+    found.cancel_reason = reason;
+    saveStoredDemoSales(store);
+    return { success: true, sale_id: saleId, status: 'cancelled' };
   }
 
   const supabase = await createServerSupabaseClient();
-  const { error } = await supabase.rpc('cancel_sale', {
+  const { data, error } = await supabase.rpc('cancel_sale', {
     p_shop_id: shopId,
     p_sale_id: saleId,
     p_user_id: userId,
-    p_reason: reason
+    p_reason: reason || 'Sale Cancelled',
   });
+
   if (error) {
     console.error("Error cancelling sale:", error);
-    throw error;
+    const msg = error.message || '';
+    if (msg.includes('is already cancelled')) {
+      throw new Error('This bill has already been cancelled.');
+    }
+    if (msg.includes('not found')) {
+      throw new Error('Sale not found in this shop.');
+    }
+    throw new Error(error.message || 'Unable to cancel bill. Please try again.');
   }
+
+  return data || { success: true, sale_id: saleId, status: 'cancelled' };
 }
 
-export async function returnSale(shopId: string, saleId: string, items: { saleItemId: string, quantity: number, reason: string }[], userId: string) {
+export async function returnSale(
+  shopId: string,
+  saleId: string,
+  items: { saleItemId: string; quantity: number; reason?: string }[],
+  userId: string,
+  refundMode: string = 'CREDIT_ADJUSTMENT',
+  reason: string = 'Customer Return'
+) {
+  if (!items || items.length === 0) {
+    throw new Error('At least one item must be selected for return');
+  }
+
+  // Validate items
+  for (const it of items) {
+    if (!it.saleItemId) {
+      throw new Error('Sale item ID is required for each return item');
+    }
+    if (!Number.isInteger(it.quantity) || it.quantity <= 0) {
+      throw new Error('Return quantity must be a positive whole number');
+    }
+  }
+
+  const validModes = ['CREDIT_ADJUSTMENT', 'CASH', 'UPI', 'BANK_TRANSFER', 'CARD'];
+  const effectiveMode = validModes.includes(refundMode) ? refundMode : 'CREDIT_ADJUSTMENT';
+
   if (isPlaceholderMode()) {
     const store = getStoredDemoSales(normalizeSale);
-    const found = store.find(s => s.id === saleId);
-    if (found) {
-      found.status = 'REFUNDED';
-      saveStoredDemoSales(store);
+    const found = store.find(s => s.id === saleId || s.invoice_number === saleId);
+    if (!found) {
+      throw new Error('Sale not found');
     }
-    return { success: true };
+    if (found.status === 'CANCELLED' || found.status === 'cancelled') {
+      throw new Error('This bill has already been cancelled.');
+    }
+    return {
+      success: true,
+      return_id: `ret-${Date.now()}`,
+      return_number: `RET-${found.invoice_number || '1'}-01`,
+      invoice_number: found.invoice_number || 'INV',
+      total_amount: 0,
+      sale_status: 'returned',
+    };
   }
 
   const supabase = await createServerSupabaseClient();
-  const { error } = await supabase.rpc('process_sale_return', {
+  const { data, error } = await supabase.rpc('process_sale_return', {
     p_shop_id: shopId,
     p_sale_id: saleId,
-    p_items: items,
-    p_user_id: userId
+    p_items: items.map(i => ({
+      saleItemId: i.saleItemId,
+      quantity: i.quantity,
+      reason: i.reason || reason || 'Customer Return',
+    })),
+    p_user_id: userId,
+    p_refund_mode: effectiveMode,
+    p_reason: reason || 'Customer Return',
   });
+
   if (error) {
     console.error("Error processing sale return:", error);
-    throw error;
+    const msg = error.message || '';
+    if (msg.includes('Cannot return products from a cancelled sale')) {
+      throw new Error('This bill has already been cancelled.');
+    }
+    if (msg.includes('already fully returned')) {
+      throw new Error('This bill has already been fully returned.');
+    }
+    if (msg.includes('Maximum available to return is')) {
+      throw new Error(msg.replace(/^.*Cannot return/i, 'Cannot return'));
+    }
+    if (msg.includes('not found')) {
+      throw new Error('Sale or item not found in this shop.');
+    }
+    throw new Error(error.message || 'Unable to process return. Please try again.');
   }
-  return { success: true };
+
+  return data;
 }
+
 
 export async function getTodaySales(shopId: string) {
   try {
