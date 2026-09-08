@@ -10,22 +10,29 @@ export interface SyncCustomerAccountResult {
   error?: string;
 }
 
+export interface SyncCustomerAccountInput {
+  phone?: string;
+  email?: string;
+  name?: string;
+}
+
 /**
- * Ensures a customer_accounts record exists for the authenticated user and their verified phone.
+ * Ensures a customer_accounts record exists for the authenticated user.
+ * Supports both email-based and phone-based customer accounts.
  * Migration 012's database trigger automatically links matching shop customer records upon account creation.
+ * 
+ * Lookup priority:
+ * 1. auth_user_id (always checked first)
+ * 2. email (for email-based accounts)
+ * 3. mobile (for phone-based accounts, if phone is supplied)
  */
-export async function syncCustomerAccountAction(phone: string, name?: string): Promise<SyncCustomerAccountResult> {
+export async function syncCustomerAccountAction(input: SyncCustomerAccountInput): Promise<SyncCustomerAccountResult> {
   try {
     const supabase = await createServerSupabaseClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
     if (authError || !user) {
-      return { success: false, error: 'User session not found. Please verify OTP again.' };
-    }
-
-    const normalized = normalizeIndianMobile(phone);
-    if (!normalized) {
-      return { success: false, error: 'Invalid 10-digit Indian mobile number format.' };
+      return { success: false, error: 'User session not found. Please log in again.' };
     }
 
     const adminClient = createServerAdminClient() || supabase;
@@ -41,40 +48,75 @@ export async function syncCustomerAccountAction(phone: string, name?: string): P
       return { success: true, account: existingAccount };
     }
 
-    // 2. Check if a customer account with this mobile already exists
-    const { data: accountByMobile } = await adminClient
-      .from('customer_accounts')
-      .select('*')
-      .eq('mobile', normalized)
-      .maybeSingle();
-
-    if (accountByMobile) {
-      // Re-bind to current authenticated user
-      const { data: updated, error: updateErr } = await adminClient
+    // 2. Check if a customer account with this email already exists
+    const email = input.email?.trim() || user.email;
+    if (email) {
+      const { data: accountByEmail } = await adminClient
         .from('customer_accounts')
-        .update({
-          auth_user_id: user.id,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', accountByMobile.id)
-        .select()
-        .single();
+        .select('*')
+        .eq('email', email)
+        .maybeSingle();
 
-      if (updateErr) {
-        console.error('Error re-binding customer account:', updateErr);
+      if (accountByEmail) {
+        // Re-bind to current authenticated user
+        const { data: updated, error: updateErr } = await adminClient
+          .from('customer_accounts')
+          .update({
+            auth_user_id: user.id,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', accountByEmail.id)
+          .select()
+          .single();
+
+        if (updateErr) {
+          console.error('Error re-binding customer account by email:', updateErr);
+        }
+        return { success: true, account: updated || accountByEmail };
       }
-      return { success: true, account: updated || accountByMobile };
     }
 
-    // 3. Create brand-new customer account
-    const fullName = (name?.trim()) || user.user_metadata?.name || user.user_metadata?.full_name || 'Farmer';
+    // 3. Check if a customer account with this mobile already exists (phone-based lookup)
+    if (input.phone) {
+      const normalized = normalizeIndianMobile(input.phone);
+      if (normalized) {
+        const { data: accountByMobile } = await adminClient
+          .from('customer_accounts')
+          .select('*')
+          .eq('mobile', normalized)
+          .maybeSingle();
+
+        if (accountByMobile) {
+          // Re-bind to current authenticated user
+          const { data: updated, error: updateErr } = await adminClient
+            .from('customer_accounts')
+            .update({
+              auth_user_id: user.id,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', accountByMobile.id)
+            .select()
+            .single();
+
+          if (updateErr) {
+            console.error('Error re-binding customer account by mobile:', updateErr);
+          }
+          return { success: true, account: updated || accountByMobile };
+        }
+      }
+    }
+
+    // 4. Create brand-new customer account
+    const fullName = (input.name?.trim()) || user.user_metadata?.name || user.user_metadata?.full_name || 'Farmer';
+    const normalized = input.phone ? normalizeIndianMobile(input.phone) : null;
+
     const { data: newAccount, error: createErr } = await adminClient
       .from('customer_accounts')
       .insert({
         auth_user_id: user.id,
-        mobile: normalized,
+        mobile: normalized, // null for email-only accounts
         name: fullName,
-        email: user.email || null,
+        email: email || null,
       })
       .select()
       .single();

@@ -183,7 +183,7 @@ export const getAuthenticatedCustomer = cache(async (): Promise<any> => {
     .maybeSingle();
 
   if (!customerAccount) {
-    throw new Error("Customer profile not found. Please complete mobile verification.");
+    throw new Error("Customer profile not found. Please log in again.");
   }
 
   return customerAccount;

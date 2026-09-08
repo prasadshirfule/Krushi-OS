@@ -30,9 +30,9 @@ export async function updateSession(request: NextRequest) {
   const pathname = request.nextUrl.pathname
 
   // Determine user role (Customer vs Shopkeeper)
+  // Relies solely on user_metadata.role set during registration/signup
   const isCustomerUser = user && (
-    user.user_metadata?.role === 'customer' ||
-    (Boolean(user.phone) && !user.email)
+    user.user_metadata?.role === 'customer'
   )
 
   // 1. Redirect /shop-details to /settings
@@ -56,8 +56,10 @@ export async function updateSession(request: NextRequest) {
   }
 
   // 3. Auth pages: redirect authenticated users to their corresponding dashboard
+  // Exception: /reset-password must remain accessible during password recovery sessions
   const isAuthPage = pathname.startsWith('/login') || pathname.startsWith('/register') || pathname.startsWith('/forgot-password')
-  if (isAuthPage && user) {
+  const isResetPasswordPage = pathname.startsWith('/reset-password')
+  if (isAuthPage && !isResetPasswordPage && user) {
     const redirectUrl = request.nextUrl.clone()
     redirectUrl.pathname = isCustomerUser ? '/customer/dashboard' : '/dashboard'
     return NextResponse.redirect(redirectUrl)

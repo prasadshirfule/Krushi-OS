@@ -10,7 +10,7 @@ import { formatDisplayMobile } from '@/lib/phone-utils';
 
 export default function CustomerDashboardPlaceholder() {
   const router = useRouter();
-  const [customer, setCustomer] = useState<{ name?: string; mobile?: string } | null>(null);
+  const [customer, setCustomer] = useState<{ name?: string; mobile?: string; email?: string } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
@@ -27,10 +27,12 @@ export default function CustomerDashboardPlaceholder() {
 
         const phone = user.phone || user.user_metadata?.phone || '';
         const name = user.user_metadata?.name || user.user_metadata?.full_name || 'Farmer';
+        const email = user.email || '';
 
         setCustomer({
           name,
           mobile: phone,
+          email,
         });
       } catch (err) {
         console.error('Failed to load customer profile:', err);
@@ -105,6 +107,11 @@ export default function CustomerDashboardPlaceholder() {
             <h2 className="text-2xl font-bold tracking-tight text-foreground">
               Welcome, {customer?.name || 'Farmer'}
             </h2>
+            {customer?.email && (
+              <p className="text-sm text-muted-foreground">
+                {customer.email}
+              </p>
+            )}
             {customer?.mobile && (
               <p className="text-sm font-mono text-muted-foreground">
                 {formatDisplayMobile(customer.mobile)}
@@ -115,7 +122,7 @@ export default function CustomerDashboardPlaceholder() {
           <div className="rounded-xl bg-muted/40 border border-border/60 p-5 text-sm text-muted-foreground space-y-2">
             <p className="font-semibold text-foreground text-base">Customer Portal Coming Soon</p>
             <p className="text-xs leading-relaxed">
-              Your verified mobile identity is securely connected. In the upcoming steps, you will be able to view and download tax invoices from all Krushi OS stores, track payments, and manage outstanding balances.
+              Your verified identity is securely connected. In the upcoming steps, you will be able to view and download tax invoices from all Krushi OS stores, track payments, and manage outstanding balances.
             </p>
           </div>
 
@@ -133,3 +140,4 @@ export default function CustomerDashboardPlaceholder() {
     </div>
   );
 }
+

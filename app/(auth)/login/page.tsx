@@ -15,18 +15,12 @@ import {
   ArrowRight, 
   Store, 
   User, 
-  Phone, 
-  KeyRound, 
   ArrowLeft,
   ShieldCheck,
-  RefreshCw,
-  AlertCircle
 } from 'lucide-react';
-import { normalizeIndianMobile, formatDisplayMobile } from '@/lib/phone-utils';
 import { syncCustomerAccountAction } from '@/actions/customer-auth';
 
 type LoginRole = 'select' | 'shopkeeper' | 'customer';
-type CustomerAuthStep = 'phone' | 'otp';
 
 function LoginFormContent() {
   const router = useRouter();
@@ -41,12 +35,9 @@ function LoginFormContent() {
   const [isShopkeeperLoading, setIsShopkeeperLoading] = useState(false);
 
   // Customer state
-  const [mobileInput, setMobileInput] = useState('');
-  const [otpInput, setOtpInput] = useState('');
-  const [customerStep, setCustomerStep] = useState<CustomerAuthStep>('phone');
+  const [customerEmail, setCustomerEmail] = useState('');
+  const [customerPassword, setCustomerPassword] = useState('');
   const [isCustomerLoading, setIsCustomerLoading] = useState(false);
-  const [resendCountdown, setResendCountdown] = useState(0);
-  const [smsConfigError, setSmsConfigError] = useState<string | null>(null);
 
   useEffect(() => {
     if (initialType === 'shopkeeper') {
@@ -55,15 +46,6 @@ function LoginFormContent() {
       setRole('customer');
     }
   }, [initialType]);
-
-  // Resend cooldown timer
-  useEffect(() => {
-    if (resendCountdown <= 0) return;
-    const interval = setInterval(() => {
-      setResendCountdown((prev) => prev - 1);
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [resendCountdown]);
 
   // --- SHOPKEEPER SUBMIT ---
   const handleShopkeeperSubmit = async (e: React.FormEvent) => {
@@ -104,14 +86,17 @@ function LoginFormContent() {
     }
   };
 
-  // --- CUSTOMER SEND OTP ---
-  const handleCustomerSendOtp = async (e: React.FormEvent) => {
+  // --- CUSTOMER LOGIN (EMAIL + PASSWORD) ---
+  const handleCustomerLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSmsConfigError(null);
 
-    const normalized = normalizeIndianMobile(mobileInput);
-    if (!normalized) {
-      toast.error('Please enter a valid 10-digit Indian mobile number starting with 6, 7, 8, or 9.');
+    if (!customerEmail.trim()) {
+      toast.error('Please enter your email address.');
+      return;
+    }
+
+    if (!customerPassword.trim()) {
+      toast.error('Please enter your password.');
       return;
     }
 
@@ -119,104 +104,73 @@ function LoginFormContent() {
 
     try {
       const supabase = createClient();
-      const fullPhoneNumber = `+91${normalized}`;
-
-      const { error } = await supabase.auth.signInWithOtp({
-        phone: fullPhoneNumber,
-        options: {
-          data: {
-            role: 'customer',
-            phone: normalized,
-          }
-        }
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: customerEmail.trim(),
+        password: customerPassword,
       });
 
       if (error) {
-        console.error('Supabase Phone Auth Error:', error);
-        const errMsg = error.message || 'Failed to send OTP';
-        const lower = errMsg.toLowerCase();
+        const msg = error.message || 'Login failed';
+        const lower = msg.toLowerCase();
 
-        // Check if phone auth is explicitly disabled in Supabase dashboard
-        if (
-          lower.includes('phone provider is disabled') ||
-          lower.includes('sms provider is not configured') ||
-          (error as any).code === 'phone_provider_disabled'
-        ) {
-          const configMsg = 'Phone authentication is disabled in Supabase. Please enable Phone Provider in Supabase Dashboard (Authentication > Providers > Phone).';
-          setSmsConfigError(configMsg);
-          toast.error(configMsg);
+        if (lower.includes('invalid login credentials') || lower.includes('invalid email or password')) {
+          toast.error('Invalid email or password. Please try again.');
+        } else if (lower.includes('email not confirmed') || lower.includes('not confirmed')) {
+          toast.error('Email not verified. Please check your email and verify your account before logging in.');
+        } else if (lower.includes('too many requests') || lower.includes('rate limit')) {
+          toast.error('Too many login attempts. Please wait a moment and try again.');
         } else {
-          setSmsConfigError(null);
-          toast.error(errMsg);
+          toast.error(msg);
         }
-        setIsCustomerLoading(false);
-        return;
-      }
-
-      toast.success(`OTP sent to ${formatDisplayMobile(normalized)}`);
-      setCustomerStep('otp');
-      setResendCountdown(30);
-      setIsCustomerLoading(false);
-    } catch (err: any) {
-      console.error('Customer Send OTP error:', err);
-      toast.error(err.message || 'An unexpected error occurred while sending OTP.');
-      setIsCustomerLoading(false);
-    }
-  };
-
-  // --- CUSTOMER VERIFY OTP ---
-  const handleCustomerVerifyOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    const normalized = normalizeIndianMobile(mobileInput);
-    if (!normalized) {
-      toast.error('Invalid mobile number. Please restart verification.');
-      setCustomerStep('phone');
-      return;
-    }
-
-    const trimmedOtp = otpInput.trim();
-    if (!trimmedOtp || trimmedOtp.length < 6) {
-      toast.error('Please enter the complete 6-digit OTP.');
-      return;
-    }
-
-    setIsCustomerLoading(true);
-
-    try {
-      const supabase = createClient();
-      const fullPhoneNumber = `+91${normalized}`;
-
-      const { data, error } = await supabase.auth.verifyOtp({
-        phone: fullPhoneNumber,
-        token: trimmedOtp,
-        type: 'sms',
-      });
-
-      if (error) {
-        toast.error(error.message || 'Invalid or expired OTP. Please try again.');
         setIsCustomerLoading(false);
         return;
       }
 
       if (data?.session) {
-        // Sync/create customer_accounts record and auto-link shop records via migration 012 trigger
-        const syncRes = await syncCustomerAccountAction(normalized);
+        // Sync customer account after successful login
+        const syncRes = await syncCustomerAccountAction({
+          email: customerEmail.trim(),
+        });
         if (!syncRes.success) {
           console.warn('Customer account sync notice:', syncRes.error);
         }
 
-        toast.success('Mobile verified successfully! Redirecting...');
+        toast.success('Signed in successfully! Redirecting...');
         router.push('/customer/dashboard');
         router.refresh();
       } else {
-        toast.error('Could not establish customer session. Please try again.');
+        toast.error('Could not establish session. Please try again.');
         setIsCustomerLoading(false);
       }
     } catch (err: any) {
-      console.error('Customer Verify OTP error:', err);
-      toast.error(err.message || 'An unexpected error occurred during OTP verification.');
+      console.error('Customer login error:', err);
+      toast.error(err.message || 'An unexpected error occurred during login.');
       setIsCustomerLoading(false);
+    }
+  };
+
+  // --- CUSTOMER FORGOT PASSWORD ---
+  const handleCustomerForgotPassword = async () => {
+    if (!customerEmail.trim()) {
+      toast.error('Please enter your email address first, then click Forgot Password.');
+      return;
+    }
+
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.auth.resetPasswordForEmail(customerEmail.trim(), {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+
+      if (error) {
+        toast.error(error.message || 'Failed to send password reset email.');
+        return;
+      }
+
+      toast.success('Password reset email sent! Please check your inbox.');
+    } catch (err: any) {
+      console.error('Forgot password error:', err);
+      toast.error(err.message || 'An unexpected error occurred.');
     }
   };
 
@@ -279,7 +233,7 @@ function LoginFormContent() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between">
                   <h3 className="font-bold text-base text-foreground group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
-                    👨‍🌾 Customer
+                    👨‍🌾 Farmer & Customer
                   </h3>
                   <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-emerald-600 group-hover:translate-x-0.5 transition-all" />
                 </div>
@@ -297,7 +251,7 @@ function LoginFormContent() {
                 setRole('customer');
               }}
             >
-              Continue as Customer
+              Continue as Farmer & Customer
             </Button>
           </div>
         </div>
@@ -412,23 +366,16 @@ function LoginFormContent() {
   }
 
   // ========================================================
-  // 3. CUSTOMER LOGIN FLOW (MOBILE + REAL OTP)
+  // 3. CUSTOMER LOGIN FLOW (EMAIL + PASSWORD)
   // ========================================================
   return (
     <div className="space-y-6">
       <button
         type="button"
-        onClick={() => {
-          if (customerStep === 'otp') {
-            setCustomerStep('phone');
-          } else {
-            setRole('select');
-          }
-        }}
+        onClick={() => setRole('select')}
         className="inline-flex items-center text-xs font-medium text-muted-foreground hover:text-foreground gap-1 transition-colors"
       >
-        <ArrowLeft className="h-3.5 w-3.5" />
-        {customerStep === 'otp' ? 'Change Mobile Number' : 'Back to account selection'}
+        <ArrowLeft className="h-3.5 w-3.5" /> Back to account selection
       </button>
 
       <div className="text-center space-y-1">
@@ -437,140 +384,95 @@ function LoginFormContent() {
         </div>
         <h2 className="text-2xl font-bold tracking-tight">Customer Login</h2>
         <p className="text-sm text-muted-foreground">
-          {customerStep === 'phone'
-            ? 'Enter your 10-digit mobile number to access your bills'
-            : `Enter the 6-digit OTP sent to ${formatDisplayMobile(mobileInput)}`}
+          Enter your email and password to access your bills
         </p>
       </div>
 
-      {smsConfigError && (
-        <div className="flex items-start gap-2.5 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-xs leading-relaxed">
-          <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-          <div>
-            <p className="font-semibold">SMS Provider Notice</p>
-            <p>{smsConfigError}</p>
+      <form onSubmit={handleCustomerLogin} className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="customerEmail" className="text-sm font-medium">Email</Label>
+          <div className="relative">
+            <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+            <Input
+              id="customerEmail"
+              type="email"
+              placeholder="name@example.com"
+              value={customerEmail}
+              onChange={(e) => setCustomerEmail(e.target.value)}
+              required
+              autoComplete="email"
+              className="pl-9"
+              disabled={isCustomerLoading}
+              autoFocus
+            />
           </div>
         </div>
-      )}
 
-      {customerStep === 'phone' ? (
-        <form onSubmit={handleCustomerSendOtp} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="mobile" className="text-sm font-medium">Mobile Number</Label>
-            <div className="relative flex items-center">
-              <div className="absolute left-3 flex items-center gap-1.5 text-muted-foreground pointer-events-none text-sm font-semibold border-r border-border pr-2.5">
-                <span>🇮🇳 +91</span>
-              </div>
-              <Input
-                id="mobile"
-                type="tel"
-                placeholder="98765 43210"
-                value={mobileInput}
-                onChange={(e) => setMobileInput(e.target.value)}
-                required
-                autoComplete="tel"
-                className="pl-24 text-base font-mono tracking-wide"
-                disabled={isCustomerLoading}
-                autoFocus
-              />
-            </div>
-            <p className="text-[11px] text-muted-foreground">
-              We will send a 6-digit verification code to this mobile number.
-            </p>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="customerPassword" className="text-sm font-medium">Password</Label>
+            <button
+              type="button"
+              onClick={handleCustomerForgotPassword}
+              className="text-xs text-emerald-600 dark:text-emerald-400 hover:underline font-medium"
+            >
+              Forgot Password?
+            </button>
           </div>
-
-          <Button
-            type="submit"
-            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-5 shadow-xs"
-            disabled={isCustomerLoading}
-          >
-            {isCustomerLoading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Sending OTP...
-              </>
-            ) : (
-              <>
-                Send OTP <ArrowRight className="ml-2 h-4 w-4" />
-              </>
-            )}
-          </Button>
-        </form>
-      ) : (
-        <form onSubmit={handleCustomerVerifyOtp} className="space-y-4">
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="otp" className="text-sm font-medium">6-Digit Verification Code</Label>
-              <button
-                type="button"
-                onClick={() => setCustomerStep('phone')}
-                className="text-xs text-primary hover:underline"
-              >
-                Change Number
-              </button>
-            </div>
-            <div className="relative">
-              <KeyRound className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-              <Input
-                id="otp"
-                type="text"
-                maxLength={6}
-                placeholder="123456"
-                value={otpInput}
-                onChange={(e) => setOtpInput(e.target.value.replace(/\D/g, ''))}
-                required
-                autoComplete="one-time-code"
-                className="pl-9 text-center font-mono tracking-widest text-lg font-bold"
-                disabled={isCustomerLoading}
-                autoFocus
-              />
-            </div>
+          <div className="relative">
+            <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+            <Input
+              id="customerPassword"
+              type="password"
+              placeholder="••••••••"
+              value={customerPassword}
+              onChange={(e) => setCustomerPassword(e.target.value)}
+              required
+              autoComplete="current-password"
+              className="pl-9"
+              disabled={isCustomerLoading}
+            />
           </div>
+        </div>
 
-          <Button
-            type="submit"
-            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-5 shadow-xs"
-            disabled={isCustomerLoading}
-          >
-            {isCustomerLoading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Verifying OTP...
-              </>
-            ) : (
-              <>
-                Verify OTP <ArrowRight className="ml-2 h-4 w-4" />
-              </>
-            )}
-          </Button>
-
-          <div className="flex items-center justify-center pt-2">
-            {resendCountdown > 0 ? (
-              <span className="text-xs text-muted-foreground">
-                Resend code in <strong className="text-foreground">{resendCountdown}s</strong>
-              </span>
-            ) : (
-              <button
-                type="button"
-                onClick={handleCustomerSendOtp}
-                disabled={isCustomerLoading}
-                className="inline-flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-semibold hover:underline"
-              >
-                <RefreshCw className="h-3 w-3" /> Resend OTP
-              </button>
-            )}
-          </div>
-        </form>
-      )}
-
-      <div className="text-center text-sm pt-2 border-t border-border">
-        <button
-          type="button"
-          onClick={() => setRole('shopkeeper')}
-          className="text-xs text-muted-foreground hover:text-primary transition-colors"
+        <Button
+          type="submit"
+          className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-5 shadow-xs"
+          disabled={isCustomerLoading}
         >
-          Are you an agricultural store owner? <span className="font-semibold text-primary underline">Shopkeeper Login</span>
-        </button>
+          {isCustomerLoading ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Signing in...
+            </>
+          ) : (
+            <>
+              Login <ArrowRight className="ml-2 h-4 w-4" />
+            </>
+          )}
+        </Button>
+      </form>
+
+      <div className="space-y-3 text-center text-sm pt-2 border-t border-border">
+        <div>
+          <span className="text-muted-foreground">Don&apos;t have an account? </span>
+          <Link
+            href="/register/customer"
+            className="text-emerald-600 dark:text-emerald-400 hover:underline font-semibold"
+          >
+            Create Customer Account
+          </Link>
+        </div>
+
+        <div className="pt-1">
+          <button
+            type="button"
+            onClick={() => setRole('shopkeeper')}
+            className="text-xs text-muted-foreground hover:text-primary transition-colors"
+          >
+            Are you an agricultural store owner? <span className="font-semibold text-primary underline">Shopkeeper Login</span>
+          </button>
+        </div>
       </div>
     </div>
   );
