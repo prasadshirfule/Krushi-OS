@@ -15,6 +15,7 @@ import {
   ArrowLeft,
   User,
   Mail,
+  Phone,
   Lock,
   Loader2,
   ArrowRight,
@@ -22,11 +23,16 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import { syncCustomerAccountAction } from '@/actions/customer-auth';
+import { normalizeIndianMobile, isValidIndianMobile } from '@/lib/phone-utils';
 
 const customerRegisterSchema = z
   .object({
     fullName: z.string().min(1, 'Full name is required'),
     email: z.string().email('Please enter a valid email address'),
+    mobile: z.string().min(1, 'Mobile number is required').refine(
+      (val) => isValidIndianMobile(val),
+      { message: 'Please enter a valid 10-digit Indian mobile number (e.g. 9876543210)' }
+    ),
     password: z.string().min(6, 'Password must be at least 6 characters'),
     confirmPassword: z.string(),
   })
@@ -56,6 +62,7 @@ export default function CustomerRegisterPage() {
 
     try {
       const supabase = createClient();
+      const normalizedMobile = normalizeIndianMobile(data.mobile);
 
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: data.email.trim(),
@@ -64,6 +71,7 @@ export default function CustomerRegisterPage() {
           data: {
             role: 'customer',
             full_name: data.fullName.trim(),
+            phone: normalizedMobile || undefined,
           },
         },
       });
@@ -90,6 +98,7 @@ export default function CustomerRegisterPage() {
         const syncRes = await syncCustomerAccountAction({
           email: data.email.trim(),
           name: data.fullName.trim(),
+          phone: normalizedMobile || undefined,
         });
         if (!syncRes.success) {
           console.warn('Customer account sync notice:', syncRes.error);
@@ -207,6 +216,30 @@ export default function CustomerRegisterPage() {
           </div>
           {errors.email && (
             <p className="text-sm text-destructive">{errors.email.message}</p>
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="mobile" className="text-sm font-medium">
+            Mobile Number
+          </Label>
+          <div className="relative">
+            <Phone className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+            <Input
+              id="mobile"
+              type="tel"
+              placeholder="9876543210"
+              {...register('mobile')}
+              className="pl-9"
+              disabled={isLoading}
+              autoComplete="tel"
+            />
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            Used for linking your bills from Krushi OS stores. Not SMS-verified.
+          </p>
+          {errors.mobile && (
+            <p className="text-sm text-destructive">{errors.mobile.message}</p>
           )}
         </div>
 

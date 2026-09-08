@@ -41,6 +41,13 @@ export function normalizeIndianMobile(rawMobile: string | null | undefined): str
 }
 
 /**
+ * Validates whether a raw mobile string is a valid Indian mobile number
+ */
+export function isValidIndianMobile(rawMobile: string | null | undefined): boolean {
+  return normalizeIndianMobile(rawMobile) !== null;
+}
+
+/**
  * Formats a normalized 10-digit mobile for UI display (e.g. "+91 98765 43210")
  */
 export function formatDisplayMobile(rawMobile: string | null | undefined): string {
