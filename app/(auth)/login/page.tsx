@@ -133,19 +133,21 @@ function LoginFormContent() {
 
       if (error) {
         console.error('Supabase Phone Auth Error:', error);
-        const errMsg = error.message || '';
+        const errMsg = error.message || 'Failed to send OTP';
+        const lower = errMsg.toLowerCase();
+
+        // Check if phone auth is explicitly disabled in Supabase dashboard
         if (
-          errMsg.toLowerCase().includes('sms') ||
-          errMsg.toLowerCase().includes('provider') ||
-          errMsg.toLowerCase().includes('phone provider') ||
-          errMsg.toLowerCase().includes('not enabled') ||
-          errMsg.toLowerCase().includes('credentials')
+          lower.includes('phone provider is disabled') ||
+          lower.includes('sms provider is not configured') ||
+          (error as any).code === 'phone_provider_disabled'
         ) {
-          const configMsg = 'Customer SMS login is not configured yet. Please configure phone authentication in Supabase.';
+          const configMsg = 'Phone authentication is disabled in Supabase. Please enable Phone Provider in Supabase Dashboard (Authentication > Providers > Phone).';
           setSmsConfigError(configMsg);
           toast.error(configMsg);
         } else {
-          toast.error(errMsg || 'Failed to send OTP.');
+          setSmsConfigError(null);
+          toast.error(errMsg);
         }
         setIsCustomerLoading(false);
         return;
