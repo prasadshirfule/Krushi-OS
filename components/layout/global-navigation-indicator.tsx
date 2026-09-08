@@ -123,42 +123,17 @@ export function GlobalNavigationIndicator() {
   if (!isNavigating) return null;
 
   return (
-    <>
-      <style>{`
-        @keyframes navProgressAnimation {
-          0% { transform: translateX(-100%) scaleX(0.2); }
-          50% { transform: translateX(30%) scaleX(0.7); }
-          100% { transform: translateX(110%) scaleX(0.3); }
-        }
-      `}</style>
-
-      {/* Top Instant Gradient Progress Bar */}
-      <div 
-        className="fixed top-0 left-0 right-0 z-[9999] h-[3px] pointer-events-none bg-emerald-500/20 overflow-hidden shadow-xs"
-        aria-hidden="true"
-      >
-        <div 
-          className="h-full w-full bg-gradient-to-r from-emerald-500 via-green-400 to-teal-400 shadow-sm shadow-emerald-500/50"
-          style={{
-            animation: 'navProgressAnimation 1.4s ease-in-out infinite',
-            transformOrigin: '0% 50%',
-          }}
-        />
+    <div 
+      className="fixed bottom-5 right-5 z-[9999] flex items-center gap-3 rounded-xl bg-slate-900/95 text-white px-4 py-2.5 text-xs font-semibold shadow-2xl border border-slate-700/80 backdrop-blur-md animate-in fade-in slide-in-from-bottom-3 duration-150 pointer-events-none select-none tracking-wide"
+      role="status"
+      aria-live="polite"
+    >
+      <div className="relative flex items-center justify-center">
+        <Loader2 className="h-4 w-4 animate-spin text-emerald-400 shrink-0" />
+        <span className="absolute h-2 w-2 rounded-full bg-emerald-400/40 animate-ping" />
       </div>
-
-      {/* Primary Bottom-Right Floating Glass Badge */}
-      <div 
-        className="fixed bottom-5 right-5 z-[9999] flex items-center gap-3 rounded-xl bg-slate-900/95 text-white px-4 py-2.5 text-xs font-semibold shadow-2xl border border-slate-700/80 backdrop-blur-md animate-in fade-in slide-in-from-bottom-3 duration-150 pointer-events-none select-none tracking-wide"
-        role="status"
-        aria-live="polite"
-      >
-        <div className="relative flex items-center justify-center">
-          <Loader2 className="h-4 w-4 animate-spin text-emerald-400 shrink-0" />
-          <span className="absolute h-2 w-2 rounded-full bg-emerald-400/40 animate-ping" />
-        </div>
-        <span className="font-medium text-[13px]">{indicatorText}</span>
-      </div>
-    </>
+      <span className="font-medium text-[13px]">{indicatorText}</span>
+    </div>
   );
 }
 
