@@ -44,31 +44,35 @@ export function MobileNav() {
           <span className='sr-only'>Toggle navigation menu</span>
         </Button>
       </SheetTrigger>
-      <SheetContent side='left' className='w-72'>
-        <Link href='/dashboard' className='flex items-center gap-2 font-semibold text-primary mb-6' onClick={() => setOpen(false)}>
-          <span className='text-xl'>🌾</span>
-          <span className='text-xl font-bold tracking-tight'>KRUSHI OS</span>
-        </Link>
-        <nav className='grid gap-2 text-sm font-medium'>
-          {navItems.map((item) => {
-            const Icon = item.icon
-            const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`)
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={() => setOpen(false)}
-                className={cn(
-                  'flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary',
-                  isActive ? 'bg-primary/10 text-primary' : 'hover:bg-muted'
-                )}
-              >
-                <Icon className='h-5 w-5' />
-                {item.label}
-              </Link>
-            )
-          })}
-        </nav>
+      <SheetContent side='left' className='w-72 p-0 flex flex-col h-full max-h-[100dvh] overflow-hidden gap-0'>
+        <div className='flex h-14 items-center border-b px-4 shrink-0'>
+          <Link href='/dashboard' className='flex items-center gap-2 font-semibold text-primary' onClick={() => setOpen(false)}>
+            <span className='text-xl'>🌾</span>
+            <span className='text-xl font-bold tracking-tight'>KRUSHI OS</span>
+          </Link>
+        </div>
+        <div className='flex-1 min-h-0 overflow-y-auto overscroll-contain py-2 px-2'>
+          <nav className='grid items-start gap-1 text-sm font-medium pb-10'>
+            {navItems.map((item) => {
+              const Icon = item.icon
+              const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`)
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setOpen(false)}
+                  className={cn(
+                    'flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary',
+                    isActive ? 'bg-primary/10 text-primary font-semibold' : 'hover:bg-muted'
+                  )}
+                >
+                  <Icon className='h-4 w-4 shrink-0' />
+                  <span>{item.label}</span>
+                </Link>
+              )
+            })}
+          </nav>
+        </div>
       </SheetContent>
     </Sheet>
   )
