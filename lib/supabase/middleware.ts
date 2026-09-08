@@ -29,6 +29,12 @@ export async function updateSession(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   const pathname = request.nextUrl.pathname
 
+  // Determine user role (Customer vs Shopkeeper)
+  const isCustomerUser = user && (
+    user.user_metadata?.role === 'customer' ||
+    (Boolean(user.phone) && !user.email)
+  )
+
   // 1. Redirect /shop-details to /settings
   if (pathname === '/shop-details' || pathname.startsWith('/shop-details/')) {
     const redirectUrl = request.nextUrl.clone()
@@ -39,20 +45,44 @@ export async function updateSession(request: NextRequest) {
   // 2. Root route redirection
   if (pathname === '/') {
     const redirectUrl = request.nextUrl.clone()
-    redirectUrl.pathname = user ? '/dashboard' : '/login'
+    if (!user) {
+      redirectUrl.pathname = '/login'
+    } else if (isCustomerUser) {
+      redirectUrl.pathname = '/customer/dashboard'
+    } else {
+      redirectUrl.pathname = '/dashboard'
+    }
     return NextResponse.redirect(redirectUrl)
   }
 
-  // 3. Auth pages: redirect authenticated users to /dashboard
+  // 3. Auth pages: redirect authenticated users to their corresponding dashboard
   const isAuthPage = pathname.startsWith('/login') || pathname.startsWith('/register') || pathname.startsWith('/forgot-password')
   if (isAuthPage && user) {
     const redirectUrl = request.nextUrl.clone()
-    redirectUrl.pathname = '/dashboard'
+    redirectUrl.pathname = isCustomerUser ? '/customer/dashboard' : '/dashboard'
     return NextResponse.redirect(redirectUrl)
   }
 
-  // 4. Protected routes: redirect unauthenticated users to /login
-  const isProtectedPath =
+  // 4. Customer protected routes
+  const isCustomerPath = pathname === '/customer' || pathname.startsWith('/customer/')
+  if (isCustomerPath) {
+    if (!user) {
+      const redirectUrl = request.nextUrl.clone()
+      redirectUrl.pathname = '/login'
+      redirectUrl.searchParams.set('type', 'customer')
+      return NextResponse.redirect(redirectUrl)
+    }
+    if (!isCustomerUser) {
+      // Shopkeeper trying to access customer routes
+      const redirectUrl = request.nextUrl.clone()
+      redirectUrl.pathname = '/dashboard'
+      return NextResponse.redirect(redirectUrl)
+    }
+    return supabaseResponse
+  }
+
+  // 5. Shopkeeper protected routes
+  const isShopkeeperPath =
     pathname.startsWith('/dashboard') ||
     pathname.startsWith('/billing') ||
     pathname.startsWith('/sales') ||
@@ -71,10 +101,19 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith('/settings') ||
     pathname.startsWith('/audit')
 
-  if (isProtectedPath && !user) {
-    const redirectUrl = request.nextUrl.clone()
-    redirectUrl.pathname = '/login'
-    return NextResponse.redirect(redirectUrl)
+  if (isShopkeeperPath) {
+    if (!user) {
+      const redirectUrl = request.nextUrl.clone()
+      redirectUrl.pathname = '/login'
+      redirectUrl.searchParams.set('type', 'shopkeeper')
+      return NextResponse.redirect(redirectUrl)
+    }
+    if (isCustomerUser) {
+      // Customer trying to access shopkeeper management
+      const redirectUrl = request.nextUrl.clone()
+      redirectUrl.pathname = '/customer/dashboard'
+      return NextResponse.redirect(redirectUrl)
+    }
   }
 
   return supabaseResponse

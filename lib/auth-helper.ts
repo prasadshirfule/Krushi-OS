@@ -37,6 +37,21 @@ export async function ensureUserAndShop(authUser: { id: string; email?: string; 
     return existingUser as AuthenticatedUser;
   }
 
+  // 1b. If user is explicitly a customer or has a customer_account, do not provision a shop
+  if (authUser.user_metadata?.role === 'customer') {
+    throw new Error("Customer accounts cannot access shopkeeper features.");
+  }
+
+  const { data: existingCustomerAccount } = await adminClient
+    .from('customer_accounts')
+    .select('id')
+    .eq('auth_user_id', authUser.id)
+    .maybeSingle();
+
+  if (existingCustomerAccount?.id) {
+    throw new Error("Customer accounts cannot access shopkeeper features.");
+  }
+
   // 2. User record not found - provision Shop, Role, and User row
   const shopName = authUser.user_metadata?.shop_name || authUser.user_metadata?.shopName || 'My Krushi Kendra';
   const fullName = authUser.user_metadata?.full_name || authUser.user_metadata?.name || authUser.email?.split('@')[0] || 'Shop Owner';
@@ -148,3 +163,40 @@ export async function getAuthenticatedShopId(): Promise<string> {
   const user = await getAuthAndPermissions();
   return user.shop_id;
 }
+
+/**
+ * Request-scoped cached resolver for the base authenticated customer.
+ */
+export const getAuthenticatedCustomer = cache(async (): Promise<any> => {
+  const supabase = await createServerSupabaseClient();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    throw new Error("Please log in as a customer to continue.");
+  }
+
+  const adminClient = createServerAdminClient() || supabase;
+  const { data: customerAccount } = await adminClient
+    .from('customer_accounts')
+    .select('*')
+    .eq('auth_user_id', user.id)
+    .maybeSingle();
+
+  if (!customerAccount) {
+    throw new Error("Customer profile not found. Please complete mobile verification.");
+  }
+
+  return customerAccount;
+});
+
+/**
+ * Convenience helper to retrieve the customer account if logged in, or null.
+ */
+export const getCustomerAuth = cache(async (): Promise<any | null> => {
+  try {
+    return await getAuthenticatedCustomer();
+  } catch {
+    return null;
+  }
+});
+
