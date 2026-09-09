@@ -1,4 +1,12 @@
-import { Sale, SaleItem, Customer, Payment, Product, ProductBatch } from './database';
+import {
+  Sale,
+  SaleItem,
+  SaleReturn,
+  Customer,
+  Payment,
+  Product,
+  ProductBatch,
+} from './database';
 
 export * from './database';
 
@@ -17,6 +25,8 @@ export interface BillAdjustment {
 export type SaleItemWithProduct = SaleItem & {
   product: Product;
   batch: ProductBatch | null;
+  returned_quantity?: number;
+  available_to_return?: number;
 };
 
 export type SaleWithItems = Sale & {
@@ -24,6 +34,8 @@ export type SaleWithItems = Sale & {
   customer: Customer | null;
   payments: Payment[];
   adjustments?: BillAdjustment[];
+  returns?: SaleReturn[];
+  sale_returns?: SaleReturn[];
   // Compatibility fields for printing / UI
   invoiceNumber?: string;
   createdAt?: string;
@@ -35,6 +47,7 @@ export type SaleWithItems = Sale & {
   total_amount?: number;
   discount_amount?: number;
   tax_amount?: number;
+  db_status?: string;
 };
 
 export interface BillingCartItem {

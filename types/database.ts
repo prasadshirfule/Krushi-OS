@@ -192,6 +192,19 @@ export interface PurchaseItem extends BaseEntity {
   total_amount: number;
 }
 
+/** Database sale lifecycle statuses (lowercase) plus legacy display variants. */
+export type SaleStatus =
+  | 'completed'
+  | 'partially_returned'
+  | 'returned'
+  | 'cancelled'
+  | 'COMPLETED'
+  | 'PARTIALLY RETURNED'
+  | 'RETURNED'
+  | 'CANCELLED'
+  | 'REFUNDED'
+  | 'PENDING';
+
 export interface Sale extends BaseEntity {
   customer_id?: ID;
   shop_id: ID;
@@ -202,7 +215,8 @@ export interface Sale extends BaseEntity {
   total_discount: number;
   round_off: number;
   grand_total: number;
-  status: 'COMPLETED' | 'CANCELLED' | 'REFUNDED';
+  status: SaleStatus;
+  payment_status?: string;
   user_id: ID;
 }
 
@@ -211,11 +225,53 @@ export interface SaleItem extends BaseEntity {
   product_id: ID;
   batch_id?: ID;
   quantity: number;
+  /** Cumulative quantity already returned for this line (DB column). */
+  returned_quantity?: number;
   selling_price: number;
   mrp: number;
   tax_amount: number;
   discount_amount: number;
   total_amount: number;
+}
+
+export type SaleReturnRefundMode =
+  | 'CREDIT_ADJUSTMENT'
+  | 'CASH'
+  | 'UPI'
+  | 'BANK_TRANSFER'
+  | 'CARD';
+
+export interface SaleReturn extends BaseEntity {
+  shop_id: ID;
+  sale_id: ID;
+  return_number: string;
+  customer_id?: ID;
+  return_date?: DateString;
+  subtotal: number;
+  tax_amount: number;
+  total_amount: number;
+  refund_mode: SaleReturnRefundMode;
+  reason?: string;
+  notes?: string;
+  created_by?: ID;
+}
+
+export interface SaleReturnItem extends BaseEntity {
+  shop_id: ID;
+  sale_return_id: ID;
+  sale_item_id: ID;
+  product_id: ID;
+  batch_id?: ID;
+  quantity: number;
+  unit_price: number;
+  discount_percent?: number;
+  discount_amount?: number;
+  gst_rate?: number;
+  cgst_amount?: number;
+  sgst_amount?: number;
+  tax_amount?: number;
+  total_amount: number;
+  reason?: string;
 }
 
 export const PaymentMethod = {

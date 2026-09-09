@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { getAuthAndPermissions } from '@/lib/auth-helper';
-import { saleSchema } from '@/lib/validations';
+import { saleSchema, saleCancelSchema, saleReturnSchema } from '@/lib/validations';
 import * as salesService from '@/services/sales.service';
 import { ActionResult } from './types';
 
@@ -20,6 +20,20 @@ function safeRevalidatePath(path: string, type?: 'page' | 'layout') {
   } catch {
     // Invariant safe-guard when called outside static generation store
   }
+}
+
+function revalidateSaleMutationPaths(saleId: string) {
+  safeRevalidatePath('/sales');
+  safeRevalidatePath('/sales', 'page');
+  safeRevalidatePath(`/sales/${saleId}`);
+  safeRevalidatePath(`/sales/${saleId}`, 'page');
+  safeRevalidatePath('/dashboard');
+  safeRevalidatePath('/dashboard', 'page');
+  safeRevalidatePath('/billing');
+  safeRevalidatePath('/billing', 'page');
+  safeRevalidatePath('/inventory');
+  safeRevalidatePath('/customers');
+  safeRevalidatePath('/reports');
 }
 
 export async function completeSaleAction(data: any): Promise<ActionResult<any>> {
@@ -74,27 +88,33 @@ export async function getSaleAction(id: string): Promise<ActionResult<any>> {
 export async function cancelSaleAction(id: string, reason: string): Promise<ActionResult<any>> {
   try {
     const userData = await getAuthAndPermissions('sales.cancel');
-    
-    if (!id || typeof id !== 'string') {
-      return { success: false, error: 'Sale ID is required' };
-    }
-    if (!reason || !reason.trim()) {
-      return { success: false, error: 'Cancellation reason is required' };
+
+    if (!isPlaceholderMode()) {
+      const validated = saleCancelSchema.safeParse({
+        saleId: id,
+        reason: typeof reason === 'string' ? reason.trim() : reason,
+      });
+      if (!validated.success) {
+        return {
+          success: false,
+          error: validated.error.errors[0]?.message || 'Invalid cancellation data',
+        };
+      }
+      id = validated.data.saleId;
+      reason = validated.data.reason;
+    } else {
+      if (!id || typeof id !== 'string') {
+        return { success: false, error: 'Sale ID is required' };
+      }
+      if (!reason || !String(reason).trim()) {
+        return { success: false, error: 'Cancellation reason is required' };
+      }
+      reason = String(reason).trim();
     }
 
-    const result = await salesService.cancelSale(userData.shop_id, id, userData.id, reason.trim());
-    
-    safeRevalidatePath('/sales');
-    safeRevalidatePath('/sales', 'page');
-    safeRevalidatePath(`/sales/${id}`);
-    safeRevalidatePath(`/sales/${id}`, 'page');
-    safeRevalidatePath('/dashboard');
-    safeRevalidatePath('/dashboard', 'page');
-    safeRevalidatePath('/billing');
-    safeRevalidatePath('/inventory');
-    safeRevalidatePath('/customers');
-    safeRevalidatePath('/reports');
-    
+    // shop_id always comes from the authenticated session — never from the client payload
+    const result = await salesService.cancelSale(userData.shop_id, id, userData.id, reason);
+    revalidateSaleMutationPaths(id);
     return { success: true, data: result };
   } catch (error: any) {
     console.error('cancelSaleAction error:', error);
@@ -110,27 +130,51 @@ export async function returnSaleAction(
 ): Promise<ActionResult<any>> {
   try {
     const userData = await getAuthAndPermissions('sales.return');
-    
-    if (!id || typeof id !== 'string') {
-      return { success: false, error: 'Sale ID is required' };
-    }
-    if (!items || !Array.isArray(items) || items.length === 0) {
-      return { success: false, error: 'At least one item must be returned' };
+
+    let normalizedItems = items;
+    let normalizedRefundMode = refundMode || 'CREDIT_ADJUSTMENT';
+    let normalizedReason = reason || 'Customer Return';
+
+    if (!isPlaceholderMode()) {
+      const validated = saleReturnSchema.safeParse({
+        saleId: id,
+        items,
+        refundMode: refundMode || 'CREDIT_ADJUSTMENT',
+        reason: reason || 'Customer Return',
+      });
+      if (!validated.success) {
+        return {
+          success: false,
+          error: validated.error.errors[0]?.message || 'Invalid return data',
+        };
+      }
+      id = validated.data.saleId;
+      normalizedItems = validated.data.items.map((item) => ({
+        saleItemId: item.saleItemId,
+        quantity: item.quantity,
+        reason: item.reason || undefined,
+      }));
+      normalizedRefundMode = validated.data.refundMode;
+      normalizedReason = validated.data.reason;
+    } else {
+      if (!id || typeof id !== 'string') {
+        return { success: false, error: 'Sale ID is required' };
+      }
+      if (!items || !Array.isArray(items) || items.length === 0) {
+        return { success: false, error: 'At least one item must be returned' };
+      }
     }
 
-    const result = await salesService.returnSale(userData.shop_id, id, items, userData.id, refundMode, reason);
-    
-    safeRevalidatePath('/sales');
-    safeRevalidatePath('/sales', 'page');
-    safeRevalidatePath(`/sales/${id}`);
-    safeRevalidatePath(`/sales/${id}`, 'page');
-    safeRevalidatePath('/dashboard');
-    safeRevalidatePath('/dashboard', 'page');
-    safeRevalidatePath('/billing');
-    safeRevalidatePath('/inventory');
-    safeRevalidatePath('/customers');
-    safeRevalidatePath('/reports');
-    
+    // shop_id always comes from the authenticated session — never from the client payload
+    const result = await salesService.returnSale(
+      userData.shop_id,
+      id,
+      normalizedItems,
+      userData.id,
+      normalizedRefundMode,
+      normalizedReason
+    );
+    revalidateSaleMutationPaths(id);
     return { success: true, data: result };
   } catch (error: any) {
     console.error('returnSaleAction error:', error);

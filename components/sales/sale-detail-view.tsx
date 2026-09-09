@@ -18,6 +18,8 @@ import {
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import Link from 'next/link';
 import { 
   InvoiceRenderer, 
@@ -27,11 +29,12 @@ import {
 } from '@/components/invoice/invoice-renderer';
 import { InvoiceFormatSelector } from '@/components/invoice/invoice-format-selector';
 import { isClientDemoMode, getDemoSalesClient, cancelDemoSaleClient } from '@/lib/client-demo-store';
-import { cancelSaleAction, getSaleAction, getSaleReturnsAction, getSaleReturnAction } from '@/actions/sales';
+import { cancelSaleAction, getSaleAction, getSaleReturnAction } from '@/actions/sales';
 import { getShopProfileAction } from '@/actions/settings';
 import { getSavedShopDetails } from '@/lib/shop-details';
 import SaleReturnDialog from '@/components/billing/sale-return-dialog';
 import { formatCurrency } from '@/lib/utils';
+import { getSaleActionAvailability } from '@/lib/sale-status';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { format, parseISO } from 'date-fns';
@@ -71,7 +74,7 @@ export function SaleDetailView({ initialSale, saleId, sale: directSale }: SaleDe
   const [isReturnOpen, setIsReturnOpen] = useState(false);
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
-  const [cancelReason, setCancelReason] = useState('Customer Request');
+  const [cancelReason, setCancelReason] = useState('');
 
   // Return Document Viewer state
   const [viewingReturnDoc, setViewingReturnDoc] = useState<any | null>(null);
@@ -139,13 +142,21 @@ export function SaleDetailView({ initialSale, saleId, sale: directSale }: SaleDe
 
   const activeSale = currentSale || { id: saleId || '1' };
   const invNo = activeSale.invoice_number || activeSale.invoiceNumber || (activeSale.id ? (activeSale.id.startsWith('KOS-') ? activeSale.id : `KOS-${activeSale.id.substring(0, 8).toUpperCase()}`) : '1');
+  const customerName =
+    activeSale.customer?.name ||
+    activeSale.customer_name ||
+    'Walk-in Customer';
+  const billTotal = Number(
+    activeSale.grand_total ?? activeSale.total_amount ?? activeSale.totalAmount ?? activeSale.payableAmount ?? 0
+  );
 
-  // Status mapping
-  const rawStatus = (activeSale.status || '').toString().toLowerCase().trim();
-  const isCancelled = rawStatus === 'cancelled';
-  const isFullyReturned = rawStatus === 'returned';
-  const isPartiallyReturned = rawStatus === 'partially_returned';
-  const isCompleted = rawStatus === 'completed' || (!isCancelled && !isFullyReturned && !isPartiallyReturned);
+  const {
+    isCancelled,
+    isFullyReturned,
+    isPartiallyReturned,
+    canReturn,
+    canCancel,
+  } = getSaleActionAvailability(activeSale);
 
   const containerId = viewFormat === 'THERMAL_80MM' ? 'printable-thermal-receipt' : 'printable-tax-invoice';
 
@@ -162,23 +173,43 @@ export function SaleDetailView({ initialSale, saleId, sale: directSale }: SaleDe
     }
   };
 
+  const openCancelModal = () => {
+    setCancelReason('');
+    setIsCancelModalOpen(true);
+  };
+
   const handleExecuteCancelSale = async () => {
+    const reason = cancelReason.trim();
+    if (!reason) {
+      toast.error('Please enter a cancellation reason');
+      return;
+    }
+    if (isCancelling) return;
+
     setIsCancelling(true);
     try {
       if (isClientDemoMode()) {
-        cancelDemoSaleClient(activeSale.id, cancelReason);
+        cancelDemoSaleClient(activeSale.id, reason);
         try {
-          cancelSaleAction(activeSale.id, cancelReason).catch(() => {});
+          cancelSaleAction(activeSale.id, reason).catch(() => {});
         } catch {}
         toast.success(`Invoice ${invNo} cancelled successfully`);
-        setCurrentSale({ ...activeSale, status: 'cancelled' });
         setIsCancelModalOpen(false);
+        setCancelReason('');
+        setCurrentSale({
+          ...activeSale,
+          status: 'cancelled',
+          db_status: 'cancelled',
+          payment_status: 'cancelled',
+        });
+        await refreshSaleData();
       } else {
-        const res = await cancelSaleAction(activeSale.id, cancelReason);
+        const res = await cancelSaleAction(activeSale.id, reason);
         if (res.success) {
           toast.success(`Invoice ${invNo} cancelled successfully`);
-          setCurrentSale({ ...activeSale, status: 'cancelled' });
           setIsCancelModalOpen(false);
+          setCancelReason('');
+          await refreshSaleData();
           router.refresh();
         } else {
           toast.error(res.error || 'Failed to cancel invoice');
@@ -254,7 +285,7 @@ export function SaleDetailView({ initialSale, saleId, sale: directSale }: SaleDe
           )}
 
           {/* Action Buttons for Completed or Partially Returned sales */}
-          {(isCompleted || isPartiallyReturned) && !isCancelled && !isFullyReturned && (
+          {(canReturn || canCancel) && (
             <>
               <Button 
                 variant="outline" 

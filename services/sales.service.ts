@@ -979,17 +979,77 @@ export async function getSaleReturnById(shopId: string, returnId: string) {
   return data || null;
 }
 
+/** Parse JSONB RPC payloads that may arrive as object or JSON string. */
+function parseRpcJson(data: any): any {
+  if (data == null) return null;
+  if (typeof data === 'string') {
+    try {
+      return JSON.parse(data);
+    } catch {
+      return { success: true, raw: data };
+    }
+  }
+  return data;
+}
+
+function getSaleLifecycleStatus(sale: any): string {
+  const raw = (sale?.db_status || sale?.status || '').toString().toLowerCase().trim();
+  if (raw === 'cancelled' || raw === 'cancel') return 'cancelled';
+  if (raw === 'returned' || raw === 'fully returned' || raw === 'fully_returned') return 'returned';
+  if (raw === 'partially_returned' || raw === 'partially returned') return 'partially_returned';
+  return 'completed';
+}
+
+/**
+ * Cancel a sale via the atomic `cancel_sale` RPC.
+ * Bills are never deleted — status becomes `cancelled`.
+ * Stock/ledger/payment reversal is performed once inside the RPC
+ * (skips units already restored by prior returns).
+ */
 export async function cancelSale(shopId: string, saleId: string, userId: string, reason: string = 'Sale Cancelled') {
+  if (!shopId) {
+    throw new Error('Authenticated shop context is required.');
+  }
+  if (!saleId) {
+    throw new Error('Sale ID is required');
+  }
+  if (!reason || !String(reason).trim()) {
+    throw new Error('Cancellation reason is required');
+  }
+
   if (isPlaceholderMode()) {
     const store = getStoredDemoSales(normalizeSale);
     const found = store.find(s => s.id === saleId || s.invoice_number === saleId);
     if (!found) {
       throw new Error('Sale not found');
     }
-    found.status = 'CANCELLED';
+    const lifecycle = getSaleLifecycleStatus(found);
+    if (lifecycle === 'cancelled') {
+      throw new Error('This bill has already been cancelled.');
+    }
+    if (lifecycle === 'returned') {
+      throw new Error('Cannot cancel a fully returned bill.');
+    }
+    found.status = 'cancelled';
+    found.db_status = 'cancelled';
+    found.payment_status = 'cancelled';
     found.cancel_reason = reason;
     saveStoredDemoSales(store);
-    return { success: true, sale_id: saleId, status: 'cancelled' };
+    return { success: true, sale_id: saleId, invoice_number: found.invoice_number, status: 'cancelled' };
+  }
+
+  // Pre-flight integrity checks (authoritative enforcement remains in cancel_sale RPC)
+  const existing = await getSaleById(shopId, saleId);
+  if (!existing) {
+    throw new Error('Sale not found in this shop.');
+  }
+  const lifecycle = getSaleLifecycleStatus(existing);
+  if (lifecycle === 'cancelled') {
+    throw new Error('This bill has already been cancelled.');
+  }
+  if (lifecycle === 'returned') {
+    // Prevent double financial reversal after a full return credit-note/refund cycle
+    throw new Error('Cannot cancel a fully returned bill.');
   }
 
   const supabase = await createServerSupabaseClient();
@@ -1012,9 +1072,14 @@ export async function cancelSale(shopId: string, saleId: string, userId: string,
     throw new Error(error.message || 'Unable to cancel bill. Please try again.');
   }
 
-  return data || { success: true, sale_id: saleId, status: 'cancelled' };
+  return parseRpcJson(data) || { success: true, sale_id: saleId, status: 'cancelled' };
 }
 
+/**
+ * Process a partial/full product return via the atomic `process_sale_return` RPC.
+ * Creates a linked sale_returns document, restores EXACT original batch allocations
+ * (never FEFO), and adjusts ledger/payments exactly once inside the RPC.
+ */
 export async function returnSale(
   shopId: string,
   saleId: string,
@@ -1023,6 +1088,12 @@ export async function returnSale(
   refundMode: string = 'CREDIT_ADJUSTMENT',
   reason: string = 'Customer Return'
 ) {
+  if (!shopId) {
+    throw new Error('Authenticated shop context is required.');
+  }
+  if (!saleId) {
+    throw new Error('Sale ID is required');
+  }
   if (!items || items.length === 0) {
     throw new Error('At least one item must be selected for return');
   }
@@ -1042,24 +1113,109 @@ export async function returnSale(
 
   if (isPlaceholderMode()) {
     const store = getStoredDemoSales(normalizeSale);
-    const found = store.find(s => s.id === saleId || s.invoice_number === saleId);
-    if (!found) {
+    const foundIndex = store.findIndex(s => s.id === saleId || s.invoice_number === saleId);
+    if (foundIndex < 0) {
       throw new Error('Sale not found');
     }
-    if (found.status === 'CANCELLED' || found.status === 'cancelled') {
+    const found = store[foundIndex];
+    const lifecycle = getSaleLifecycleStatus(found);
+    if (lifecycle === 'cancelled') {
       throw new Error('This bill has already been cancelled.');
     }
+    if (lifecycle === 'returned') {
+      throw new Error('This bill has already been fully returned.');
+    }
+
+    const saleItems = Array.isArray(found.items) ? found.items : (found.sale_items || []);
+    let refundTotal = 0;
+    for (const req of items) {
+      const target = saleItems.find((si: any) => si.id === req.saleItemId);
+      if (!target) {
+        throw new Error('Sale or item not found in this shop.');
+      }
+      const soldQty = Number(target.quantity || 0);
+      const already = Number(target.returned_quantity || 0);
+      const available = Math.max(0, soldQty - already);
+      if (req.quantity > available) {
+        throw new Error(
+          `Cannot return ${req.quantity} units of ${target.product_name || 'item'}. Maximum available to return is ${available} units`
+        );
+      }
+      target.returned_quantity = already + req.quantity;
+      const unitPrice = Number(target.unit_price ?? target.selling_price ?? target.rate ?? 0);
+      refundTotal += req.quantity * unitPrice;
+    }
+
+    const allReturned = saleItems.every(
+      (si: any) => Number(si.returned_quantity || 0) >= Number(si.quantity || 0)
+    );
+    const saleStatus = allReturned ? 'returned' : 'partially_returned';
+    found.status = saleStatus;
+    found.db_status = saleStatus;
+    found.items = saleItems;
+    found.sale_items = saleItems;
+
+    const returnId = `ret-${Date.now()}`;
+    const returnNumber = `RET-${String(found.invoice_number || '1').replace(/^INV-|^KOS-/i, '')}-01`;
+    const returnDoc = {
+      id: returnId,
+      return_number: returnNumber,
+      sale_id: found.id,
+      total_amount: refundTotal,
+      refund_mode: effectiveMode,
+      reason: reason || 'Customer Return',
+      items: items.map((i) => ({ ...i })),
+    };
+    found.returns = [...(found.returns || found.sale_returns || []), returnDoc];
+    found.sale_returns = found.returns;
+    store[foundIndex] = found;
+    saveStoredDemoSales(store);
+
     return {
       success: true,
-      return_id: `ret-${Date.now()}`,
-      return_number: `RET-${found.invoice_number || '1'}-01`,
+      return_id: returnId,
+      return_number: returnNumber,
       invoice_number: found.invoice_number || 'INV',
-      total_amount: 0,
-      sale_status: 'returned',
+      total_amount: refundTotal,
+      refund_mode: effectiveMode,
+      sale_status: saleStatus,
     };
   }
 
+  // Pre-flight integrity checks (authoritative enforcement remains in process_sale_return RPC)
+  const existing = await getSaleById(shopId, saleId);
+  if (!existing) {
+    throw new Error('Sale not found in this shop.');
+  }
+  const lifecycle = getSaleLifecycleStatus(existing);
+  if (lifecycle === 'cancelled') {
+    throw new Error('This bill has already been cancelled.');
+  }
+  if (lifecycle === 'returned') {
+    throw new Error('This bill has already been fully returned.');
+  }
+
+  // Ensure requested quantities do not exceed available_to_return before hitting the RPC
+  const existingItems = Array.isArray(existing.items) ? existing.items : [];
+  for (const req of items) {
+    const target = existingItems.find((si: any) => si.id === req.saleItemId);
+    if (!target) {
+      throw new Error('Sale or item not found in this shop.');
+    }
+    const available = Number(
+      target.available_to_return ??
+        Math.max(0, Number(target.quantity || 0) - Number(target.returned_quantity || 0))
+    );
+    if (req.quantity > available) {
+      throw new Error(
+        `Cannot return ${req.quantity} units of ${target.product_name || 'item'}. Maximum available to return is ${available} units`
+      );
+    }
+  }
+
   const supabase = await createServerSupabaseClient();
+  // Source of truth: process_sale_return restores exact original sale_item_batches
+  // (never FEFO), writes sale_returns / sale_return_items, and adjusts ledger/payments once.
   const { data, error } = await supabase.rpc('process_sale_return', {
     p_shop_id: shopId,
     p_sale_id: saleId,
@@ -1091,7 +1247,11 @@ export async function returnSale(
     throw new Error(error.message || 'Unable to process return. Please try again.');
   }
 
-  return data;
+  const parsed = parseRpcJson(data);
+  if (!parsed) {
+    throw new Error('Return processed but no confirmation was returned from the database.');
+  }
+  return parsed;
 }
 
 
