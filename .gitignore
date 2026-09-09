@@ -43,3 +43,14 @@ next-env.d.ts
 # demo store local persistence
 .demo-store/
 supabase/.temp/
+
+# Android / Capacitor
+android/app/build/
+android/.gradle/
+android/build/
+android/capacitor-cordova-android-plugins/build/
+android/local.properties
+*.keystore
+*.jks
+keystore.properties
+google-services.json
