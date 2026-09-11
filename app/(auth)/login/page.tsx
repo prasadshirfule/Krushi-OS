@@ -19,6 +19,8 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 
+import { verifyPortalAuthorizationAction } from '@/actions/customer-auth';
+
 type LoginRole = 'select' | 'shopkeeper' | 'customer';
 
 function LoginFormContent() {
@@ -71,6 +73,15 @@ function LoginFormContent() {
       }
 
       if (data?.session) {
+        // Enforce portal validation
+        const verifyRes = await verifyPortalAuthorizationAction('shopkeeper');
+        if (!verifyRes.authorized) {
+          await supabase.auth.signOut();
+          toast.error(verifyRes.error || 'Access denied for Shopkeeper portal.');
+          setIsShopkeeperLoading(false);
+          return;
+        }
+
         toast.success('Signed in successfully! Redirecting...');
         router.push('/dashboard');
         router.refresh();
@@ -126,6 +137,15 @@ function LoginFormContent() {
       }
 
       if (data?.session) {
+        // Enforce customer portal authorization
+        const verifyRes = await verifyPortalAuthorizationAction('customer');
+        if (!verifyRes.authorized) {
+          await supabase.auth.signOut();
+          toast.error(verifyRes.error || 'Access denied for Farmer & Customer portal.');
+          setIsCustomerLoading(false);
+          return;
+        }
+
         toast.success('Signed in successfully! Redirecting...');
         router.push('/customer/dashboard');
         router.refresh();

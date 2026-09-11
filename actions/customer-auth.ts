@@ -309,3 +309,82 @@ export async function updateCustomerMobileAction(rawMobile: string): Promise<Upd
   }
 }
 
+export interface PortalAuthVerificationResult {
+  success: boolean;
+  authorized: boolean;
+  portal: 'customer' | 'shopkeeper';
+  error?: string;
+}
+
+/**
+ * Validates that an authenticated session matches the intended portal (Customer vs Shopkeeper).
+ * Prevents staff users from inadvertently landing on or accessing customer portals and vice versa.
+ */
+export async function verifyPortalAuthorizationAction(
+  targetPortal: 'customer' | 'shopkeeper'
+): Promise<PortalAuthVerificationResult> {
+  try {
+    const supabase = await createServerSupabaseClient();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return {
+        success: false,
+        authorized: false,
+        portal: targetPortal,
+        error: 'User session not found. Please log in again.'
+      };
+    }
+
+    const adminClient = createServerAdminClient() || supabase;
+
+    if (targetPortal === 'customer') {
+      // 1. Check if user is registered as a customer or has a customer_accounts row
+      const { data: customerAccount } = await adminClient
+        .from('customer_accounts')
+        .select('id')
+        .eq('auth_user_id', user.id)
+        .maybeSingle();
+
+      const isCustomerRole = user.user_metadata?.role === 'customer';
+
+      if (!customerAccount && !isCustomerRole) {
+        return {
+          success: false,
+          authorized: false,
+          portal: targetPortal,
+          error: 'This account is registered as a Shopkeeper / Staff account. Please use the Shopkeeper Login portal.'
+        };
+      }
+
+      return { success: true, authorized: true, portal: 'customer' };
+    } else {
+      // 2. Shopkeeper portal validation
+      const isCustomerRole = user.user_metadata?.role === 'customer';
+      const { data: staffUser } = await adminClient
+        .from('users')
+        .select('id, shop_id, is_active')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (isCustomerRole && !staffUser) {
+        return {
+          success: false,
+          authorized: false,
+          portal: targetPortal,
+          error: 'This account is registered as a Farmer & Customer account. Please use the Customer Login portal.'
+        };
+      }
+
+      return { success: true, authorized: true, portal: 'shopkeeper' };
+    }
+  } catch (err: any) {
+    console.error('Error verifying portal authorization:', err);
+    return {
+      success: false,
+      authorized: false,
+      portal: targetPortal,
+      error: err.message || 'Authorization check failed.'
+    };
+  }
+}

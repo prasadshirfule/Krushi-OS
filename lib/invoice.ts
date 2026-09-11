@@ -54,7 +54,8 @@ export function generateInvoicePDF(sale: any, customSettings?: any) {
   const s = sale || {};
   const marginX = 8;
   const contentWidth = 194;
-  let currentY = 8;
+  const startTopY = 8;
+  let currentY = startTopY;
 
   // Resolve shop details from storage / props
   const baseShop = getSavedShopDetails();
@@ -65,20 +66,15 @@ export function generateInvoicePDF(sale: any, customSettings?: any) {
 
   const dynamicAddress = formatShopAddress(shop);
 
-  // Outer border for the physical tax invoice
-  doc.setDrawColor(0, 0, 0);
-  doc.setLineWidth(0.3);
-  doc.rect(marginX, currentY, contentWidth, 281);
-
   // ─── 1. SHOP HEADER ───
-  currentY += 5;
+  currentY += 4;
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(16);
+  doc.setFontSize(15);
   doc.setTextColor(0, 0, 0);
   doc.text(shop.shopName || 'KRUSHI SEVA KENDRA', marginX + 4, currentY + 2);
 
   // License and TAX INVOICE Badge on top right
-  doc.setFontSize(8.2);
+  doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
   if (shop.licenseNumber) {
     doc.text(`Lic No: ${shop.licenseNumber}`, marginX + contentWidth - 4, currentY - 1, { align: 'right' });
@@ -98,10 +94,12 @@ export function generateInvoicePDF(sale: any, customSettings?: any) {
   // Shop Address & Contacts
   currentY += 6;
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.8);
+  doc.setFontSize(8.5);
   doc.setTextColor(40, 40, 40);
   if (dynamicAddress) {
-    doc.text(dynamicAddress, marginX + 4, currentY);
+    const addressLines = doc.splitTextToSize(dynamicAddress, contentWidth - 45);
+    doc.text(addressLines, marginX + 4, currentY);
+    currentY += (addressLines.length - 1) * 3.5;
   }
 
   currentY += 4;
@@ -120,7 +118,7 @@ export function generateInvoicePDF(sale: any, customSettings?: any) {
   }
 
   // Divider Line
-  currentY += 4;
+  currentY += 3.5;
   doc.setDrawColor(0, 0, 0);
   doc.setLineWidth(0.3);
   doc.line(marginX, currentY, marginX + contentWidth, currentY);
@@ -147,41 +145,62 @@ export function generateInvoicePDF(sale: any, customSettings?: any) {
   const paymentBadge = isCredit ? '[R] Credit Bill' : (isUpi ? '[R] UPI Bill' : '[R] Cash Bill');
   const paymentMode = isUpi ? 'UPI' : (isCredit ? 'Credit' : (s.payment_method || s.payment_mode || s.paymentMethod || 'Cash'));
 
-  const midX = marginX + 105;
-  const infoStartY = currentY + 4;
+  const midX = marginX + 104;
+  const section2TopY = currentY;
+  const infoStartY = currentY + 3.5;
 
-  // Left: Customer details
-  doc.setFontSize(8.5);
+  // Left Column: Customer details (max width: 94mm)
+  doc.setFontSize(8);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(60, 60, 60);
   doc.text('CUSTOMER DETAILS:', marginX + 4, infoStartY);
+
+  let leftY = infoStartY + 3.8;
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(0, 0, 0);
-  doc.text(`Name: ${customerName}`, marginX + 4, infoStartY + 4);
+  const nameLines = doc.splitTextToSize(`Name: ${customerName}`, 92);
+  doc.text(nameLines, marginX + 4, leftY);
+  leftY += nameLines.length * 3.5;
+
   doc.setFont('helvetica', 'normal');
   if (customerAddress) {
-    doc.text(`Address: ${customerAddress}`, marginX + 4, infoStartY + 8);
+    const addrLines = doc.splitTextToSize(`Address: ${customerAddress}`, 92);
+    doc.text(addrLines, marginX + 4, leftY);
+    leftY += addrLines.length * 3.5;
   }
   const custContactLine = [customerMobile ? `Mob: ${customerMobile}` : '', customerGstin ? `GSTIN: ${customerGstin}` : ''].filter(Boolean).join('   |   ');
   if (custContactLine) {
-    doc.text(custContactLine, marginX + 4, infoStartY + (customerAddress ? 12 : 8));
+    const contactLines = doc.splitTextToSize(custContactLine, 92);
+    doc.text(contactLines, marginX + 4, leftY);
+    leftY += contactLines.length * 3.5;
   }
 
-  // Right: Bill details
+  // Right Column: Bill details (max width: 84mm)
+  let rightY = infoStartY;
+  doc.setFontSize(8);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(60, 60, 60);
-  doc.text('INVOICE DETAILS:', midX, infoStartY);
+  doc.text('INVOICE DETAILS:', midX, rightY);
+  rightY += 3.8;
+
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(0, 0, 0);
-  doc.text(`Bill No: ${invNo}   (${paymentBadge})`, midX, infoStartY + 4);
-  doc.text(`Date: ${formattedDate} (${formattedTime})`, midX, infoStartY + 8);
-  doc.text(`Payment: ${paymentMode}${isUpi && shop.upiId ? ` (${shop.upiId})` : ''}   |   Place: ${shop.district || 'Maharashtra'}`, midX, infoStartY + 12);
+  doc.text(`Bill No: ${invNo}   (${paymentBadge})`, midX, rightY);
+  rightY += 3.6;
+  doc.text(`Date: ${formattedDate} (${formattedTime})`, midX, rightY);
+  rightY += 3.6;
+  const payInfo = `Payment: ${paymentMode}${isUpi && shop.upiId ? ` (${shop.upiId})` : ''}   |   Place: ${shop.district || 'Maharashtra'}`;
+  const payLines = doc.splitTextToSize(payInfo, 82);
+  doc.text(payLines, midX, rightY);
+  rightY += payLines.length * 3.6;
+
+  const section2Height = Math.max(18, (leftY - section2TopY), (rightY - section2TopY)) + 2;
 
   // Vertical line separating customer and bill details
-  doc.line(midX - 3, currentY, midX - 3, currentY + 18);
+  doc.line(midX - 3, section2TopY, midX - 3, section2TopY + section2Height);
 
   // Divider Line
-  currentY += 18;
+  currentY = section2TopY + section2Height;
   doc.line(marginX, currentY, marginX + contentWidth, currentY);
 
   // ─── 3. PRODUCT TABLE ───
@@ -254,9 +273,11 @@ export function generateInvoicePDF(sale: any, customSettings?: any) {
 
   grandTotal = Math.max(0, grandTotal + totalAdditions - totalDeductions);
 
-  // Pad table rows if few items to maintain realistic physical bill height
-  while (tableRows.length < 5) {
-    tableRows.push(['', '', '', '', '', '', '', '', '', '']);
+  // Minor visual padding only if very few items (1 or 2 items)
+  if (tableRows.length > 0 && tableRows.length < 3) {
+    while (tableRows.length < 3) {
+      tableRows.push(['', '', '', '', '', '', '', '', '', '']);
+    }
   }
 
   doc.autoTable({
@@ -272,11 +293,11 @@ export function generateInvoicePDF(sale: any, customSettings?: any) {
       fontStyle: 'bold',
       lineWidth: 0.2,
       lineColor: [0, 0, 0],
-      fontSize: 8.5,
+      fontSize: 8,
       halign: 'center',
     },
     styles: {
-      fontSize: 8,
+      fontSize: 7.5,
       cellPadding: 1.5,
       lineColor: [0, 0, 0],
       lineWidth: 0.2,
@@ -297,81 +318,11 @@ export function generateInvoicePDF(sale: any, customSettings?: any) {
     },
   });
 
-  const finalY = doc.lastAutoTable?.finalY || currentY + 50;
+  const finalY = doc.lastAutoTable?.finalY || currentY + 40;
 
   // ─── 4. SUMMARY, OWNER BANK DETAILS & TAX BREAKDOWN ───
-  const summaryLeftWidth = 115;
-  const summaryRightWidth = contentWidth - summaryLeftWidth; // 79mm
-  const summaryHeight = 45;
-
-  // Left Box: Words, Bank Details, Terms
-  doc.rect(marginX, finalY, summaryLeftWidth, summaryHeight);
-  // Right Box: Financials
-  doc.rect(marginX + summaryLeftWidth, finalY, summaryRightWidth, summaryHeight);
-
-  // Left Content:
-  doc.setFontSize(8.5);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Amount in Words:', marginX + 3, finalY + 5);
-  doc.setFont('helvetica', 'italic');
-  doc.setFontSize(8);
-  const amountWords = `${numberToWords(grandTotal)} Rupees Only`;
-  const splitWords = doc.splitTextToSize(amountWords, summaryLeftWidth - 6);
-  doc.text(splitWords, marginX + 3, finalY + 9);
-
-  // OWNER BANK DETAILS SECTION
-  doc.setDrawColor(0, 0, 0);
-  doc.setFontSize(8.5);
-  doc.setFont('helvetica', 'bold');
-  doc.text('BANK DETAILS', marginX + 3, finalY + 16);
-  doc.line(marginX + 3, finalY + 17.5, marginX + summaryLeftWidth - 6, finalY + 17.5);
-
-  doc.setFontSize(7.8);
-  doc.setFont('helvetica', 'bold');
-  doc.text('A/C Holder:', marginX + 3, finalY + 22);
-  doc.setFont('helvetica', 'normal');
-  doc.text(shop.accountName || shop.ownerName || '-', marginX + 22, finalY + 22);
-
-  doc.setFont('helvetica', 'bold');
-  doc.text('Bank:', marginX + 65, finalY + 22);
-  doc.setFont('helvetica', 'normal');
-  doc.text(shop.bankName || '-', marginX + 76, finalY + 22);
-
-  doc.setFont('helvetica', 'bold');
-  doc.text('A/C No.:', marginX + 3, finalY + 27);
-  doc.setFont('helvetica', 'normal');
-  doc.text(shop.accountNumber || '-', marginX + 22, finalY + 27);
-
-  doc.setFont('helvetica', 'bold');
-  doc.text('IFSC:', marginX + 65, finalY + 27);
-  doc.setFont('helvetica', 'normal');
-  doc.text(shop.ifsc || '-', marginX + 76, finalY + 27);
-
-  if (shop.branch || shop.accountType) {
-    if (shop.branch) {
-      doc.setFont('helvetica', 'bold');
-      doc.text('Branch:', marginX + 3, finalY + 32);
-      doc.setFont('helvetica', 'normal');
-      doc.text(shop.branch, marginX + 22, finalY + 32);
-    }
-    if (shop.accountType) {
-      doc.setFont('helvetica', 'bold');
-      doc.text('A/C Type:', marginX + 65, finalY + 32);
-      doc.setFont('helvetica', 'normal');
-      doc.text(shop.accountType, marginX + 78, finalY + 32);
-    }
-  }
-
-  // Terms & Conditions at bottom left
-  doc.setFontSize(6.8);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Terms & Conditions:', marginX + 3, finalY + 36);
-  doc.setFont('helvetica', 'normal');
-  doc.text(shop.invoiceTerms || '1. Goods once sold will not be accepted back.\n2. Interest @ 18% p.a. charged if payment not made on time.\n3. Subject to local jurisdiction only.', marginX + 3, finalY + 39);
-
-  // Right Content (Bordered Tax Calculation lines):
-  const rightX = marginX + summaryLeftWidth;
-  let lineY = finalY;
+  const summaryLeftWidth = 114;
+  const summaryRightWidth = contentWidth - summaryLeftWidth; // 80mm
 
   const rows: Array<{ label: string; val: string; isBold?: boolean; isHighlight?: boolean }> = [
     { label: 'Taxable Amount:', val: `Rs. ${totalTaxable.toFixed(2)}` },
@@ -382,7 +333,7 @@ export function generateInvoicePDF(sale: any, customSettings?: any) {
   adjustments.forEach((adj: any) => {
     const isAdd = adj.type === 'ADD';
     rows.push({
-      label: `${adj.reason} (${isAdd ? '+' : '-'}):`,
+      label: `${adj.reason || 'Adj'} (${isAdd ? '+' : '-'}):`,
       val: `${isAdd ? 'Rs.' : '-Rs.'} ${Number(adj.amount || 0).toFixed(2)}`,
     });
   });
@@ -393,33 +344,105 @@ export function generateInvoicePDF(sale: any, customSettings?: any) {
     { label: 'Balance / Udhari:', val: `Rs. ${(isCredit ? Math.max(0, grandTotal - (s.paid_amount || 0)) : 0).toFixed(2)}`, isBold: true },
   );
 
-  const rightRowHeight = summaryHeight / rows.length;
+  const rowHeight = 5.8;
+  const summaryHeight = Math.max(42, rows.length * rowHeight);
+
+  // Left Box: Words, Bank Details, Terms
+  doc.rect(marginX, finalY, summaryLeftWidth, summaryHeight);
+  // Right Box: Financials
+  doc.rect(marginX + summaryLeftWidth, finalY, summaryRightWidth, summaryHeight);
+
+  // Left Content:
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Amount in Words:', marginX + 3, finalY + 4.5);
+  doc.setFont('helvetica', 'italic');
+  doc.setFontSize(7.5);
+  const amountWords = `${numberToWords(grandTotal)} Rupees Only`;
+  const splitWords = doc.splitTextToSize(amountWords, summaryLeftWidth - 6);
+  doc.text(splitWords.slice(0, 2), marginX + 3, finalY + 8);
+
+  // OWNER BANK DETAILS SECTION
+  doc.setDrawColor(0, 0, 0);
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'bold');
+  doc.text('BANK DETAILS', marginX + 3, finalY + 15);
+  doc.line(marginX + 3, finalY + 16.5, marginX + summaryLeftWidth - 6, finalY + 16.5);
+
+  doc.setFontSize(7.5);
+  doc.setFont('helvetica', 'bold');
+  doc.text('A/C Holder:', marginX + 3, finalY + 20.5);
+  doc.setFont('helvetica', 'normal');
+  doc.text(shop.accountName || shop.ownerName || '-', marginX + 22, finalY + 20.5);
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('Bank:', marginX + 62, finalY + 20.5);
+  doc.setFont('helvetica', 'normal');
+  doc.text(shop.bankName || '-', marginX + 72, finalY + 20.5);
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('A/C No.:', marginX + 3, finalY + 25);
+  doc.setFont('helvetica', 'normal');
+  doc.text(shop.accountNumber || '-', marginX + 22, finalY + 25);
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('IFSC:', marginX + 62, finalY + 25);
+  doc.setFont('helvetica', 'normal');
+  doc.text(shop.ifsc || '-', marginX + 72, finalY + 25);
+
+  if (shop.branch || shop.accountType) {
+    if (shop.branch) {
+      doc.setFont('helvetica', 'bold');
+      doc.text('Branch:', marginX + 3, finalY + 29.5);
+      doc.setFont('helvetica', 'normal');
+      doc.text(shop.branch, marginX + 22, finalY + 29.5);
+    }
+    if (shop.accountType) {
+      doc.setFont('helvetica', 'bold');
+      doc.text('A/C Type:', marginX + 62, finalY + 29.5);
+      doc.setFont('helvetica', 'normal');
+      doc.text(shop.accountType, marginX + 76, finalY + 29.5);
+    }
+  }
+
+  // Terms & Conditions at bottom left
+  doc.setFontSize(6.5);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Terms & Conditions:', marginX + 3, finalY + 34);
+  doc.setFont('helvetica', 'normal');
+  const termsText = shop.invoiceTerms || '1. Goods once sold will not be accepted back.\n2. Interest @ 18% p.a. charged if payment not made on time.\n3. Subject to local jurisdiction only.';
+  const splitTerms = doc.splitTextToSize(termsText, summaryLeftWidth - 6);
+  doc.text(splitTerms.slice(0, 2), marginX + 3, finalY + 37);
+
+  // Right Content (Bordered Tax Calculation lines):
+  const rightX = marginX + summaryLeftWidth;
+  const actualRowH = summaryHeight / rows.length;
 
   rows.forEach((row, i) => {
-    lineY = finalY + (i * rightRowHeight);
+    const lineY = finalY + (i * actualRowH);
     if (row.isHighlight) {
       doc.setFillColor(240, 240, 240);
-      doc.rect(rightX, lineY, summaryRightWidth, rightRowHeight, 'F');
+      doc.rect(rightX, lineY, summaryRightWidth, actualRowH, 'F');
     }
-    doc.line(rightX, lineY + rightRowHeight, rightX + summaryRightWidth, lineY + rightRowHeight);
+    doc.line(rightX, lineY + actualRowH, rightX + summaryRightWidth, lineY + actualRowH);
 
     doc.setFont('helvetica', row.isBold ? 'bold' : 'normal');
-    doc.setFontSize(row.isHighlight ? 9 : (rows.length > 6 ? 7.2 : 8));
-    const textOffsetY = rightRowHeight * 0.65;
-    doc.text(row.label, rightX + 3, lineY + textOffsetY);
-    doc.text(row.val, rightX + summaryRightWidth - 3, lineY + textOffsetY, { align: 'right' });
+    doc.setFontSize(row.isHighlight ? 8.5 : 7.5);
+    const textOffsetY = actualRowH * 0.68;
+    doc.text(row.label, rightX + 2.5, lineY + textOffsetY);
+    doc.text(row.val, rightX + summaryRightWidth - 2.5, lineY + textOffsetY, { align: 'right' });
   });
 
   // ─── 5. SIGNATURE BLOCK ───
   const signY = finalY + summaryHeight;
-  const signHeight = 22;
+  const signHeight = 20;
   doc.rect(marginX, signY, contentWidth, signHeight);
 
   if (isUpi && shop.upiId && grandTotal > 0) {
     try {
       const upiUri = buildUpiUri(shop.upiId, shop.shopName, grandTotal);
       const qr = QRCode.create(upiUri, { errorCorrectionLevel: 'M' });
-      const qrSizeMm = 14;
+      const qrSizeMm = 13;
       const qrX = marginX + (contentWidth / 2) - (qrSizeMm / 2);
       const qrY = signY + 1.5;
       const moduleCount = qr.modules.size;
@@ -434,35 +457,40 @@ export function generateInvoicePDF(sale: any, customSettings?: any) {
         }
       }
 
-      doc.setFontSize(6.5);
+      doc.setFontSize(6);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(0, 0, 0);
-      doc.text(`UPI: ${shop.upiId}  |  Rs. ${grandTotal.toFixed(2)}`, qrX + qrSizeMm / 2, qrY + qrSizeMm + 3, { align: 'center' });
+      doc.text(`UPI: ${shop.upiId}`, qrX + qrSizeMm / 2, qrY + qrSizeMm + 2.5, { align: 'center' });
     } catch (err) {
       console.warn('PDF QR generation error:', err);
     }
   }
 
-  doc.setFontSize(8.5);
+  doc.setFontSize(8);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(0, 0, 0);
   doc.text('Customer Signature', marginX + 25, signY + signHeight - 3, { align: 'center' });
   doc.line(marginX + 10, signY + signHeight - 6, marginX + 40, signY + signHeight - 6);
 
-  doc.text(shop.authorizedSignatory || `For ${shop.shopName || 'Krushi Seva Kendra'}`, marginX + contentWidth - 35, signY + 6, { align: 'center' });
+  doc.text(shop.authorizedSignatory || `For ${shop.shopName || 'Krushi Seva Kendra'}`, marginX + contentWidth - 35, signY + 5.5, { align: 'center' });
   doc.text('Authorized Signatory', marginX + contentWidth - 35, signY + signHeight - 3, { align: 'center' });
   doc.line(marginX + contentWidth - 55, signY + signHeight - 6, marginX + contentWidth - 15, signY + signHeight - 6);
 
   // ─── 6. BORDERED FOOTER ───
   const footerY = signY + signHeight;
   doc.setFillColor(245, 245, 245);
-  doc.rect(marginX, footerY, contentWidth, 7, 'FD');
+  doc.rect(marginX, footerY, contentWidth, 6.5, 'FD');
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.8);
+  doc.setFontSize(7.5);
   doc.setTextColor(60, 60, 60);
-  doc.text('This Is Computer Generated Tax Invoice', marginX + 4, footerY + 4.5);
-  doc.text(`Subject To ${shop.district ? `${shop.district} ` : ''}Jurisdiction`, marginX + (contentWidth / 2), footerY + 4.5, { align: 'center' });
-  doc.text('Page 1 of 1', marginX + contentWidth - 4, footerY + 4.5, { align: 'right' });
+  doc.text('This Is Computer Generated Tax Invoice', marginX + 4, footerY + 4.2);
+  doc.text(`Subject To ${shop.district ? `${shop.district} ` : ''}Jurisdiction`, marginX + (contentWidth / 2), footerY + 4.2, { align: 'center' });
+  doc.text('Page 1 of 1', marginX + contentWidth - 4, footerY + 4.2, { align: 'right' });
+
+  // ─── 7. DYNAMIC OUTER BOUNDING FRAME ───
+  doc.setDrawColor(0, 0, 0);
+  doc.setLineWidth(0.3);
+  doc.rect(marginX, startTopY, contentWidth, (footerY + 6.5) - startTopY);
 
   return doc;
 }

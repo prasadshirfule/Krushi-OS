@@ -21,7 +21,13 @@
 - **Recent**:
   - `ed05abb`: Implement sale cancellation and return UI in [components/sales/sale-detail-view.tsx](file:///e:/antigravity/scratch/krushi-os/components/sales/sale-detail-view.tsx) and [actions/sales.ts](file:///e:/antigravity/scratch/krushi-os/actions/sales.ts).
   - Migration 015: Customer portal returns RLS security rules.
-  - Capacitor Android wrapper setup with SDK 36 build configuration.
+  - Implemented 6-Issue Core Fixes:
+    1. Auth Separation: Portal-bound DB authorization check (`verifyPortalAuthorizationAction`) preventing cross-portal leakage with server route guards in middleware.
+    2. Shopkeeper Dashboard: "Today's Bills" count card, clickable metric cards to `/sales` and `/customers`, legible X/Y axes with zero profit leaks in sales chart.
+    3. Product Price Validation: Strict `min(0.01)` positive selling price schema, non-submitting subtle placeholder `e.g. 450.00`.
+    4. Billing Cart Deduplication: Same product + same batch increments quantity; different batches remain separate lines.
+    5. Sales History Export: Download PDF and Print buttons in toolbar respecting active filters via `lib/report-export.ts`.
+    6. Dynamic Invoice PDF: Dynamic text wrapping (`splitTextToSize`) and dynamic coordinate calculations preventing layout overflow on multi-item/long customer data.
 - **In Progress / Queued**:
   - Offline sync engine initialization ([src/lib/offline-db.ts](file:///e:/antigravity/scratch/krushi-os/src/lib/offline-db.ts)).
   - Thermal printer hardware bridge testing for mobile devices.

@@ -14,6 +14,7 @@ import {
   ShoppingCart, 
   RotateCcw, 
   Printer, 
+  Download,
   AlertTriangle,
   CheckCircle2,
   Loader2
@@ -30,6 +31,8 @@ import { toast } from 'sonner';
 import SaleReturnDialog from '@/components/billing/sale-return-dialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { printInvoiceDirectly, InvoiceRenderer } from '@/components/invoice/invoice-renderer';
+import { exportReportToPDF, printReportDocument, ReportFilterMeta } from '@/lib/report-export';
+import { getSavedShopDetails } from '@/lib/shop-details';
 
 interface SalesHistoryClientProps {
   initialSales?: any[];
@@ -161,6 +164,67 @@ export function SalesHistoryClient({ initialSales = [], initialError }: SalesHis
     }, 200);
   };
 
+  const handleDownloadPDF = async () => {
+    if (sales.length === 0) {
+      toast.error('No sales records to export');
+      return;
+    }
+    try {
+      const totalRevenue = sales.reduce((acc, s) => acc + Number(s.total_amount || s.grand_total || 0), 0);
+      const totalTax = sales.reduce((acc, s) => acc + Number(s.tax_amount || 0), 0);
+      const totalProfit = sales.reduce((acc, s) => acc + Number(s.profit_amount || 0), 0);
+      const reportData = {
+        sales: sales,
+        totalRevenue,
+        totalCount: sales.length,
+        totalTax,
+        totalProfit,
+      };
+      const meta: ReportFilterMeta = {
+        reportType: 'sales',
+        title: 'Sales History Report',
+        periodLabel: 'All Records',
+        generatedAt: new Date().toLocaleString('en-IN'),
+      };
+      const shopProfile = getSavedShopDetails();
+      await exportReportToPDF('sales', reportData, meta, shopProfile);
+      toast.success('Sales history PDF downloaded successfully');
+    } catch (err: any) {
+      console.error('Failed to export sales PDF:', err);
+      toast.error(err.message || 'Failed to export sales PDF');
+    }
+  };
+
+  const handlePrintHistory = () => {
+    if (sales.length === 0) {
+      toast.error('No sales records to print');
+      return;
+    }
+    try {
+      const totalRevenue = sales.reduce((acc, s) => acc + Number(s.total_amount || s.grand_total || 0), 0);
+      const totalTax = sales.reduce((acc, s) => acc + Number(s.tax_amount || 0), 0);
+      const totalProfit = sales.reduce((acc, s) => acc + Number(s.profit_amount || 0), 0);
+      const reportData = {
+        sales: sales,
+        totalRevenue,
+        totalCount: sales.length,
+        totalTax,
+        totalProfit,
+      };
+      const meta: ReportFilterMeta = {
+        reportType: 'sales',
+        title: 'Sales History Report',
+        periodLabel: 'All Records',
+        generatedAt: new Date().toLocaleString('en-IN'),
+      };
+      const shopProfile = getSavedShopDetails();
+      printReportDocument('sales', reportData, meta, shopProfile);
+    } catch (err: any) {
+      console.error('Failed to print sales report:', err);
+      toast.error(err.message || 'Failed to print sales report');
+    }
+  };
+
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
       <div className="flex justify-between items-center flex-wrap gap-4">
@@ -168,7 +232,27 @@ export function SalesHistoryClient({ initialSales = [], initialError }: SalesHis
           <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Sales History</h1>
           <p className="text-xs sm:text-sm text-muted-foreground mt-1">View and manage all customer bills, returns, and sales transactions</p>
         </div>
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center flex-wrap gap-2.5">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleDownloadPDF}
+            disabled={loading || sales.length === 0}
+            className="border-border shadow-sm text-foreground hover:bg-accent text-xs sm:text-sm"
+          >
+            <Download className="h-4 w-4 mr-1.5" />
+            Download PDF
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handlePrintHistory}
+            disabled={loading || sales.length === 0}
+            className="border-border shadow-sm text-foreground hover:bg-accent text-xs sm:text-sm"
+          >
+            <Printer className="h-4 w-4 mr-1.5" />
+            Print
+          </Button>
           <Button 
             variant="outline" 
             size="sm" 

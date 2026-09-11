@@ -75,9 +75,10 @@ export async function updateSession(request: NextRequest) {
       return NextResponse.redirect(redirectUrl)
     }
     if (!isCustomerUser) {
-      // Shopkeeper trying to access customer routes
+      // Non-customer identity attempting to access customer routes
       const redirectUrl = request.nextUrl.clone()
-      redirectUrl.pathname = '/dashboard'
+      redirectUrl.pathname = '/login'
+      redirectUrl.searchParams.set('type', 'customer')
       return NextResponse.redirect(redirectUrl)
     }
     return supabaseResponse
@@ -111,9 +112,10 @@ export async function updateSession(request: NextRequest) {
       return NextResponse.redirect(redirectUrl)
     }
     if (isCustomerUser) {
-      // Customer trying to access shopkeeper management
+      // Customer identity attempting to access shopkeeper management
       const redirectUrl = request.nextUrl.clone()
-      redirectUrl.pathname = '/customer/dashboard'
+      redirectUrl.pathname = '/login'
+      redirectUrl.searchParams.set('type', 'shopkeeper')
       return NextResponse.redirect(redirectUrl)
     }
   }

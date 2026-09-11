@@ -17,6 +17,7 @@ import { isShopProfileComplete, ShopDetails } from '@/lib/shop-details';
 import { User, X, UserPlus, Wifi, Phone, MapPin, Search, AlertCircle, Store, ArrowRight, Edit2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { toast } from 'sonner';
 import Link from 'next/link';
 
 import { 
@@ -254,8 +255,33 @@ export default function BillingPage() {
     setCustomerSearch('');
   };
 
-  const handleAddToCart = (item: any) => {
-    setCart(prev => [...prev, { ...item, id: generateId() }]);
+  const handleAddToCart = (newItem: any) => {
+    setCart(prev => {
+      const matchIndex = prev.findIndex(item => {
+        if (item.product_id !== newItem.product_id) return false;
+        if (newItem.batch_id || item.batch_id) {
+          return item.batch_id === newItem.batch_id;
+        }
+        return (item.batch_number || '') === (newItem.batch_number || '');
+      });
+
+      if (matchIndex > -1) {
+        const updated = [...prev];
+        const existing = updated[matchIndex];
+        const addQty = Number(newItem.quantity) || 1;
+        const newQty = (Number(existing.quantity) || 1) + addQty;
+
+        updated[matchIndex] = {
+          ...existing,
+          quantity: newQty,
+        };
+
+        toast.info(`Increased "${existing.product_name || 'Item'}" quantity to ${newQty}`);
+        return updated;
+      }
+
+      return [...prev, { ...newItem, id: generateId() }];
+    });
   };
 
   /* ─── Keyboard shortcuts ─── */

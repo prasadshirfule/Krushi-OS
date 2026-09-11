@@ -26,47 +26,55 @@ interface StatsCardsProps {
 
 export default function StatsCards({ stats }: StatsCardsProps) {
   const salesAmount = Number(stats?.todaySales?.total ?? stats?.todaySales?.amount ?? stats?.todaySales?.total_sales ?? 0);
-  const salesProfit = Number(stats?.todaySales?.profit ?? 0);
-  const salesCount = Number(stats?.todaySales?.count ?? 0);
-  const totalBills = Number(stats?.totalBills ?? stats?.todaySales?.count ?? 0);
+  const todayBillsCount = Number(stats?.todaySales?.count ?? 0);
   const totalOutstanding = Number(stats?.totalOutstanding ?? 0);
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Today's Sales</CardTitle>
-          <IndianRupee className="h-4 w-4 text-green-600" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{formatCurrency(salesAmount)}</div>
-          <p className="text-xs text-muted-foreground">{salesCount} bills today</p>
-        </CardContent>
+      {/* 1. Today's Sales -> /sales */}
+      <Card className="hover:border-primary/50 transition-colors">
+        <Link href="/sales" className="block h-full cursor-pointer">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 hover:bg-muted/50 rounded-t-lg transition-colors">
+            <CardTitle className="text-sm font-medium">Today's Sales</CardTitle>
+            <IndianRupee className="h-4 w-4 text-green-600" />
+          </CardHeader>
+          <CardContent className="hover:bg-muted/50 rounded-b-lg transition-colors h-full">
+            <div className="text-2xl font-bold">{formatCurrency(salesAmount)}</div>
+            <p className="text-xs text-muted-foreground">{todayBillsCount} bills today</p>
+          </CardContent>
+        </Link>
       </Card>
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Total Bills</CardTitle>
-          <Receipt className="h-4 w-4 text-purple-600" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{totalBills}</div>
-          <p className="text-xs text-muted-foreground">Invoices generated</p>
-        </CardContent>
+      {/* 2. Today's Bills (Only today's count) -> /sales */}
+      <Card className="hover:border-purple-500/50 transition-colors">
+        <Link href="/sales" className="block h-full cursor-pointer">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 hover:bg-muted/50 rounded-t-lg transition-colors">
+            <CardTitle className="text-sm font-medium">Today's Bills</CardTitle>
+            <Receipt className="h-4 w-4 text-purple-600" />
+          </CardHeader>
+          <CardContent className="hover:bg-muted/50 rounded-b-lg transition-colors h-full">
+            <div className="text-2xl font-bold">{todayBillsCount}</div>
+            <p className="text-xs text-muted-foreground">Invoices today</p>
+          </CardContent>
+        </Link>
       </Card>
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Outstanding</CardTitle>
-          <CreditCard className={`h-4 w-4 ${totalOutstanding > 50000 ? 'text-red-600' : 'text-orange-600'}`} />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{formatCurrency(totalOutstanding)}</div>
-          <p className="text-xs text-muted-foreground">To be collected</p>
-        </CardContent>
+      {/* 3. Outstanding -> /customers */}
+      <Card className="hover:border-orange-500/50 transition-colors">
+        <Link href="/customers" className="block h-full cursor-pointer">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 hover:bg-muted/50 rounded-t-lg transition-colors">
+            <CardTitle className="text-sm font-medium">Outstanding</CardTitle>
+            <CreditCard className={`h-4 w-4 ${totalOutstanding > 50000 ? 'text-red-600' : 'text-orange-600'}`} />
+          </CardHeader>
+          <CardContent className="hover:bg-muted/50 rounded-b-lg transition-colors h-full">
+            <div className="text-2xl font-bold">{formatCurrency(totalOutstanding)}</div>
+            <p className="text-xs text-muted-foreground">To be collected</p>
+          </CardContent>
+        </Link>
       </Card>
 
-      <Card>
+      {/* 4. Low Stock -> /inventory?filter=low-stock */}
+      <Card className="hover:border-red-500/50 transition-colors">
         <Link href="/inventory?filter=low-stock" className="block h-full cursor-pointer">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 hover:bg-muted/50 rounded-t-lg transition-colors">
             <CardTitle className="text-sm font-medium">Low Stock</CardTitle>
@@ -79,7 +87,8 @@ export default function StatsCards({ stats }: StatsCardsProps) {
         </Link>
       </Card>
 
-      <Card>
+      {/* 5. Expiring Soon -> /inventory?filter=expiring */}
+      <Card className="hover:border-amber-500/50 transition-colors">
         <Link href="/inventory?filter=expiring" className="block h-full cursor-pointer">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 hover:bg-muted/50 rounded-t-lg transition-colors">
             <CardTitle className="text-sm font-medium">Expiring Soon</CardTitle>

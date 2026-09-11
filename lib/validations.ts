@@ -310,7 +310,7 @@ export const productSchema = z.object({
   sku: z.string().optional().nullable(),
   barcode: z.string().optional().nullable(),
   purchase_price: z.coerce.number().min(0, 'Purchase price cannot be negative'),
-  selling_price: z.coerce.number().min(0, 'Selling price cannot be negative'),
+  selling_price: z.coerce.number({ invalid_type_error: 'Please enter a valid selling price' }).min(0.01, 'Selling price must be greater than 0'),
   wholesale_price: z.coerce.number().min(0).optional().nullable(),
   gst_rate: z.coerce.number().min(0).max(100),
   hsn_code: z.string().optional().nullable(),

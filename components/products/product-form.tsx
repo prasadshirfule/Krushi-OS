@@ -111,10 +111,9 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
       brand_id: initialData?.brand_id || '',
       sku: initialData?.sku || '',
       barcode: initialData?.barcode || '',
-      description: initialData?.description || '',
-      purchase_price: initialData?.purchase_price ?? 0,
-      selling_price: initialData?.selling_price ?? 0,
-      wholesale_price: initialData?.wholesale_price ?? initialData?.mrp ?? initialData?.selling_price ?? 0,
+      purchase_price: initialData?.purchase_price !== undefined && initialData?.purchase_price !== null ? Number(initialData.purchase_price) : (mode === 'edit' ? 0 : (undefined as unknown as number)),
+      selling_price: initialData?.selling_price !== undefined && initialData?.selling_price !== null && Number(initialData.selling_price) > 0 ? Number(initialData.selling_price) : (mode === 'edit' ? Number(initialData?.selling_price || 0) : (undefined as unknown as number)),
+      wholesale_price: initialData?.wholesale_price ?? initialData?.mrp ?? null,
       hsn_code: initialData?.hsn_code || '',
       gst_rate: initialData?.gst_rate ?? 18,
       unit: initialData?.unit || 'Piece',
@@ -647,8 +646,8 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
                   type="number"
                   step="0.01"
                   min="0"
-                  placeholder="0.00"
-                  className="pl-8 h-11 text-base rounded-lg border-border bg-background"
+                  placeholder="e.g. 380.00"
+                  className="pl-8 h-11 text-base rounded-lg border-border bg-background placeholder:text-muted-foreground/40"
                   {...form.register('purchase_price')}
                 />
               </div>
@@ -668,9 +667,9 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
                   id="selling_price"
                   type="number"
                   step="0.01"
-                  min="0"
-                  placeholder="0.00"
-                  className="pl-8 h-11 text-base font-bold text-primary rounded-lg border-primary/40 bg-primary/5 focus-visible:border-primary"
+                  min="0.01"
+                  placeholder="e.g. 450.00"
+                  className="pl-8 h-11 text-base font-bold text-primary rounded-lg border-primary/40 bg-primary/5 placeholder:text-muted-foreground/40 focus-visible:border-primary"
                   {...form.register('selling_price')}
                 />
               </div>
