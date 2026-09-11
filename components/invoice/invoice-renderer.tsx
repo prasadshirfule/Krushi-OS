@@ -170,46 +170,78 @@ export function printInvoiceDirectly(elementId: string, format: InvoicePrintForm
 }
 
 /**
- * Universal PDF downloader that respects format dimensions
+ * Universal PDF downloader that respects format dimensions and exact visual invoice structure
  */
 export async function downloadInvoicePDF(
   elementId: string,
   filename: string = 'invoice.pdf',
   format: InvoicePrintFormat = 'A5',
-  saleData?: any,
-  shopDetails?: any
+  _saleData?: any,
+  _shopDetails?: any
 ) {
-  // For standard/A5 invoices with sale data, generate crisp vector PDF using jsPDF + autoTable
-  if (format !== 'THERMAL_80MM' && saleData) {
-    try {
-      const { generateInvoicePDF } = await import('@/lib/invoice');
-      const doc = generateInvoicePDF(saleData, shopDetails);
-      doc.save(filename);
-      return;
-    } catch (err) {
-      console.warn('Vector PDF generation failed, falling back to raster canvas:', err);
-    }
-  }
+  if (typeof window === 'undefined') return;
 
   const element = document.getElementById(elementId);
   if (!element) {
-    if (saleData) {
-      const { generateInvoicePDF } = await import('@/lib/invoice');
-      const doc = generateInvoicePDF(saleData, shopDetails);
-      doc.save(filename);
-    }
+    console.error(`Element with id "${elementId}" not found for PDF download.`);
     return;
   }
+
+  // Target the actual invoice container
+  const targetElement = (element.querySelector('.invoice-page') || element.querySelector('.invoice') || element) as HTMLElement;
 
   try {
     const html2canvasModule = await import('html2canvas');
     const html2canvas = html2canvasModule.default || html2canvasModule;
-    const canvas = await html2canvas(element, {
-      scale: 2,
+
+    // Create a temporary off-screen staging container with explicit layout and full opacity
+    const container = document.createElement('div');
+    container.style.position = 'fixed';
+    container.style.top = '0px';
+    container.style.left = '0px';
+    container.style.zIndex = '-99999';
+    container.style.opacity = '1';
+    container.style.pointerEvents = 'none';
+    container.style.backgroundColor = '#ffffff';
+    container.style.transform = 'none';
+    container.style.margin = '0';
+    container.style.padding = '0';
+    container.style.boxSizing = 'border-box';
+
+    if (format === 'THERMAL_80MM') {
+      container.style.width = '78mm';
+    } else {
+      container.style.width = '204mm';
+    }
+
+    const clone = targetElement.cloneNode(true) as HTMLElement;
+    clone.style.transform = 'none';
+    clone.style.margin = '0 auto';
+    clone.style.visibility = 'visible';
+    clone.style.opacity = '1';
+    clone.style.display = 'block';
+
+    container.appendChild(clone);
+    document.body.appendChild(container);
+
+    if (document.fonts?.ready) {
+      await document.fonts.ready;
+    }
+    await new Promise((r) => setTimeout(r, 80));
+
+    const canvas = await html2canvas(clone, {
+      scale: 3, // 300 DPI high resolution
       useCORS: true,
       logging: false,
       backgroundColor: '#ffffff',
+      scrollX: 0,
+      scrollY: 0,
+      windowWidth: 1200,
     });
+
+    if (document.body.contains(container)) {
+      document.body.removeChild(container);
+    }
 
     const imgData = canvas.toDataURL('image/jpeg', 0.98);
     const { jsPDF } = await import('jspdf');
@@ -222,7 +254,7 @@ export async function downloadInvoicePDF(
         unit: 'mm',
         format: [pdfWidth, Math.max(pdfHeight, 100)],
       });
-      pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
+      pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight, undefined, 'FAST');
       pdf.save(filename);
     } else {
       const pdf = new jsPDF({
@@ -230,8 +262,8 @@ export async function downloadInvoicePDF(
         unit: 'mm',
         format: 'a5',
       });
-      // Center 204x142 inside 210x148
-      pdf.addImage(imgData, 'JPEG', 3, 3, 204, (204 * canvas.height) / canvas.width);
+      // Center 204x142 inside 210x148 mm
+      pdf.addImage(imgData, 'JPEG', 3, 3, 204, 142, undefined, 'FAST');
       pdf.save(filename);
     }
   } catch (err) {

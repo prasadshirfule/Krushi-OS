@@ -836,32 +836,31 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
           <tbody>
             {displayItems.map((item, idx) => (
               <tr key={item.id || idx} style={{ height: mm(ROW_HEIGHT_MM), borderBottom: BORDER_INNER }}>
-                <td style={{ borderRight: BORDER_INNER, textAlign: 'center', fontWeight: 'bold', padding: `${mm(0.2)} ${mm(0.5)}`, verticalAlign: 'middle', fontSize: '9.5px' }}>
+                <td style={{ borderRight: BORDER_INNER, textAlign: 'center', fontWeight: 'bold', padding: `${mm(0.4)} ${mm(0.5)}`, verticalAlign: 'middle', fontSize: '9.5px', lineHeight: 1.25 }}>
                   {idx + 1}
                 </td>
                 <td style={{
                   borderRight: BORDER_INNER,
                   textAlign: 'left',
-                  padding: `${mm(0.2)} ${mm(1)}`,
+                  padding: `${mm(0.4)} ${mm(1.2)}`,
                   verticalAlign: 'middle',
-                  overflow: 'hidden',
                 }}>
-                  <div style={{ fontWeight: 'bold', textTransform: 'uppercase', fontSize: '10px', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  <div style={{ fontWeight: 'bold', textTransform: 'uppercase', fontSize: '9.8px', lineHeight: 1.25, wordBreak: 'break-word' }}>
                     {item.name}
                   </div>
                 </td>
-                <td style={{ borderRight: BORDER_INNER, textAlign: 'center', fontWeight: 'bold', textTransform: 'uppercase', padding: `${mm(0.2)} ${mm(0.5)}`, verticalAlign: 'middle', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '9px' }}>
+                <td style={{ borderRight: BORDER_INNER, textAlign: 'center', fontWeight: 'bold', textTransform: 'uppercase', padding: `${mm(0.4)} ${mm(0.8)}`, verticalAlign: 'middle', fontSize: '9px', lineHeight: 1.2, wordBreak: 'break-word' }}>
                   {item.manufacturer || '-'}
                 </td>
-                <td style={{ borderRight: BORDER_INNER, textAlign: 'center', fontFamily: 'monospace', fontWeight: 'bold', padding: `${mm(0.2)} ${mm(0.5)}`, verticalAlign: 'middle', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '9.5px' }}>{item.batch}</td>
-                <td style={{ borderRight: BORDER_INNER, textAlign: 'center', fontFamily: 'monospace', fontWeight: 600, padding: `${mm(0.2)} ${mm(0.5)}`, verticalAlign: 'middle', fontSize: '9.2px' }}>{item.expiry}</td>
-                <td style={{ borderRight: BORDER_INNER, textAlign: 'center', fontWeight: 'bold', fontFamily: 'monospace', padding: `${mm(0.2)} ${mm(0.5)}`, verticalAlign: 'middle', fontSize: '10px' }}>
+                <td style={{ borderRight: BORDER_INNER, textAlign: 'center', fontFamily: 'monospace', fontWeight: 'bold', padding: `${mm(0.4)} ${mm(0.5)}`, verticalAlign: 'middle', fontSize: '9.5px', lineHeight: 1.25 }}>{item.batch}</td>
+                <td style={{ borderRight: BORDER_INNER, textAlign: 'center', fontFamily: 'monospace', fontWeight: 600, padding: `${mm(0.4)} ${mm(0.5)}`, verticalAlign: 'middle', fontSize: '9.2px', lineHeight: 1.25 }}>{item.expiry}</td>
+                <td style={{ borderRight: BORDER_INNER, textAlign: 'center', fontWeight: 'bold', fontFamily: 'monospace', padding: `${mm(0.4)} ${mm(0.5)}`, verticalAlign: 'middle', fontSize: '10px', lineHeight: 1.25 }}>
                   {typeof item.quantity === 'number' ? (Number.isInteger(item.quantity) ? item.quantity : item.quantity.toFixed(1)) : item.quantity}
                 </td>
-                <td style={{ borderRight: BORDER_INNER, textAlign: 'right', fontFamily: 'monospace', padding: `${mm(0.2)} ${mm(0.5)}`, verticalAlign: 'middle', fontSize: '9.8px' }}>{item.rate.toFixed(2)}</td>
-                <td style={{ borderRight: BORDER_INNER, textAlign: 'center', fontFamily: 'monospace', fontWeight: 'bold', padding: `${mm(0.2)} ${mm(0.5)}`, verticalAlign: 'middle', fontSize: '9.8px' }}>{item.gstRate.toFixed(2)}</td>
-                <td style={{ borderRight: BORDER_INNER, textAlign: 'right', fontFamily: 'monospace', padding: `${mm(0.2)} ${mm(0.5)}`, verticalAlign: 'middle', fontSize: '9.8px' }}>{item.rateWithGst.toFixed(2)}</td>
-                <td style={{ textAlign: 'right', fontWeight: 'bold', fontFamily: 'monospace', padding: `${mm(0.2)} ${mm(0.5)}`, verticalAlign: 'middle', fontSize: '10.8px' }}>{item.total.toFixed(2)}</td>
+                <td style={{ borderRight: BORDER_INNER, textAlign: 'right', fontFamily: 'monospace', padding: `${mm(0.4)} ${mm(0.8)}`, verticalAlign: 'middle', fontSize: '9.8px', lineHeight: 1.25 }}>{item.rate.toFixed(2)}</td>
+                <td style={{ borderRight: BORDER_INNER, textAlign: 'center', fontFamily: 'monospace', fontWeight: 'bold', padding: `${mm(0.4)} ${mm(0.5)}`, verticalAlign: 'middle', fontSize: '9.8px', lineHeight: 1.25 }}>{item.gstRate.toFixed(2)}</td>
+                <td style={{ borderRight: BORDER_INNER, textAlign: 'right', fontFamily: 'monospace', padding: `${mm(0.4)} ${mm(0.8)}`, verticalAlign: 'middle', fontSize: '9.8px', lineHeight: 1.25 }}>{item.rateWithGst.toFixed(2)}</td>
+                <td style={{ textAlign: 'right', fontWeight: 'bold', fontFamily: 'monospace', padding: `${mm(0.4)} ${mm(0.8)}`, verticalAlign: 'middle', fontSize: '10.8px', lineHeight: 1.25 }}>{item.total.toFixed(2)}</td>
               </tr>
             ))}
             {/* Empty rows to fill remaining space */}
@@ -1449,33 +1448,61 @@ export function printInvoiceDirectly(elementId: string) {
 
 export async function downloadInvoiceAsPDF(
   elementId: string,
-  filename: string = 'tax-invoice.pdf',
-  saleData?: any,
-  shopDetails?: any
+  filename: string = 'tax-invoice.pdf'
 ) {
-  if (saleData) {
-    try {
-      const { generateInvoicePDF } = await import('@/lib/invoice');
-      const doc = generateInvoicePDF(saleData, shopDetails);
-      doc.save(filename);
-      return;
-    } catch (err) {
-      console.warn('Vector PDF generation failed, falling back to canvas:', err);
-    }
-  }
+  if (typeof window === 'undefined') return;
 
   const element = document.getElementById(elementId);
   if (!element) return;
 
+  const targetElement = (element.querySelector('.invoice-page') || element.querySelector('.invoice') || element) as HTMLElement;
+
   try {
     const html2canvasModule = await import('html2canvas');
     const html2canvas = html2canvasModule.default || html2canvasModule;
-    const canvas = await html2canvas(element, {
-      scale: 2,
+
+    const container = document.createElement('div');
+    container.style.position = 'fixed';
+    container.style.top = '0px';
+    container.style.left = '0px';
+    container.style.zIndex = '-99999';
+    container.style.opacity = '1';
+    container.style.pointerEvents = 'none';
+    container.style.backgroundColor = '#ffffff';
+    container.style.transform = 'none';
+    container.style.margin = '0';
+    container.style.padding = '0';
+    container.style.boxSizing = 'border-box';
+    container.style.width = '204mm';
+
+    const clone = targetElement.cloneNode(true) as HTMLElement;
+    clone.style.transform = 'none';
+    clone.style.margin = '0 auto';
+    clone.style.visibility = 'visible';
+    clone.style.opacity = '1';
+    clone.style.display = 'block';
+
+    container.appendChild(clone);
+    document.body.appendChild(container);
+
+    if (document.fonts?.ready) {
+      await document.fonts.ready;
+    }
+    await new Promise((r) => setTimeout(r, 80));
+
+    const canvas = await html2canvas(clone, {
+      scale: 3,
       useCORS: true,
       logging: false,
       backgroundColor: '#ffffff',
+      scrollX: 0,
+      scrollY: 0,
+      windowWidth: 1200,
     });
+
+    if (document.body.contains(container)) {
+      document.body.removeChild(container);
+    }
 
     const imgData = canvas.toDataURL('image/jpeg', 0.98);
     const { jsPDF } = await import('jspdf');
@@ -1486,7 +1513,7 @@ export async function downloadInvoiceAsPDF(
     });
 
     // Center 204x142 inside 210x148
-    pdf.addImage(imgData, 'JPEG', 3, 3, 204, (204 * canvas.height) / canvas.width);
+    pdf.addImage(imgData, 'JPEG', 3, 3, 204, 142, undefined, 'FAST');
     pdf.save(filename);
   } catch (err) {
     console.error('Error generating PDF from DOM:', err);
