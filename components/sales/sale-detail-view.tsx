@@ -174,7 +174,7 @@ export function SaleDetailView({ initialSale, saleId, sale: directSale }: SaleDe
   const handleDownload = async () => {
     setIsDownloading(true);
     try {
-      await downloadInvoicePDF(containerId, `Invoice-${invNo}.pdf`, viewFormat);
+      await downloadInvoicePDF(containerId, `Invoice-${invNo}.pdf`, viewFormat, activeSale);
     } finally {
       setIsDownloading(false);
     }

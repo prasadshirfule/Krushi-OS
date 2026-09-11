@@ -116,13 +116,12 @@ export default function BillSuccessDialog({ saleId, invoiceNumber, totals, onClo
       const invoiceElement = document.getElementById('bill-success-invoice');
 
       if (type === 'pdf') {
-        if (invoiceElement) {
-          await downloadInvoicePDF('bill-success-invoice', `Invoice-${currentSale.invoice_number || displayInv}.pdf`, selectedFormat);
-        } else {
-          const { generateInvoicePDF } = await import('@/lib/invoice');
-          const pdf = generateInvoicePDF(currentSale);
-          pdf.save(`${currentSale.invoice_number || displayInv}.pdf`);
-        }
+        await downloadInvoicePDF(
+          'bill-success-invoice',
+          `Invoice-${currentSale.invoice_number || displayInv}.pdf`,
+          selectedFormat,
+          currentSale
+        );
       } else {
         // Direct print
         if (invoiceElement) {

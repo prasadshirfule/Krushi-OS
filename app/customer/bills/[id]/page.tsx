@@ -84,7 +84,7 @@ export default function CustomerBillDetailPage({ params }: CustomerBillDetailPag
     setIsDownloading(true);
     try {
       const filename = `Invoice-${data.sale.invoice_number}.pdf`;
-      await downloadInvoicePDF('customer-printable-invoice', filename, printFormat);
+      await downloadInvoicePDF('customer-printable-invoice', filename, printFormat, data.sale, data.shop);
       toast.success('Invoice PDF downloaded.');
     } catch (err) {
       console.error('PDF download error:', err);

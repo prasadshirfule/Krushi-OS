@@ -113,7 +113,7 @@ function getInvoiceLabels(lang?: string): InvoiceLabels {
     qty: 'Qty',
     rate: 'Rate',
     gst: 'GST %',
-    rateWithGst: 'Rate (Inc GST)',
+    rateWithGst: 'Rate (With GST)',
     total: 'Total',
     taxableAmount: 'Taxable Amount:',
     cgstAmount: 'CGST Amount:',
@@ -332,6 +332,7 @@ export function generateInvoicePDF(sale: any, customSettings?: any) {
       const cgst = Math.round((totalTax / 2) * 100) / 100;
       const sgst = Math.round((totalTax - cgst) * 100) / 100;
       const rateWithGst = unitPrice;
+      const rateWithoutGst = qty > 0 ? (taxable / qty) : (unitPrice / (1 + gst / 100));
 
       totalTaxable += taxable;
       totalCgst += cgst;
@@ -359,7 +360,7 @@ export function generateInvoicePDF(sale: any, customSettings?: any) {
         batch,
         expiry,
         qty,
-        rateWithGst.toFixed(2),
+        rateWithoutGst.toFixed(2),
         `${gst}%`,
         rateWithGst.toFixed(2),
         lineTotal.toFixed(2),
@@ -401,6 +402,7 @@ export function generateInvoicePDF(sale: any, customSettings?: any) {
       lineColor: [0, 0, 0],
       fontSize: 8,
       halign: 'center',
+      valign: 'middle',
     },
     styles: {
       fontSize: 7.5,

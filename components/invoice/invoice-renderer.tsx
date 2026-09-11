@@ -175,10 +175,31 @@ export function printInvoiceDirectly(elementId: string, format: InvoicePrintForm
 export async function downloadInvoicePDF(
   elementId: string,
   filename: string = 'invoice.pdf',
-  format: InvoicePrintFormat = 'A5'
+  format: InvoicePrintFormat = 'A5',
+  saleData?: any,
+  shopDetails?: any
 ) {
+  // For standard/A5 invoices with sale data, generate crisp vector PDF using jsPDF + autoTable
+  if (format !== 'THERMAL_80MM' && saleData) {
+    try {
+      const { generateInvoicePDF } = await import('@/lib/invoice');
+      const doc = generateInvoicePDF(saleData, shopDetails);
+      doc.save(filename);
+      return;
+    } catch (err) {
+      console.warn('Vector PDF generation failed, falling back to raster canvas:', err);
+    }
+  }
+
   const element = document.getElementById(elementId);
-  if (!element) return;
+  if (!element) {
+    if (saleData) {
+      const { generateInvoicePDF } = await import('@/lib/invoice');
+      const doc = generateInvoicePDF(saleData, shopDetails);
+      doc.save(filename);
+    }
+    return;
+  }
 
   try {
     const html2canvasModule = await import('html2canvas');

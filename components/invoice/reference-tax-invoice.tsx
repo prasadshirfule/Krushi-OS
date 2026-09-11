@@ -1447,7 +1447,23 @@ export function printInvoiceDirectly(elementId: string) {
   }, 350);
 }
 
-export async function downloadInvoiceAsPDF(elementId: string, filename: string = 'tax-invoice.pdf') {
+export async function downloadInvoiceAsPDF(
+  elementId: string,
+  filename: string = 'tax-invoice.pdf',
+  saleData?: any,
+  shopDetails?: any
+) {
+  if (saleData) {
+    try {
+      const { generateInvoicePDF } = await import('@/lib/invoice');
+      const doc = generateInvoicePDF(saleData, shopDetails);
+      doc.save(filename);
+      return;
+    } catch (err) {
+      console.warn('Vector PDF generation failed, falling back to canvas:', err);
+    }
+  }
+
   const element = document.getElementById(elementId);
   if (!element) return;
 
