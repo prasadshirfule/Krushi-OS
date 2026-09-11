@@ -153,6 +153,8 @@ async function runSystemAuditTests() {
     selling_price: 180,
     gst_rate: 18,
     unit: 'Bottle',
+    product_size_value: 1,
+    product_size_unit: 'L',
     min_stock: 10,
     opening_stock: 50,
     batch_number: 'CHLOR-2026-01',

@@ -135,16 +135,24 @@ export async function getSupplierSummary(shopId: string) {
       .eq('shop_id', shopId);
 
     if (error || !data) {
-      return { totalSuppliers: 0, activeSuppliers: 0, totalOutstanding: 0 };
+      return { totalSuppliers: 0, activeSuppliers: 0, totalOutstanding: 0, incomingOutstanding: 0, outgoingOutstanding: 0 };
     }
 
     const totalSuppliers = data.length;
     const activeSuppliers = data.filter(s => s.is_active !== false).length;
-    const totalOutstanding = data.reduce((sum, s) => sum + Number(s.outstanding || 0), 0);
+    const incomingOutstanding = data.reduce((sum, s) => {
+      const bal = Number(s.outstanding || 0);
+      return bal < 0 ? sum + Math.abs(bal) : sum;
+    }, 0);
+    const outgoingOutstanding = data.reduce((sum, s) => {
+      const bal = Number(s.outstanding || 0);
+      return bal > 0 ? sum + bal : sum;
+    }, 0);
+    const totalOutstanding = outgoingOutstanding;
 
-    return { totalSuppliers, activeSuppliers, totalOutstanding };
+    return { totalSuppliers, activeSuppliers, totalOutstanding, incomingOutstanding, outgoingOutstanding };
   } catch (error) {
     console.error("Error fetching supplier summary:", error);
-    return { totalSuppliers: 0, activeSuppliers: 0, totalOutstanding: 0 };
+    return { totalSuppliers: 0, activeSuppliers: 0, totalOutstanding: 0, incomingOutstanding: 0, outgoingOutstanding: 0 };
   }
 }

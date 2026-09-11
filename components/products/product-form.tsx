@@ -626,88 +626,87 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
                 <IndianRupee className="h-5 w-5" />
               </div>
               <div>
-                <CardTitle className="text-lg font-bold text-foreground">PRICING & TAX</CardTitle>
+                <CardTitle className="text-lg font-bold text-foreground">PRICING, TAX & BATCH</CardTitle>
                 <CardDescription className="text-xs text-muted-foreground">
-                  Purchase price, retail selling price per piece, MRP, and GST
+                  Purchase price, selling price, MRP, GST, size, batch number, and expiry date
                 </CardDescription>
               </div>
             </div>
           </CardHeader>
-          <CardContent className="p-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {/* Purchase Price */}
-            <div className="space-y-2">
-              <Label htmlFor="purchase_price" className="text-sm font-semibold text-foreground">
-                Purchase Price <span className="text-destructive font-bold">*</span>
+          <CardContent className="p-6 grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 items-start">
+            {/* 1. Purchase Price */}
+            <div className="space-y-1.5 flex flex-col justify-start">
+              <Label htmlFor="purchase_price" className="text-xs font-semibold text-foreground h-5 flex items-center">
+                Purchase Price <span className="text-destructive font-bold ml-1">*</span>
               </Label>
               <div className="relative">
-                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold text-sm">₹</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold text-xs">₹</span>
                 <Input
                   id="purchase_price"
                   type="number"
                   step="0.01"
                   min="0"
                   placeholder="e.g. 380.00"
-                  className="pl-8 h-11 text-base rounded-lg border-border bg-background placeholder:text-muted-foreground/40"
+                  className="pl-7 h-11 text-sm rounded-lg border-border bg-background placeholder:text-muted-foreground/40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   {...form.register('purchase_price')}
                 />
               </div>
               {form.formState.errors.purchase_price && (
-                <p className="text-xs text-destructive font-medium">{form.formState.errors.purchase_price.message}</p>
+                <p className="text-[11px] text-destructive font-medium leading-tight">{form.formState.errors.purchase_price.message}</p>
               )}
             </div>
 
-            {/* Selling Price */}
-            <div className="space-y-2">
-              <Label htmlFor="selling_price" className="text-sm font-semibold text-foreground">
-                Selling Price (Including GST) <span className="text-destructive font-bold">*</span>
+            {/* 2. Selling Price */}
+            <div className="space-y-1.5 flex flex-col justify-start">
+              <Label htmlFor="selling_price" className="text-xs font-semibold text-foreground h-5 flex items-center truncate" title="Selling Price (Including GST)">
+                Selling Price (Inc. GST) <span className="text-destructive font-bold ml-1">*</span>
               </Label>
               <div className="relative">
-                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-primary font-bold text-base">₹</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-primary font-bold text-xs">₹</span>
                 <Input
                   id="selling_price"
                   type="number"
                   step="0.01"
                   min="0.01"
                   placeholder="e.g. 450.00"
-                  className="pl-8 h-11 text-base font-bold text-primary rounded-lg border-primary/40 bg-primary/5 placeholder:text-muted-foreground/40 focus-visible:border-primary"
+                  className="pl-7 h-11 text-sm font-bold text-primary rounded-lg border-primary/40 bg-primary/5 placeholder:text-muted-foreground/40 focus-visible:border-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   {...form.register('selling_price')}
                 />
               </div>
-              <p className="text-[11px] text-muted-foreground">Final customer price per piece (GST included)</p>
               {form.formState.errors.selling_price && (
-                <p className="text-xs text-destructive font-medium">{form.formState.errors.selling_price.message}</p>
+                <p className="text-[11px] text-destructive font-medium leading-tight">{form.formState.errors.selling_price.message}</p>
               )}
             </div>
 
-            {/* MRP */}
-            <div className="space-y-2">
-              <Label htmlFor="wholesale_price" className="text-sm font-semibold text-foreground">
+            {/* 3. MRP */}
+            <div className="space-y-1.5 flex flex-col justify-start">
+              <Label htmlFor="wholesale_price" className="text-xs font-semibold text-foreground h-5 flex items-center">
                 MRP
               </Label>
               <div className="relative">
-                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold text-sm">₹</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold text-xs">₹</span>
                 <Input
                   id="wholesale_price"
                   type="number"
                   step="0.01"
                   min="0"
                   placeholder="0.00"
-                  className="pl-8 h-11 text-base rounded-lg border-border bg-background"
+                  className="pl-7 h-11 text-sm rounded-lg border-border bg-background [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   {...form.register('wholesale_price')}
                 />
               </div>
             </div>
 
-            {/* GST */}
-            <div className="space-y-2">
-              <Label htmlFor="gst_rate" className="text-sm font-semibold text-foreground">
+            {/* 4. GST */}
+            <div className="space-y-1.5 flex flex-col justify-start">
+              <Label htmlFor="gst_rate" className="text-xs font-semibold text-foreground h-5 flex items-center">
                 GST
               </Label>
               <Select
                 value={String(form.watch('gst_rate'))}
                 onValueChange={(val) => form.setValue('gst_rate', Number(val))}
               >
-                <SelectTrigger id="gst_rate" className="h-11 rounded-lg border-border bg-background text-foreground">
+                <SelectTrigger id="gst_rate" className="h-11 rounded-lg border-border bg-background text-foreground text-sm">
                   <SelectValue placeholder="Select GST" />
                 </SelectTrigger>
                 <SelectContent>
@@ -717,11 +716,98 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
                 </SelectContent>
               </Select>
             </div>
+
+            {/* 5. Product Size (Mandatory with *) */}
+            <div className="space-y-1.5 flex flex-col justify-start">
+              <Label htmlFor="product_size_value" className="text-xs font-semibold text-foreground h-5 flex items-center">
+                Product Size <span className="text-destructive font-bold ml-1">*</span>
+              </Label>
+              <div className="flex rounded-lg border border-border bg-background focus-within:ring-2 focus-within:ring-primary focus-within:border-primary overflow-hidden h-11">
+                <Input
+                  id="product_size_value"
+                  type="number"
+                  step="any"
+                  min="0"
+                  placeholder="e.g. 1"
+                  className="h-11 border-0 focus-visible:ring-0 focus-visible:ring-offset-0 rounded-none text-sm font-bold text-foreground px-2.5 flex-1 min-w-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  value={form.watch('product_size_value') ?? ''}
+                  onChange={(e) => {
+                    const val = e.target.value === '' ? null : Number(e.target.value);
+                    form.setValue('product_size_value', val, { shouldValidate: true });
+                    const unit = form.getValues('product_size_unit') || 'KG';
+                    form.setValue('pack_size', val ? `${val} ${unit}` : '', { shouldValidate: true });
+                  }}
+                />
+                <div className="w-[75px] shrink-0 border-l border-border bg-muted/20">
+                  <Select
+                    value={form.watch('product_size_unit') || 'KG'}
+                    onValueChange={(val) => {
+                      form.setValue('product_size_unit', val);
+                      const currentVal = form.getValues('product_size_value');
+                      if (currentVal) {
+                        form.setValue('pack_size', `${currentVal} ${val}`, { shouldValidate: true });
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="h-11 border-0 focus:ring-0 rounded-none bg-transparent font-bold text-foreground px-2 text-xs">
+                      <SelectValue placeholder="Unit" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-64">
+                      {PRODUCT_SIZE_UNITS.map((u) => (
+                        <SelectItem key={u.value} value={u.value} className="text-xs">
+                          {u.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              {form.formState.errors.product_size_value && (
+                <p className="text-[11px] text-destructive font-medium leading-tight">{form.formState.errors.product_size_value.message}</p>
+              )}
+            </div>
+
+            {/* 6. Batch No (No Optional text) */}
+            <div className="space-y-1.5 flex flex-col justify-start">
+              <Label htmlFor="batch_number" className="text-xs font-semibold text-foreground h-5 flex items-center">
+                Batch No
+              </Label>
+              <Input
+                id="batch_number"
+                placeholder="e.g. B-101"
+                className="h-11 text-sm rounded-lg border-border bg-background font-mono"
+                {...form.register('batch_number')}
+              />
+              {form.formState.errors.batch_number && (
+                <p className="text-[11px] text-destructive font-medium leading-tight">{form.formState.errors.batch_number.message}</p>
+              )}
+            </div>
+
+            {/* 7. Exp Date (No Optional text) */}
+            <div className="space-y-1.5 flex flex-col justify-start">
+              <Label htmlFor="expiry_date" className="text-xs font-semibold text-foreground h-5 flex items-center">
+                Exp Date
+              </Label>
+              <div className="relative">
+                <Input
+                  id="expiry_date"
+                  placeholder="DD/MM/YYYY"
+                  maxLength={10}
+                  className="h-11 text-sm rounded-lg border-border bg-background font-mono pl-3 pr-8"
+                  value={form.watch('expiry_date') || ''}
+                  onChange={handleExpiryChange}
+                />
+                <Calendar className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+              </div>
+              {form.formState.errors.expiry_date && (
+                <p className="text-[11px] text-destructive font-medium leading-tight">{form.formState.errors.expiry_date.message}</p>
+              )}
+            </div>
           </CardContent>
         </Card>
 
         {/* ═════════════════════════════════════════════════════════
-            SECTION 3: STOCK & BATCH (Quantity in Pieces, Product Size, Packaging)
+            SECTION 3: STOCK & INVENTORY
         ═════════════════════════════════════════════════════════ */}
         <Card className="border border-border bg-card shadow-sm rounded-xl overflow-hidden">
           <CardHeader className="bg-muted/30 border-b border-border pb-4">
@@ -730,60 +816,18 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
                 <Boxes className="h-5 w-5" />
               </div>
               <div>
-                <CardTitle className="text-lg font-bold text-foreground">STOCK & BATCH</CardTitle>
+                <CardTitle className="text-lg font-bold text-foreground">STOCK & INVENTORY</CardTitle>
                 <CardDescription className="text-xs text-muted-foreground">
-                  Batch details, stock quantity (pieces), packaging type, and product size contained in one piece
+                  Opening stock quantity and low stock threshold
                 </CardDescription>
               </div>
             </div>
           </CardHeader>
           <CardContent className="p-6 grid gap-6 sm:grid-cols-2">
-            {/* Batch Number (Optional) */}
-            <div className="space-y-2">
-              <Label htmlFor="batch_number" className="text-sm font-semibold text-foreground">
-                Batch Number <span className="text-muted-foreground text-xs font-normal">(Optional)</span>
-              </Label>
-              <Input
-                id="batch_number"
-                placeholder="e.g. UREA-2026-01 (or leave empty)"
-                className="h-11 text-base rounded-lg border-border bg-background font-mono"
-                {...form.register('batch_number')}
-              />
-              {form.formState.errors.batch_number && (
-                <p className="text-xs text-destructive font-medium">{form.formState.errors.batch_number.message}</p>
-              )}
-            </div>
-
-            {/* Expiry Date (Optional) */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="expiry_date" className="text-sm font-semibold text-foreground">
-                  Expiry Date <span className="text-muted-foreground text-xs font-normal">(Optional)</span>
-                </Label>
-                <span className="text-xs text-muted-foreground font-mono font-medium">DD/MM/YYYY</span>
-              </div>
-              <div className="relative">
-                <Input
-                  id="expiry_date"
-                  placeholder="DD/MM/YYYY (or leave empty)"
-                  maxLength={10}
-                  className="h-11 text-base rounded-lg border-border bg-background font-mono pl-3.5 pr-10"
-                  value={form.watch('expiry_date') || ''}
-                  onChange={handleExpiryChange}
-                />
-                <Calendar className="absolute right-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-              </div>
-              {form.formState.errors.expiry_date ? (
-                <p className="text-xs text-destructive font-medium">{form.formState.errors.expiry_date.message}</p>
-              ) : (
-                <p className="text-[11px] text-muted-foreground">Optional. Format: DD/MM/YYYY (e.g. 04/09/2027)</p>
-              )}
-            </div>
-
             {/* Quantity in Pieces */}
             <div className="space-y-2">
               <Label htmlFor="opening_stock" className="text-sm font-semibold text-foreground">
-                Quantity <span className="text-destructive font-bold">*</span>
+                Quantity in Stock <span className="text-destructive font-bold">*</span>
               </Label>
               <div className="flex rounded-lg border border-border bg-background focus-within:ring-2 focus-within:ring-primary focus-within:border-primary overflow-hidden">
                 <Input
@@ -792,7 +836,7 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
                   step="1"
                   min="0"
                   placeholder="10"
-                  className="h-11 border-0 focus-visible:ring-0 focus-visible:ring-offset-0 rounded-none text-base font-bold text-foreground px-3.5 flex-1"
+                  className="h-11 border-0 focus-visible:ring-0 focus-visible:ring-offset-0 rounded-none text-base font-bold text-foreground px-3.5 flex-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   {...form.register('opening_stock')}
                 />
                 <div className="px-4 py-2.5 bg-muted/40 border-l border-border text-sm font-bold text-muted-foreground flex items-center justify-center min-w-[80px]">
@@ -805,65 +849,25 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
               <p className="text-[11px] text-muted-foreground">Number of sellable items/packages in stock</p>
             </div>
 
-            {/* Product Size (Manual Number + Unit Dropdown) */}
-            <div className="space-y-2">
-              <Label htmlFor="product_size_value" className="text-sm font-semibold text-foreground">
-                Product Size
-              </Label>
-              <div className="flex rounded-lg border border-border bg-background focus-within:ring-2 focus-within:ring-primary focus-within:border-primary overflow-hidden">
-                <Input
-                  id="product_size_value"
-                  type="number"
-                  step="any"
-                  min="0"
-                  placeholder="e.g. 45"
-                  className="h-11 border-0 focus-visible:ring-0 focus-visible:ring-offset-0 rounded-none text-base font-bold text-foreground px-3.5 flex-1"
-                  value={form.watch('product_size_value') ?? ''}
-                  onChange={(e) => {
-                    const val = e.target.value === '' ? null : Number(e.target.value);
-                    form.setValue('product_size_value', val);
-                  }}
-                />
-                <div className="w-[150px] sm:w-[170px] border-l border-border bg-muted/30">
-                  <Select
-                    value={form.watch('product_size_unit') || 'KG'}
-                    onValueChange={(val) => form.setValue('product_size_unit', val)}
-                  >
-                    <SelectTrigger className="h-11 border-0 focus:ring-0 rounded-none bg-transparent font-bold text-foreground">
-                      <SelectValue placeholder="Unit" />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-64">
-                      {PRODUCT_SIZE_UNITS.map((u) => (
-                        <SelectItem key={u.value} value={u.value}>
-                          {u.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <p className="text-[11px] text-muted-foreground">Weight or volume contained in one piece (e.g. 45 KG, 100 ML)</p>
-            </div>
-
             {/* Minimum Stock Level */}
-            <div className="space-y-2 sm:col-span-2">
+            <div className="space-y-2">
               <Label htmlFor="min_stock" className="text-sm font-semibold text-foreground">
-                Minimum Stock Level
+                Minimum Stock Level Alert
               </Label>
-              <div className="flex max-w-sm rounded-lg border border-border bg-background focus-within:ring-2 focus-within:ring-primary overflow-hidden">
+              <div className="flex rounded-lg border border-border bg-background focus-within:ring-2 focus-within:ring-primary overflow-hidden">
                 <Input
                   id="min_stock"
                   type="number"
                   min="0"
                   placeholder="5"
-                  className="h-11 border-0 focus-visible:ring-0 focus-visible:ring-offset-0 rounded-none text-base px-3.5 flex-1"
+                  className="h-11 border-0 focus-visible:ring-0 focus-visible:ring-offset-0 rounded-none text-base px-3.5 flex-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   {...form.register('min_stock')}
                 />
                 <div className="px-4 py-2.5 bg-muted/40 border-l border-border text-sm font-bold text-muted-foreground flex items-center justify-center min-w-[80px]">
                   Pieces
                 </div>
               </div>
-              <p className="text-[11px] text-muted-foreground">Alerts when stock is at or below this number of pieces</p>
+              <p className="text-[11px] text-muted-foreground">Alerts when stock reaches or falls below this count</p>
             </div>
           </CardContent>
         </Card>

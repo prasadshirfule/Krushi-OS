@@ -13,7 +13,15 @@ import {
 } from '@/lib/client-demo-store';
 import { deleteProductAction } from '@/actions/products';
 import { toast } from 'sonner';
-import { Package, Plus, Download, AlertTriangle } from 'lucide-react';
+import { Package, Plus, Download, AlertTriangle, FileSpreadsheet, FileText, ChevronDown, Loader2 } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { exportReportToExcel, exportReportToPDF, ReportFilterMeta } from '@/lib/report-export';
+import { getSavedShopDetails } from '@/lib/shop-details';
 
 interface ProductsViewProps {
   initialProducts?: any[];
@@ -23,6 +31,7 @@ interface ProductsViewProps {
 export function ProductsView({ initialProducts = [], initialCategories = [] }: ProductsViewProps) {
   const [products, setProducts] = useState<any[]>(initialProducts);
   const [categories, setCategories] = useState<any[]>(initialCategories);
+  const [isExporting, setIsExporting] = useState(false);
 
   const loadData = useCallback(() => {
     if (isClientDemoMode()) {
@@ -49,6 +58,66 @@ export function ProductsView({ initialProducts = [], initialCategories = [] }: P
       window.removeEventListener('krushi-categories-updated', handleCategoriesUpdated);
     };
   }, [loadData]);
+
+  const handleExportExcel = async () => {
+    if (products.length === 0) {
+      toast.error('No products to export');
+      return;
+    }
+    setIsExporting(true);
+    try {
+      const totalValue = products.reduce((acc, p) => acc + (Number(p.current_stock || 0) * Number(p.purchase_price || 0)), 0);
+      const data = {
+        products,
+        totalValue,
+        lowStockCount,
+      };
+      const meta: ReportFilterMeta = {
+        reportType: 'inventory',
+        title: 'Products Inventory Catalog',
+        periodLabel: 'All Products',
+        generatedAt: new Date().toLocaleString('en-IN'),
+      };
+      const shop = getSavedShopDetails();
+      await exportReportToExcel('inventory', data, meta, shop);
+      toast.success('Product inventory exported to Excel (.xlsx)');
+    } catch (err: any) {
+      console.error('Export Excel error:', err);
+      toast.error(err.message || 'Failed to export products to Excel');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleExportPDF = async () => {
+    if (products.length === 0) {
+      toast.error('No products to export');
+      return;
+    }
+    setIsExporting(true);
+    try {
+      const totalValue = products.reduce((acc, p) => acc + (Number(p.current_stock || 0) * Number(p.purchase_price || 0)), 0);
+      const data = {
+        products,
+        totalValue,
+        lowStockCount,
+      };
+      const meta: ReportFilterMeta = {
+        reportType: 'inventory',
+        title: 'Products Inventory Catalog',
+        periodLabel: 'All Products',
+        generatedAt: new Date().toLocaleString('en-IN'),
+      };
+      const shop = getSavedShopDetails();
+      await exportReportToPDF('inventory', data, meta, shop);
+      toast.success('Product inventory exported to PDF');
+    } catch (err: any) {
+      console.error('Export PDF error:', err);
+      toast.error(err.message || 'Failed to export products to PDF');
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   const handleDeleteProduct = async (product: any) => {
     if (!confirm(`Are you sure you want to delete "${product.name}"?`)) return;
@@ -93,9 +162,23 @@ export function ProductsView({ initialProducts = [], initialCategories = [] }: P
           <p className="text-sm text-muted-foreground">Manage your agricultural catalog, pricing, and stock levels</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="border-border hover:bg-muted">
-            <Download className="h-4 w-4 mr-1.5" /> Export
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="border-border hover:bg-muted font-semibold" disabled={isExporting}>
+                {isExporting ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Download className="h-4 w-4 mr-1.5" />}
+                Export <ChevronDown className="h-3.5 w-3.5 ml-1 opacity-70" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem onClick={handleExportExcel} className="cursor-pointer gap-2">
+                <FileSpreadsheet className="h-4 w-4 text-emerald-500" /> Export Excel (.xlsx)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleExportPDF} className="cursor-pointer gap-2">
+                <FileText className="h-4 w-4 text-rose-500" /> Export PDF (.pdf)
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
           <Link href="/products/new">
             <Button className="bg-primary hover:bg-primary/90 font-semibold shadow-sm">
               <Plus className="h-4 w-4 mr-1.5" /> Add Product

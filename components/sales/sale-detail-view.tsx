@@ -14,8 +14,15 @@ import {
   FileText, 
   Calendar, 
   Layers, 
-  ReceiptText 
+  ReceiptText,
+  ChevronDown
 } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
@@ -306,25 +313,29 @@ export function SaleDetailView({ initialSale, saleId, sale: directSale }: SaleDe
             </>
           )}
 
-          <Button 
-            onClick={handleDownload} 
-            variant="outline" 
-            className="border-primary/40 text-primary hover:bg-primary/10 font-bold shadow-sm"
-            disabled={isDownloading}
-          >
-            {isDownloading ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <Download className="h-4 w-4 mr-2" />
-            )}
-            Download PDF
-          </Button>
-          <Button 
-            onClick={handlePrint} 
-            className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold shadow-sm"
-          >
-            <Printer className="h-4 w-4 mr-2" /> Print Invoice
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold shadow-sm"
+                disabled={isDownloading}
+              >
+                {isDownloading ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Download className="h-4 w-4 mr-1.5" />
+                )}
+                Export <ChevronDown className="h-3.5 w-3.5 ml-1 opacity-80" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem onClick={handleDownload} className="cursor-pointer gap-2 py-2">
+                <FileText className="h-4 w-4 text-rose-500" /> Download PDF
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handlePrint} className="cursor-pointer gap-2 py-2">
+                <Printer className="h-4 w-4 text-primary" /> Print Invoice
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 

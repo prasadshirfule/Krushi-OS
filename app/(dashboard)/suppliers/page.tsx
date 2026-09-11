@@ -42,19 +42,19 @@ export default async function SuppliersPage() {
         </div>
 
         <div className="rounded-xl border bg-card text-card-foreground shadow p-6">
-          <h3 className="tracking-tight text-sm font-medium text-muted-foreground">Active Suppliers</h3>
-          <div className="text-3xl font-bold text-green-600 mt-2">
-            {summary.activeSuppliers}
+          <h3 className="tracking-tight text-sm font-medium text-muted-foreground">Incoming Outstanding</h3>
+          <div className="text-3xl font-bold text-emerald-600 mt-2">
+            {formatCurrency(summary.incomingOutstanding || 0)}
           </div>
-          <p className="text-xs text-muted-foreground mt-1">Active vendor partnerships</p>
+          <p className="text-xs text-muted-foreground mt-1">Supplier advances / receivables</p>
         </div>
 
         <div className="rounded-xl border bg-card text-card-foreground shadow p-6">
-          <h3 className="tracking-tight text-sm font-medium text-muted-foreground">Total Outstanding Payables</h3>
+          <h3 className="tracking-tight text-sm font-medium text-muted-foreground">Outgoing Outstanding</h3>
           <div className="text-3xl font-bold text-red-600 mt-2">
-            {formatCurrency(summary.totalOutstanding)}
+            {formatCurrency(summary.outgoingOutstanding !== undefined ? summary.outgoingOutstanding : summary.totalOutstanding)}
           </div>
-          <p className="text-xs text-muted-foreground mt-1">Total pending payment to suppliers</p>
+          <p className="text-xs text-muted-foreground mt-1">Total pending payable to suppliers</p>
         </div>
       </div>
 

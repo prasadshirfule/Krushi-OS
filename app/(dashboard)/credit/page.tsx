@@ -1,4 +1,5 @@
-import { getCreditCustomers, getCreditSummary } from '@/services/customers.service';
+import { getCreditCustomers, getCustomerSummary } from '@/services/customers.service';
+import { getSupplierSummary } from '@/services/suppliers.service';
 import { CreditTable } from '@/components/credit/credit-table';
 import { Button } from '@/components/ui/button';
 import { formatCurrency } from '@/lib/utils';
@@ -15,10 +16,15 @@ export default async function CreditPage() {
   const user = await getAuthAndPermissions();
   const shopId = user.shop_id;
 
-  const [{ customers }, summary] = await Promise.all([
+  const [{ customers }, custSummary, suppSummary] = await Promise.all([
     getCreditCustomers(shopId, { limit: 100 }),
-    getCreditSummary(shopId)
+    getCustomerSummary(shopId),
+    getSupplierSummary(shopId)
   ]);
+
+  const totalUsers = (custSummary.totalCustomers || 0) + (suppSummary.totalSuppliers || 0);
+  const incomingOutstanding = (custSummary.incomingOutstanding !== undefined ? custSummary.incomingOutstanding : custSummary.totalOutstandingCredit || 0) + (suppSummary.incomingOutstanding || 0);
+  const outgoingOutstanding = (suppSummary.outgoingOutstanding !== undefined ? suppSummary.outgoingOutstanding : suppSummary.totalOutstanding || 0) + (custSummary.outgoingOutstanding || 0);
 
   return (
     <div className="space-y-6 p-6">
@@ -39,27 +45,29 @@ export default async function CreditPage() {
 
       <div className="grid gap-4 md:grid-cols-3">
         <div className="rounded-xl border bg-card text-card-foreground shadow p-6">
-          <h3 className="text-sm font-medium text-muted-foreground">Total Outstanding Credit</h3>
-          <div className="text-3xl font-bold text-red-600 mt-2">
-            {formatCurrency(summary.totalOutstanding)}
-          </div>
-          <p className="text-xs text-muted-foreground mt-1">Pending payments from farmers</p>
-        </div>
-
-        <div className="rounded-xl border bg-card text-card-foreground shadow p-6">
-          <h3 className="text-sm font-medium text-muted-foreground">Farmers with Active Credit</h3>
+          <h3 className="text-sm font-medium text-muted-foreground">Total Users</h3>
           <div className="text-3xl font-bold mt-2">
-            {summary.customersWithCredit}
+            {totalUsers}
           </div>
-          <p className="text-xs text-muted-foreground mt-1">Customers with non-zero balance</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            {custSummary.totalCustomers || 0} Customers • {suppSummary.totalSuppliers || 0} Suppliers
+          </p>
         </div>
 
         <div className="rounded-xl border bg-card text-card-foreground shadow p-6">
-          <h3 className="text-sm font-medium text-muted-foreground">Overdue / High Balance</h3>
-          <div className="text-3xl font-bold text-amber-600 mt-2">
-            {formatCurrency(summary.overdueAmount)}
+          <h3 className="text-sm font-medium text-muted-foreground">Incoming Outstanding</h3>
+          <div className="text-3xl font-bold text-red-600 mt-2">
+            {formatCurrency(incomingOutstanding)}
           </div>
-          <p className="text-xs text-muted-foreground mt-1">Balances exceeding credit limit threshold</p>
+          <p className="text-xs text-muted-foreground mt-1">Total receivables from customers & suppliers</p>
+        </div>
+
+        <div className="rounded-xl border bg-card text-card-foreground shadow p-6">
+          <h3 className="text-sm font-medium text-muted-foreground">Outgoing Outstanding</h3>
+          <div className="text-3xl font-bold text-emerald-600 mt-2">
+            {formatCurrency(outgoingOutstanding)}
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">Total payables to suppliers & customers</p>
         </div>
       </div>
 

@@ -338,6 +338,13 @@ export const productSchema = z.object({
   crop: z.string().optional().nullable(),
   target_pest: z.string().optional().nullable(),
   licence_number: z.string().optional().nullable(),
+}).refine((data) => {
+  const hasValue = data.product_size_value !== undefined && data.product_size_value !== null && !isNaN(Number(data.product_size_value)) && Number(data.product_size_value) > 0;
+  const hasPackSize = typeof data.pack_size === 'string' && data.pack_size.trim().length > 0;
+  return hasValue || hasPackSize;
+}, {
+  message: 'Product size is required (e.g. 1 kg, 500 ml, 10 pcs)',
+  path: ['product_size_value'],
 });
 
 

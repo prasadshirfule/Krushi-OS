@@ -4,7 +4,13 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { formatCurrency } from '@/lib/utils';
-import { CheckCircle2, Printer, FileText, PlusCircle, Loader2 } from 'lucide-react';
+import { CheckCircle2, Printer, FileText, PlusCircle, Loader2, Download, ChevronDown } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import Link from 'next/link';
 import { isClientDemoMode } from '@/lib/client-demo-store';
 import { getSaleAction } from '@/actions/sales';
@@ -239,23 +245,36 @@ export default function BillSuccessDialog({ saleId, invoiceNumber, totals, onClo
             />
           </div>
 
-          {/* Print / Download Action Buttons */}
-          <div className="grid grid-cols-2 gap-3 mb-2">
-            <Button 
-              onClick={() => handlePrint('print')} 
-              className="w-full bg-primary hover:bg-primary/90 font-bold" 
-              disabled={isGenerating}
-            >
-              {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Printer className="mr-2 h-4 w-4" />} Print Bill
-            </Button>
-            <Button 
-              variant="outline" 
-              onClick={() => handlePrint('pdf')} 
-              className="w-full font-bold" 
-              disabled={isGenerating}
-            >
-              {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />} Download PDF
-            </Button>
+          {/* Combined Export Dropdown Button */}
+          <div className="w-full mb-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  className="w-full h-11 bg-primary hover:bg-primary/90 text-primary-foreground font-bold shadow-sm text-sm sm:text-base flex items-center justify-center gap-2"
+                  disabled={isGenerating}
+                >
+                  {isGenerating ? (
+                    <><Loader2 className="h-4 w-4 animate-spin" /> Generating...</>
+                  ) : (
+                    <><Download className="h-4 w-4" /> Export <ChevronDown className="h-3.5 w-3.5 ml-1 opacity-80" /></>
+                  )}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="center" className="w-60 p-1.5 shadow-lg">
+                <DropdownMenuItem
+                  onClick={() => handlePrint('pdf')}
+                  className="cursor-pointer py-2.5 px-3 font-semibold text-sm flex items-center gap-2.5"
+                >
+                  <FileText className="h-4 w-4 text-rose-500" /> Download PDF
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => handlePrint('print')}
+                  className="cursor-pointer py-2.5 px-3 font-semibold text-sm flex items-center gap-2.5"
+                >
+                  <Printer className="h-4 w-4 text-primary" /> Print Bill
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
 
           <DialogFooter className="flex-col sm:flex-col gap-2 mt-3">

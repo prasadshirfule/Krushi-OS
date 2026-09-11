@@ -409,8 +409,16 @@ export async function getCustomerSummary(shopId: string) {
     const store = getDemoCustomers();
     const totalCustomers = store.length;
     const activeCustomers = store.filter(c => c.is_active !== false).length;
-    const totalOutstandingCredit = store.reduce((sum, c) => sum + Number(c.outstanding || 0), 0);
-    return { totalCustomers, activeCustomers, totalOutstandingCredit };
+    const incomingOutstanding = store.reduce((sum, c) => {
+      const bal = Number(c.outstanding || 0);
+      return bal > 0 ? sum + bal : sum;
+    }, 0);
+    const outgoingOutstanding = store.reduce((sum, c) => {
+      const bal = Number(c.outstanding || 0);
+      return bal < 0 ? sum + Math.abs(bal) : sum;
+    }, 0);
+    const totalOutstandingCredit = incomingOutstanding;
+    return { totalCustomers, activeCustomers, totalOutstandingCredit, incomingOutstanding, outgoingOutstanding };
   }
 
   try {
@@ -421,17 +429,25 @@ export async function getCustomerSummary(shopId: string) {
       .eq('shop_id', shopId);
 
     if (error || !data) {
-      return { totalCustomers: 0, activeCustomers: 0, totalOutstandingCredit: 0 };
+      return { totalCustomers: 0, activeCustomers: 0, totalOutstandingCredit: 0, incomingOutstanding: 0, outgoingOutstanding: 0 };
     }
 
     const totalCustomers = data.length;
     const activeCustomers = data.filter(c => c.is_active !== false).length;
-    const totalOutstandingCredit = data.reduce((sum, c) => sum + Number(c.outstanding || 0), 0);
+    const incomingOutstanding = data.reduce((sum, c) => {
+      const bal = Number(c.outstanding || 0);
+      return bal > 0 ? sum + bal : sum;
+    }, 0);
+    const outgoingOutstanding = data.reduce((sum, c) => {
+      const bal = Number(c.outstanding || 0);
+      return bal < 0 ? sum + Math.abs(bal) : sum;
+    }, 0);
+    const totalOutstandingCredit = incomingOutstanding;
 
-    return { totalCustomers, activeCustomers, totalOutstandingCredit };
+    return { totalCustomers, activeCustomers, totalOutstandingCredit, incomingOutstanding, outgoingOutstanding };
   } catch (error) {
     console.error("Error fetching customer summary:", error);
-    return { totalCustomers: 0, activeCustomers: 0, totalOutstandingCredit: 0 };
+    return { totalCustomers: 0, activeCustomers: 0, totalOutstandingCredit: 0, incomingOutstanding: 0, outgoingOutstanding: 0 };
   }
 }
 

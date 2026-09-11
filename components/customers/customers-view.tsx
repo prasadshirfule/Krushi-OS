@@ -16,6 +16,8 @@ interface CustomersViewProps {
     totalCustomers: number;
     activeCustomers: number;
     totalOutstandingCredit: number;
+    incomingOutstanding?: number;
+    outgoingOutstanding?: number;
   };
 }
 
@@ -27,11 +29,21 @@ export function CustomersView({ initialCustomers, initialSummary }: CustomersVie
     if (isClientDemoMode()) {
       const syncData = () => {
         const demoCusts = getDemoCustomersClient();
+        const incoming = demoCusts.reduce((sum, c) => {
+          const bal = Number(c.outstanding ?? c.outstanding_balance ?? 0);
+          return bal > 0 ? sum + bal : sum;
+        }, 0);
+        const outgoing = demoCusts.reduce((sum, c) => {
+          const bal = Number(c.outstanding ?? c.outstanding_balance ?? 0);
+          return bal < 0 ? sum + Math.abs(bal) : sum;
+        }, 0);
         setCustomers(demoCusts);
         setSummary({
           totalCustomers: demoCusts.length,
           activeCustomers: demoCusts.filter(c => c.is_active !== false).length,
-          totalOutstandingCredit: demoCusts.reduce((sum, c) => sum + Number(c.outstanding ?? c.outstanding_balance ?? 0), 0),
+          totalOutstandingCredit: incoming,
+          incomingOutstanding: incoming,
+          outgoingOutstanding: outgoing,
         });
       };
 
@@ -40,6 +52,9 @@ export function CustomersView({ initialCustomers, initialSummary }: CustomersVie
       return () => window.removeEventListener('krushi-customers-updated', syncData);
     }
   }, [initialCustomers, initialSummary]);
+
+  const incomingAmt = summary.incomingOutstanding !== undefined ? summary.incomingOutstanding : summary.totalOutstandingCredit;
+  const outgoingAmt = summary.outgoingOutstanding || 0;
 
   return (
     <div className="space-y-6 p-6">
@@ -56,18 +71,21 @@ export function CustomersView({ initialCustomers, initialSummary }: CustomersVie
           <div className="text-3xl font-bold mt-2">
             {summary.totalCustomers}
           </div>
+          <p className="text-xs text-muted-foreground mt-1">Registered customer accounts</p>
         </div>
         <div className="rounded-xl border bg-card text-card-foreground shadow p-6">
-          <h3 className="tracking-tight text-sm font-medium text-muted-foreground">Active Customers</h3>
-          <div className="text-3xl font-bold text-green-600 mt-2">
-            {summary.activeCustomers}
-          </div>
-        </div>
-        <div className="rounded-xl border bg-card text-card-foreground shadow p-6">
-          <h3 className="tracking-tight text-sm font-medium text-muted-foreground">Total Outstanding Credit</h3>
+          <h3 className="tracking-tight text-sm font-medium text-muted-foreground">Incoming Outstanding</h3>
           <div className="text-3xl font-bold text-red-600 mt-2">
-            {formatCurrency(summary.totalOutstandingCredit)}
+            {formatCurrency(incomingAmt)}
           </div>
+          <p className="text-xs text-muted-foreground mt-1">Amount receivable from customers</p>
+        </div>
+        <div className="rounded-xl border bg-card text-card-foreground shadow p-6">
+          <h3 className="tracking-tight text-sm font-medium text-muted-foreground">Outgoing Outstanding</h3>
+          <div className="text-3xl font-bold text-emerald-600 mt-2">
+            {formatCurrency(outgoingAmt)}
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">Customer advance / credit balance</p>
         </div>
       </div>
 
