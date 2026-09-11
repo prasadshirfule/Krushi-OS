@@ -168,58 +168,60 @@ export function generateInvoicePDF(sale: any, customSettings?: any) {
   const dynamicAddress = formatShopAddress(shop);
 
   // ─── 1. SHOP HEADER ───
-  currentY += 4;
+  let headerY = startTopY + 2;
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(15);
   doc.setTextColor(0, 0, 0);
-  doc.text(shop.shopName || 'KRUSHI SEVA KENDRA', marginX + 4, currentY + 2);
+  doc.text(shop.shopName || 'KRUSHI SEVA KENDRA', marginX + 4, headerY + 4);
 
   // License and TAX INVOICE Badge on top right
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
   if (shop.licenseNumber) {
-    doc.text(`Lic No: ${shop.licenseNumber}`, marginX + contentWidth - 4, currentY - 1, { align: 'right' });
+    doc.text(`Lic No: ${shop.licenseNumber}`, marginX + contentWidth - 4, headerY + 2, { align: 'right' });
   }
   if (shop.registrationNumber) {
-    doc.text(`Reg No: ${shop.registrationNumber}`, marginX + contentWidth - 4, currentY + 2.5, { align: 'right' });
+    doc.text(`Reg No: ${shop.registrationNumber}`, marginX + contentWidth - 4, headerY + 5.5, { align: 'right' });
   }
 
   // Tax Invoice Badge
   doc.setFillColor(0, 0, 0);
-  doc.rect(marginX + contentWidth - 36, currentY + 5, 32, 5.5, 'F');
+  doc.rect(marginX + contentWidth - 36, headerY + 7.5, 32, 5.5, 'F');
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
   doc.setTextColor(255, 255, 255);
-  doc.text(labels.taxInvoice, marginX + contentWidth - 20, currentY + 9, { align: 'center' });
+  doc.text(labels.taxInvoice, marginX + contentWidth - 20, headerY + 11.5, { align: 'center' });
 
   // Shop Address & Contacts
-  currentY += 6;
+  let addrY = headerY + 8.5;
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
   doc.setTextColor(40, 40, 40);
   if (dynamicAddress) {
     const addressLines = doc.splitTextToSize(dynamicAddress, contentWidth - 45);
-    doc.text(addressLines, marginX + 4, currentY);
-    currentY += (addressLines.length - 1) * 3.5;
+    doc.text(addressLines, marginX + 4, addrY);
+    addrY += addressLines.length * 3.8;
+  } else {
+    addrY += 3.8;
   }
 
-  currentY += 4;
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(0, 0, 0);
   const contactParts: string[] = [];
   if (shop.ownerName) contactParts.push(`Pro: ${shop.ownerName}`);
   if (shop.contact1) contactParts.push(`Mob: ${shop.contact1}`);
   if (contactParts.length > 0) {
-    doc.text(contactParts.join('   |   '), marginX + 4, currentY);
+    doc.text(contactParts.join('   |   '), marginX + 4, addrY);
+    addrY += 3.8;
   }
 
-  currentY += 4;
   if (shop.gstNumber) {
-    doc.text(`GSTIN: ${shop.gstNumber}`, marginX + 4, currentY);
+    doc.text(`GSTIN: ${shop.gstNumber}`, marginX + 4, addrY);
+    addrY += 3.8;
   }
 
+  currentY = Math.max(headerY + 16, addrY) + 1;
   // Divider Line
-  currentY += 3.5;
   doc.setDrawColor(0, 0, 0);
   doc.setLineWidth(0.3);
   doc.line(marginX, currentY, marginX + contentWidth, currentY);
@@ -473,64 +475,70 @@ export function generateInvoicePDF(sale: any, customSettings?: any) {
   // Left Content:
   doc.setFontSize(8);
   doc.setFont('helvetica', 'bold');
-  doc.text(labels.amountInWords, marginX + 3, finalY + 4.5);
+  doc.text(labels.amountInWords, marginX + 3, finalY + 4);
   doc.setFont('helvetica', 'italic');
   doc.setFontSize(7.5);
   const amountWords = `${numberToWords(grandTotal)} ${labels.rupeesOnly}`;
   const splitWords = doc.splitTextToSize(amountWords, summaryLeftWidth - 6);
-  doc.text(splitWords.slice(0, 2), marginX + 3, finalY + 8);
+  doc.text(splitWords.slice(0, 2), marginX + 3, finalY + 7.5);
+  const wordsBottomY = finalY + 7.5 + (Math.min(splitWords.length, 2) - 1) * 3.2;
 
   // OWNER BANK DETAILS SECTION
+  const bankStartY = Math.max(finalY + 15, wordsBottomY + 4);
   doc.setDrawColor(0, 0, 0);
   doc.setFontSize(8);
   doc.setFont('helvetica', 'bold');
-  doc.text(labels.bankDetails, marginX + 3, finalY + 15);
-  doc.line(marginX + 3, finalY + 16.5, marginX + summaryLeftWidth - 6, finalY + 16.5);
+  doc.text(labels.bankDetails, marginX + 3, bankStartY);
+  doc.line(marginX + 3, bankStartY + 1.5, marginX + summaryLeftWidth - 6, bankStartY + 1.5);
 
+  let bankY = bankStartY + 5;
   doc.setFontSize(7.5);
   doc.setFont('helvetica', 'bold');
-  doc.text(labels.acHolder, marginX + 3, finalY + 20.5);
+  doc.text(labels.acHolder, marginX + 3, bankY);
   doc.setFont('helvetica', 'normal');
-  doc.text(shop.accountName || shop.ownerName || '-', marginX + 22, finalY + 20.5);
+  doc.text(shop.accountName || shop.ownerName || '-', marginX + 22, bankY);
 
   doc.setFont('helvetica', 'bold');
-  doc.text(labels.bank, marginX + 62, finalY + 20.5);
+  doc.text(labels.bank, marginX + 62, bankY);
   doc.setFont('helvetica', 'normal');
-  doc.text(shop.bankName || '-', marginX + 72, finalY + 20.5);
+  doc.text(shop.bankName || '-', marginX + 72, bankY);
+
+  bankY += 4;
+  doc.setFont('helvetica', 'bold');
+  doc.text(labels.acNo, marginX + 3, bankY);
+  doc.setFont('helvetica', 'normal');
+  doc.text(shop.accountNumber || '-', marginX + 22, bankY);
 
   doc.setFont('helvetica', 'bold');
-  doc.text(labels.acNo, marginX + 3, finalY + 25);
+  doc.text(labels.ifsc, marginX + 62, bankY);
   doc.setFont('helvetica', 'normal');
-  doc.text(shop.accountNumber || '-', marginX + 22, finalY + 25);
-
-  doc.setFont('helvetica', 'bold');
-  doc.text(labels.ifsc, marginX + 62, finalY + 25);
-  doc.setFont('helvetica', 'normal');
-  doc.text(shop.ifsc || '-', marginX + 72, finalY + 25);
+  doc.text(shop.ifsc || '-', marginX + 72, bankY);
 
   if (shop.branch || shop.accountType) {
+    bankY += 4;
     if (shop.branch) {
       doc.setFont('helvetica', 'bold');
-      doc.text(labels.branch, marginX + 3, finalY + 29.5);
+      doc.text(labels.branch, marginX + 3, bankY);
       doc.setFont('helvetica', 'normal');
-      doc.text(shop.branch, marginX + 22, finalY + 29.5);
+      doc.text(shop.branch, marginX + 22, bankY);
     }
     if (shop.accountType) {
       doc.setFont('helvetica', 'bold');
-      doc.text(labels.acType, marginX + 62, finalY + 29.5);
+      doc.text(labels.acType, marginX + 62, bankY);
       doc.setFont('helvetica', 'normal');
-      doc.text(shop.accountType, marginX + 76, finalY + 29.5);
+      doc.text(shop.accountType, marginX + 76, bankY);
     }
   }
 
   // Terms & Conditions at bottom left
+  const termsStartY = Math.max(finalY + 31, bankY + 4);
   doc.setFontSize(6.5);
   doc.setFont('helvetica', 'bold');
-  doc.text(labels.termsConditions, marginX + 3, finalY + 34);
+  doc.text(labels.termsConditions, marginX + 3, termsStartY);
   doc.setFont('helvetica', 'normal');
   const termsText = shop.invoiceTerms || '1. Goods once sold will not be accepted back.\n2. Interest @ 18% p.a. charged if payment not made on time.\n3. Subject to local jurisdiction only.';
   const splitTerms = doc.splitTextToSize(termsText, summaryLeftWidth - 6);
-  doc.text(splitTerms.slice(0, 2), marginX + 3, finalY + 37);
+  doc.text(splitTerms.slice(0, 2), marginX + 3, termsStartY + 3);
 
   // Right Content (Bordered Tax Calculation lines):
   const rightX = marginX + summaryLeftWidth;

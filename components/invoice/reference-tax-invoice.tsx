@@ -1457,7 +1457,12 @@ export async function downloadInvoiceAsPDF(
   const element = document.getElementById(elementId);
   if (!element) return;
 
-  const targetElement = (element.querySelector('.invoice-page') || element.querySelector('.invoice') || element) as HTMLElement;
+  const targetElement = (
+    element.querySelector('.invoice') ||
+    element.querySelector('#printable-tax-invoice') ||
+    element.querySelector('.thermal-receipt') ||
+    element
+  ) as HTMLElement;
 
   try {
     const html2canvasModule = await import('html2canvas');
@@ -1476,13 +1481,17 @@ export async function downloadInvoiceAsPDF(
     container.style.padding = '0';
     container.style.boxSizing = 'border-box';
     container.style.width = '204mm';
+    container.style.height = '142mm';
 
     const clone = targetElement.cloneNode(true) as HTMLElement;
     clone.style.transform = 'none';
-    clone.style.margin = '0 auto';
+    clone.style.margin = '0';
     clone.style.visibility = 'visible';
     clone.style.opacity = '1';
     clone.style.display = 'block';
+    clone.style.width = '204mm';
+    clone.style.height = '142mm';
+    clone.style.boxSizing = 'border-box';
 
     container.appendChild(clone);
     document.body.appendChild(container);

@@ -187,8 +187,13 @@ export async function downloadInvoicePDF(
     return;
   }
 
-  // Target the actual invoice container
-  const targetElement = (element.querySelector('.invoice-page') || element.querySelector('.invoice') || element) as HTMLElement;
+  // Target the actual inner invoice container (204mm x 142mm) instead of the outer margin wrapper (.invoice-page)
+  const targetElement = (
+    element.querySelector('.invoice') ||
+    element.querySelector('#printable-tax-invoice') ||
+    element.querySelector('.thermal-receipt') ||
+    element
+  ) as HTMLElement;
 
   try {
     const html2canvasModule = await import('html2canvas');
@@ -212,14 +217,20 @@ export async function downloadInvoicePDF(
       container.style.width = '78mm';
     } else {
       container.style.width = '204mm';
+      container.style.height = '142mm';
     }
 
     const clone = targetElement.cloneNode(true) as HTMLElement;
     clone.style.transform = 'none';
-    clone.style.margin = '0 auto';
+    clone.style.margin = '0';
     clone.style.visibility = 'visible';
     clone.style.opacity = '1';
     clone.style.display = 'block';
+    if (format !== 'THERMAL_80MM') {
+      clone.style.width = '204mm';
+      clone.style.height = '142mm';
+      clone.style.boxSizing = 'border-box';
+    }
 
     container.appendChild(clone);
     document.body.appendChild(container);
