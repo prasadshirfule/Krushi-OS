@@ -170,13 +170,13 @@ export function printInvoiceDirectly(elementId: string, format: InvoicePrintForm
 }
 
 /**
- * Universal PDF downloader that respects format dimensions and exact visual invoice structure.
+ * Universal PDF downloader that captures the exact working invoice layout via html2canvas.
  *
- * KEY FIX: The clone is rendered at its NATURAL height (no forced 142mm) and with
- * overflow:visible on all descendants so that html2canvas captures the COMPLETE
- * invoice content without any clipping.  The captured canvas is then placed into
- * the A5-landscape PDF using aspect-ratio-preserving fit so the invoice is never
- * distorted or cropped.
+ * The clone is placed far off-screen (large negative left) so that it is rendered by the
+ * browser but never visible in the user's viewport.  The clone preserves the exact same
+ * 204 mm × 142 mm dimensions and all descendant styles as the working View/Print invoice.
+ * The captured raster is placed at 3, 3 inside an A5-landscape PDF — identical proportions
+ * to the on-screen invoice.
  */
 export async function downloadInvoicePDF(
   elementId: string,
@@ -193,7 +193,8 @@ export async function downloadInvoicePDF(
     return;
   }
 
-  // Target the actual inner invoice container instead of the outer margin wrapper (.invoice-page)
+  // Target the actual inner invoice container (.invoice / #printable-tax-invoice)
+  // rather than the outer .invoice-page wrapper which adds 3mm padding.
   const targetElement = (
     element.querySelector('.invoice') ||
     element.querySelector('#printable-tax-invoice') ||
@@ -205,30 +206,32 @@ export async function downloadInvoicePDF(
     const html2canvasModule = await import('html2canvas');
     const html2canvas = html2canvasModule.default || html2canvasModule;
 
-    // Create a temporary off-screen staging container.
-    // CRITICAL: use overflow:visible and do NOT set a fixed height so that the
-    // invoice content is never clipped during raster capture.
+    // ── Staging container ──
+    // Placed far off-screen (negative left) so the clone is fully rendered by the
+    // browser engine but never appears in the user's viewport.
+    // DO NOT use z-index:-99999 (unreliable, can flash behind content).
+    // DO NOT use opacity:0 or visibility:hidden (html2canvas may skip hidden content).
     const container = document.createElement('div');
     container.style.position = 'fixed';
     container.style.top = '0px';
-    container.style.left = '0px';
-    container.style.zIndex = '-99999';
-    container.style.opacity = '1';
+    container.style.left = '-10000px';
     container.style.pointerEvents = 'none';
     container.style.backgroundColor = '#ffffff';
-    container.style.transform = 'none';
     container.style.margin = '0';
     container.style.padding = '0';
     container.style.boxSizing = 'border-box';
-    container.style.overflow = 'visible';
 
     if (format === 'THERMAL_80MM') {
       container.style.width = '78mm';
     } else {
       container.style.width = '204mm';
-      // Height is intentionally NOT set — natural content height prevents clipping
+      container.style.height = '142mm';
     }
 
+    // ── Clone the invoice ──
+    // Preserve the exact same dimensions and all descendant styles.
+    // DO NOT alter overflow, height, or internal layout — the working invoice
+    // CSS is the source of truth.
     const clone = targetElement.cloneNode(true) as HTMLElement;
     clone.style.transform = 'none';
     clone.style.margin = '0';
@@ -237,44 +240,29 @@ export async function downloadInvoicePDF(
     clone.style.display = 'block';
     if (format !== 'THERMAL_80MM') {
       clone.style.width = '204mm';
-      // Height is intentionally NOT forced to 142mm — let the invoice render
-      // at its natural content height so that footer/terms/address are never clipped
-      clone.style.height = 'auto';
-      clone.style.minHeight = '142mm';
+      clone.style.height = '142mm';
       clone.style.boxSizing = 'border-box';
-      clone.style.overflow = 'visible';
     }
 
     container.appendChild(clone);
     document.body.appendChild(container);
 
-    // Override overflow:hidden on ALL descendant elements inside the clone.
-    // The original invoice uses overflow:hidden to constrain the on-screen layout,
-    // but for the PDF capture we need every section's content to be fully visible.
-    const allDescendants = clone.querySelectorAll('*') as NodeListOf<HTMLElement>;
-    allDescendants.forEach((el) => {
-      const cs = window.getComputedStyle(el);
-      if (cs.overflow === 'hidden' || cs.overflowX === 'hidden' || cs.overflowY === 'hidden') {
-        el.style.overflow = 'visible';
-      }
-    });
-
-    // Wait for fonts and images to finish loading before capture
+    // Wait for web fonts and images to finish loading before capture
     if (document.fonts?.ready) {
       await document.fonts.ready;
     }
-    await new Promise((r) => setTimeout(r, 120));
+    await new Promise((r) => setTimeout(r, 100));
 
     const canvas = await html2canvas(clone, {
-      scale: 3, // 300 DPI high resolution
+      scale: 3, // 300 DPI high-resolution capture
       useCORS: true,
       logging: false,
       backgroundColor: '#ffffff',
       scrollX: 0,
       scrollY: 0,
-      windowWidth: 1200,
     });
 
+    // Remove the staging container immediately after capture
     if (document.body.contains(container)) {
       document.body.removeChild(container);
     }
@@ -293,40 +281,14 @@ export async function downloadInvoicePDF(
       pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight, undefined, 'FAST');
       pdf.save(filename);
     } else {
+      // A5 landscape: 210 × 148 mm
+      // Invoice: 204 × 142 mm centered with 3mm margin on each side
       const pdf = new jsPDF({
         orientation: 'landscape',
         unit: 'mm',
         format: 'a5',
       });
-
-      // A5 landscape page: 210 × 148 mm
-      // Target printable area with ~3mm margin: 204 × 142 mm
-      const targetW = 204;
-      const targetH = 142;
-
-      // Aspect-ratio-preserving fit: scale the captured canvas to fit within
-      // the target area without distortion or independent X/Y stretching
-      const canvasAspect = canvas.width / canvas.height;
-      const targetAspect = targetW / targetH;
-
-      let drawW: number;
-      let drawH: number;
-
-      if (canvasAspect >= targetAspect) {
-        // Canvas is wider (or same) relative to target — constrain by width
-        drawW = targetW;
-        drawH = targetW / canvasAspect;
-      } else {
-        // Canvas is taller relative to target — constrain by height
-        drawH = targetH;
-        drawW = targetH * canvasAspect;
-      }
-
-      // Center the image within the 210 × 148 mm page
-      const offsetX = (210 - drawW) / 2;
-      const offsetY = (148 - drawH) / 2;
-
-      pdf.addImage(imgData, 'JPEG', offsetX, offsetY, drawW, drawH, undefined, 'FAST');
+      pdf.addImage(imgData, 'JPEG', 3, 3, 204, 142, undefined, 'FAST');
       pdf.save(filename);
     }
   } catch (err) {

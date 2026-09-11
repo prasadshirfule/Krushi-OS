@@ -1471,12 +1471,9 @@ export async function downloadInvoiceAsPDF(
     const container = document.createElement('div');
     container.style.position = 'fixed';
     container.style.top = '0px';
-    container.style.left = '0px';
-    container.style.zIndex = '-99999';
-    container.style.opacity = '1';
+    container.style.left = '-10000px';
     container.style.pointerEvents = 'none';
     container.style.backgroundColor = '#ffffff';
-    container.style.transform = 'none';
     container.style.margin = '0';
     container.style.padding = '0';
     container.style.boxSizing = 'border-box';
@@ -1499,7 +1496,7 @@ export async function downloadInvoiceAsPDF(
     if (document.fonts?.ready) {
       await document.fonts.ready;
     }
-    await new Promise((r) => setTimeout(r, 80));
+    await new Promise((r) => setTimeout(r, 100));
 
     const canvas = await html2canvas(clone, {
       scale: 3,
@@ -1508,7 +1505,6 @@ export async function downloadInvoiceAsPDF(
       backgroundColor: '#ffffff',
       scrollX: 0,
       scrollY: 0,
-      windowWidth: 1200,
     });
 
     if (document.body.contains(container)) {
