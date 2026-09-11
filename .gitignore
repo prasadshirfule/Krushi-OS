@@ -54,3 +54,9 @@ android/local.properties
 *.jks
 keystore.properties
 google-services.json
+
+# IDE & local temporary dumps
+.idea/
+android/.idea/
+structure.txt
+
