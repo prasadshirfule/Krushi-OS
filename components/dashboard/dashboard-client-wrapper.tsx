@@ -11,6 +11,8 @@ import { isClientDemoMode, getDemoDashboardDataClient } from '@/lib/client-demo-
 import { getDashboardStatsAction } from '@/actions/dashboard';
 import { useRouter } from 'next/navigation';
 
+import { useLanguage } from '@/lib/i18n';
+
 interface DashboardClientWrapperProps {
   initialStats: any;
   initialLowStock: any[];
@@ -25,6 +27,7 @@ export default function DashboardClientWrapper({
   initialActivities = [],
 }: DashboardClientWrapperProps) {
   const router = useRouter();
+  const { t } = useLanguage();
   const [stats, setStats] = useState<any>(initialStats);
   const [lowStockProducts, setLowStockProducts] = useState<any[]>(initialLowStock);
   const [expiringBatches, setExpiringBatches] = useState<any[]>(initialExpiring);
@@ -89,7 +92,7 @@ export default function DashboardClientWrapper({
 
   return (
     <div className="flex flex-col gap-6 p-6">
-      <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+      <h1 className="text-3xl font-bold tracking-tight">{t('dashboard.title', 'Dashboard')}</h1>
       
       <StatsCards stats={stats} />
       

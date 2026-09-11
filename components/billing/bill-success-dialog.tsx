@@ -25,6 +25,8 @@ import {
 } from '@/components/invoice/invoice-renderer';
 import { InvoiceFormatSelector } from '@/components/invoice/invoice-format-selector';
 
+import { useLanguage } from '@/lib/i18n';
+
 interface BillSuccessDialogProps {
   saleId: string;
   invoiceNumber?: string;
@@ -33,6 +35,7 @@ interface BillSuccessDialogProps {
 }
 
 export default function BillSuccessDialog({ saleId, invoiceNumber, totals, onClose }: BillSuccessDialogProps) {
+  const { t } = useLanguage();
   const newBillBtnRef = useRef<HTMLButtonElement>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [saleData, setSaleData] = useState<any>(null);
@@ -245,36 +248,34 @@ export default function BillSuccessDialog({ saleId, invoiceNumber, totals, onClo
             />
           </div>
 
-          {/* Combined Export Dropdown Button */}
-          <div className="w-full mb-2">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  className="w-full h-11 bg-primary hover:bg-primary/90 text-primary-foreground font-bold shadow-sm text-sm sm:text-base flex items-center justify-center gap-2"
-                  disabled={isGenerating}
-                >
-                  {isGenerating ? (
-                    <><Loader2 className="h-4 w-4 animate-spin" /> Generating...</>
-                  ) : (
-                    <><Download className="h-4 w-4" /> Export <ChevronDown className="h-3.5 w-3.5 ml-1 opacity-80" /></>
-                  )}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="center" className="w-60 p-1.5 shadow-lg">
-                <DropdownMenuItem
-                  onClick={() => handlePrint('pdf')}
-                  className="cursor-pointer py-2.5 px-3 font-semibold text-sm flex items-center gap-2.5"
-                >
-                  <FileText className="h-4 w-4 text-rose-500" /> Download PDF
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => handlePrint('print')}
-                  className="cursor-pointer py-2.5 px-3 font-semibold text-sm flex items-center gap-2.5"
-                >
-                  <Printer className="h-4 w-4 text-primary" /> Print Bill
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+          {/* Direct Action Buttons: Download PDF + Print Bill */}
+          <div className="grid grid-cols-2 gap-2.5 w-full mb-2">
+            <Button
+              onClick={() => handlePrint('pdf')}
+              disabled={isGenerating}
+              variant="outline"
+              className="h-11 border-border hover:bg-accent text-foreground font-bold shadow-sm text-xs sm:text-sm flex items-center justify-center gap-2"
+            >
+              {isGenerating ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <FileText className="h-4 w-4 text-rose-500" />
+              )}
+              {t('billing.downloadPdf', 'Download PDF')}
+            </Button>
+
+            <Button
+              onClick={() => handlePrint('print')}
+              disabled={isGenerating}
+              className="h-11 bg-primary hover:bg-primary/90 text-primary-foreground font-bold shadow-sm text-xs sm:text-sm flex items-center justify-center gap-2"
+            >
+              {isGenerating ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Printer className="h-4 w-4" />
+              )}
+              {t('billing.printInvoice', 'Print Bill')}
+            </Button>
           </div>
 
           <DialogFooter className="flex-col sm:flex-col gap-2 mt-3">
@@ -283,17 +284,17 @@ export default function BillSuccessDialog({ saleId, invoiceNumber, totals, onClo
               onClick={onClose} 
               className="w-full h-11 text-base bg-green-600 hover:bg-green-700 font-bold"
             >
-              <PlusCircle className="mr-2 h-5 w-5" /> New Bill (Enter)
+              <PlusCircle className="mr-2 h-5 w-5" /> {t('billing.newBillEnter', 'New Bill (Enter)')}
             </Button>
             <div className="grid grid-cols-2 gap-2 w-full">
               <Link href={`/sales/${saleId}`} className="w-full">
                 <Button variant="outline" size="sm" className="w-full">
-                  View Invoice
+                  {t('billing.viewInvoice', 'View Invoice')}
                 </Button>
               </Link>
               <Link href="/sales" className="w-full">
                 <Button variant="outline" size="sm" className="w-full border-primary/50 text-primary hover:bg-primary/10">
-                  Sales History
+                  {t('billing.salesHistory', 'Sales History')}
                 </Button>
               </Link>
             </div>

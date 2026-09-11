@@ -4,6 +4,8 @@ import { Bell, Search, User } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { MobileNav } from '@/components/layout/mobile-nav'
 import { CommandMenu } from '@/components/layout/command-menu'
+import { LanguageSwitcher } from '@/components/layout/language-switcher'
+import { useLanguage } from '@/lib/i18n'
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter, usePathname } from 'next/navigation'
@@ -15,6 +17,7 @@ import { getUnreadCountAction } from '@/actions/notifications'
 export function Header({ user }: { user: any }) {
   const [openCommand, setOpenCommand] = useState(false)
   const [unreadCount, setUnreadCount] = useState<number>(0)
+  const { t } = useLanguage()
   const supabase = createClient()
   const router = useRouter()
   const pathname = usePathname()
@@ -47,31 +50,33 @@ export function Header({ user }: { user: any }) {
     <header className='sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background px-4 sm:static sm:h-auto sm:border-0 sm:bg-transparent sm:px-6 py-4'>
       <MobileNav />
       
-      <div className='flex w-full items-center gap-4 md:ml-auto md:gap-2 lg:gap-4'>
+      <div className='flex w-full items-center gap-2 sm:gap-4 md:ml-auto md:gap-2 lg:gap-4'>
         <form className='ml-auto flex-1 sm:flex-initial' onSubmit={(e) => { e.preventDefault(); setOpenCommand(true); }}>
           <div className='relative'>
             <Search className='absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground' />
             <Button
               variant='outline'
-              className='w-full sm:w-[300px] justify-start text-sm text-muted-foreground bg-background pl-8'
+              className='w-full sm:w-[260px] md:w-[300px] justify-start text-sm text-muted-foreground bg-background pl-8'
               onClick={() => setOpenCommand(true)}
             >
-              Search (Ctrl+K)
+              {t('common.search', 'Search (Ctrl+K)')}
             </Button>
           </div>
         </form>
 
         <CommandMenu open={openCommand} onOpenChange={setOpenCommand} />
 
+        <LanguageSwitcher />
+
         <div className="relative inline-flex items-center">
           <Button 
             variant='ghost' 
             size='icon' 
             onClick={() => router.push('/notifications')}
-            title="Notifications"
+            title={t('nav.notifications', 'Notifications')}
           >
             <Bell className='h-5 w-5' />
-            <span className='sr-only'>Toggle notifications</span>
+            <span className='sr-only'>{t('nav.notifications', 'Toggle notifications')}</span>
           </Button>
           {unreadCount > 0 && (
             <Badge className='absolute -top-1 -right-1 h-4 min-w-4 px-1 flex items-center justify-center text-[10px] font-bold bg-red-600 text-white border-2 border-background rounded-full pointer-events-none'>
@@ -91,12 +96,12 @@ export function Header({ user }: { user: any }) {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align='end'>
-            <DropdownMenuLabel>My Account</DropdownMenuLabel>
+            <DropdownMenuLabel>{t('nav.myAccount', 'My Account')}</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => router.push('/settings')}>Profile</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => router.push('/settings')}>Settings</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => router.push('/settings')}>{t('nav.profile', 'Profile')}</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => router.push('/settings')}>{t('nav.settings', 'Settings')}</DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleLogout}>Logout</DropdownMenuItem>
+            <DropdownMenuItem onClick={handleLogout}>{t('nav.logout', 'Logout')}</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

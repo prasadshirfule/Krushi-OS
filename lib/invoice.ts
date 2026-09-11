@@ -44,6 +44,103 @@ export function formatInvoiceExpiry(raw?: string | null): string {
   return trimmed;
 }
 
+interface InvoiceLabels {
+  taxInvoice: string;
+  customerDetails: string;
+  invoiceDetails: string;
+  name: string;
+  address: string;
+  mob: string;
+  gstin: string;
+  billNo: string;
+  date: string;
+  payment: string;
+  place: string;
+  sr: string;
+  productDetails: string;
+  manufacturer: string;
+  batch: string;
+  expiry: string;
+  qty: string;
+  rate: string;
+  gst: string;
+  rateWithGst: string;
+  total: string;
+  taxableAmount: string;
+  cgstAmount: string;
+  sgstAmount: string;
+  netTotal: string;
+  amountPaid: string;
+  balanceUdhari: string;
+  amountInWords: string;
+  rupeesOnly: string;
+  bankDetails: string;
+  acHolder: string;
+  bank: string;
+  acNo: string;
+  ifsc: string;
+  branch: string;
+  acType: string;
+  termsConditions: string;
+  customerSign: string;
+  authorizedSign: string;
+  forShop: string;
+  compGenerated: string;
+  jurisdiction: string;
+  page: string;
+  of: string;
+}
+
+function getInvoiceLabels(lang?: string): InvoiceLabels {
+  // Standard universal English/Devanagari compatible labels
+  return {
+    taxInvoice: 'TAX INVOICE',
+    customerDetails: 'CUSTOMER DETAILS:',
+    invoiceDetails: 'INVOICE DETAILS:',
+    name: 'Name:',
+    address: 'Address:',
+    mob: 'Mob:',
+    gstin: 'GSTIN:',
+    billNo: 'Bill No:',
+    date: 'Date:',
+    payment: 'Payment:',
+    place: 'Place:',
+    sr: 'Sr.',
+    productDetails: 'Product Details',
+    manufacturer: 'Manufacturer',
+    batch: 'BATCH',
+    expiry: 'EXPIRY',
+    qty: 'Qty',
+    rate: 'Rate',
+    gst: 'GST %',
+    rateWithGst: 'Rate (Inc GST)',
+    total: 'Total',
+    taxableAmount: 'Taxable Amount:',
+    cgstAmount: 'CGST Amount:',
+    sgstAmount: 'SGST Amount:',
+    netTotal: 'NET TOTAL:',
+    amountPaid: 'Amount Paid:',
+    balanceUdhari: 'Balance / Udhari:',
+    amountInWords: 'Amount in Words:',
+    rupeesOnly: 'Rupees Only',
+    bankDetails: 'BANK DETAILS',
+    acHolder: 'A/C Holder:',
+    bank: 'Bank:',
+    acNo: 'A/C No.:',
+    ifsc: 'IFSC:',
+    branch: 'Branch:',
+    acType: 'A/C Type:',
+    termsConditions: 'Terms & Conditions:',
+    customerSign: 'Customer Signature',
+    authorizedSign: 'Authorized Signatory',
+    forShop: 'For',
+    compGenerated: 'This Is Computer Generated Tax Invoice',
+    jurisdiction: 'Jurisdiction',
+    page: 'Page',
+    of: 'of',
+  };
+}
+
 export function generateInvoicePDF(sale: any, customSettings?: any) {
   const doc = new jsPDF({
     orientation: 'portrait',
@@ -55,7 +152,11 @@ export function generateInvoicePDF(sale: any, customSettings?: any) {
   const marginX = 8;
   const contentWidth = 194;
   const startTopY = 8;
+  const pageHeight = 297;
+  const bottomMargin = 8;
   let currentY = startTopY;
+
+  const labels = getInvoiceLabels(customSettings?.language);
 
   // Resolve shop details from storage / props
   const baseShop = getSavedShopDetails();
@@ -89,7 +190,7 @@ export function generateInvoicePDF(sale: any, customSettings?: any) {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
   doc.setTextColor(255, 255, 255);
-  doc.text('TAX INVOICE', marginX + contentWidth - 20, currentY + 9, { align: 'center' });
+  doc.text(labels.taxInvoice, marginX + contentWidth - 20, currentY + 9, { align: 'center' });
 
   // Shop Address & Contacts
   currentY += 6;
@@ -149,26 +250,26 @@ export function generateInvoicePDF(sale: any, customSettings?: any) {
   const section2TopY = currentY;
   const infoStartY = currentY + 3.5;
 
-  // Left Column: Customer details (max width: 94mm)
+  // Left Column: Customer details (max width: 92mm)
   doc.setFontSize(8);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(60, 60, 60);
-  doc.text('CUSTOMER DETAILS:', marginX + 4, infoStartY);
+  doc.text(labels.customerDetails, marginX + 4, infoStartY);
 
   let leftY = infoStartY + 3.8;
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(0, 0, 0);
-  const nameLines = doc.splitTextToSize(`Name: ${customerName}`, 92);
+  const nameLines = doc.splitTextToSize(`${labels.name} ${customerName}`, 92);
   doc.text(nameLines, marginX + 4, leftY);
   leftY += nameLines.length * 3.5;
 
   doc.setFont('helvetica', 'normal');
   if (customerAddress) {
-    const addrLines = doc.splitTextToSize(`Address: ${customerAddress}`, 92);
+    const addrLines = doc.splitTextToSize(`${labels.address} ${customerAddress}`, 92);
     doc.text(addrLines, marginX + 4, leftY);
     leftY += addrLines.length * 3.5;
   }
-  const custContactLine = [customerMobile ? `Mob: ${customerMobile}` : '', customerGstin ? `GSTIN: ${customerGstin}` : ''].filter(Boolean).join('   |   ');
+  const custContactLine = [customerMobile ? `${labels.mob} ${customerMobile}` : '', customerGstin ? `${labels.gstin} ${customerGstin}` : ''].filter(Boolean).join('   |   ');
   if (custContactLine) {
     const contactLines = doc.splitTextToSize(custContactLine, 92);
     doc.text(contactLines, marginX + 4, leftY);
@@ -180,16 +281,16 @@ export function generateInvoicePDF(sale: any, customSettings?: any) {
   doc.setFontSize(8);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(60, 60, 60);
-  doc.text('INVOICE DETAILS:', midX, rightY);
+  doc.text(labels.invoiceDetails, midX, rightY);
   rightY += 3.8;
 
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(0, 0, 0);
-  doc.text(`Bill No: ${invNo}   (${paymentBadge})`, midX, rightY);
+  doc.text(`${labels.billNo} ${invNo}   (${paymentBadge})`, midX, rightY);
   rightY += 3.6;
-  doc.text(`Date: ${formattedDate} (${formattedTime})`, midX, rightY);
+  doc.text(`${labels.date} ${formattedDate} (${formattedTime})`, midX, rightY);
   rightY += 3.6;
-  const payInfo = `Payment: ${paymentMode}${isUpi && shop.upiId ? ` (${shop.upiId})` : ''}   |   Place: ${shop.district || 'Maharashtra'}`;
+  const payInfo = `${labels.payment} ${paymentMode}${isUpi && shop.upiId ? ` (${shop.upiId})` : ''}   |   ${labels.place} ${shop.district || 'Maharashtra'}`;
   const payLines = doc.splitTextToSize(payInfo, 82);
   doc.text(payLines, midX, rightY);
   rightY += payLines.length * 3.6;
@@ -273,18 +374,23 @@ export function generateInvoicePDF(sale: any, customSettings?: any) {
 
   grandTotal = Math.max(0, grandTotal + totalAdditions - totalDeductions);
 
-  // Minor visual padding only if very few items (1 or 2 items)
-  if (tableRows.length > 0 && tableRows.length < 3) {
-    while (tableRows.length < 3) {
-      tableRows.push(['', '', '', '', '', '', '', '', '', '']);
-    }
-  }
-
+  // Dynamic autotable rendering with automatic cell wrapping and paging
   doc.autoTable({
     startY: currentY,
-    margin: { left: marginX, right: marginX },
+    margin: { left: marginX, right: marginX, bottom: 20 },
     tableWidth: contentWidth,
-    head: [['Sr.', 'Product Details', 'Manufacturer', 'BATCH', 'EXPIRY', 'Qty', 'Rate', 'GST %', 'Rate (With GST)', 'Total']],
+    head: [[
+      labels.sr,
+      labels.productDetails,
+      labels.manufacturer,
+      labels.batch,
+      labels.expiry,
+      labels.qty,
+      labels.rate,
+      labels.gst,
+      labels.rateWithGst,
+      labels.total
+    ]],
     body: tableRows,
     theme: 'grid',
     headStyles: {
@@ -298,16 +404,17 @@ export function generateInvoicePDF(sale: any, customSettings?: any) {
     },
     styles: {
       fontSize: 7.5,
-      cellPadding: 1.5,
+      cellPadding: 1.8,
       lineColor: [0, 0, 0],
       lineWidth: 0.2,
       textColor: [0, 0, 0],
       overflow: 'linebreak',
+      valign: 'middle',
     },
     columnStyles: {
       0: { halign: 'center', cellWidth: 8 },
       1: { halign: 'left', cellWidth: 48, fontStyle: 'bold' },
-      2: { halign: 'center', cellWidth: 22, fontStyle: 'bold' },
+      2: { halign: 'left', cellWidth: 22 },
       3: { halign: 'center', cellWidth: 16 },
       4: { halign: 'center', cellWidth: 18 },
       5: { halign: 'center', cellWidth: 10, fontStyle: 'bold' },
@@ -318,16 +425,16 @@ export function generateInvoicePDF(sale: any, customSettings?: any) {
     },
   });
 
-  const finalY = doc.lastAutoTable?.finalY || currentY + 40;
+  let finalY = doc.lastAutoTable?.finalY || currentY + 30;
 
   // ─── 4. SUMMARY, OWNER BANK DETAILS & TAX BREAKDOWN ───
   const summaryLeftWidth = 114;
   const summaryRightWidth = contentWidth - summaryLeftWidth; // 80mm
 
   const rows: Array<{ label: string; val: string; isBold?: boolean; isHighlight?: boolean }> = [
-    { label: 'Taxable Amount:', val: `Rs. ${totalTaxable.toFixed(2)}` },
-    { label: 'CGST Amount:', val: `Rs. ${totalCgst.toFixed(2)}` },
-    { label: 'SGST Amount:', val: `Rs. ${totalSgst.toFixed(2)}` },
+    { label: labels.taxableAmount, val: `Rs. ${totalTaxable.toFixed(2)}` },
+    { label: labels.cgstAmount, val: `Rs. ${totalCgst.toFixed(2)}` },
+    { label: labels.sgstAmount, val: `Rs. ${totalSgst.toFixed(2)}` },
   ];
 
   adjustments.forEach((adj: any) => {
@@ -339,13 +446,22 @@ export function generateInvoicePDF(sale: any, customSettings?: any) {
   });
 
   rows.push(
-    { label: 'NET TOTAL:', val: `Rs. ${grandTotal.toFixed(2)}`, isBold: true, isHighlight: true },
-    { label: 'Amount Paid:', val: `Rs. ${(s.paid_amount ?? grandTotal).toFixed(2)}` },
-    { label: 'Balance / Udhari:', val: `Rs. ${(isCredit ? Math.max(0, grandTotal - (s.paid_amount || 0)) : 0).toFixed(2)}`, isBold: true },
+    { label: labels.netTotal, val: `Rs. ${grandTotal.toFixed(2)}`, isBold: true, isHighlight: true },
+    { label: labels.amountPaid, val: `Rs. ${(s.paid_amount ?? grandTotal).toFixed(2)}` },
+    { label: labels.balanceUdhari, val: `Rs. ${(isCredit ? Math.max(0, grandTotal - (s.paid_amount || 0)) : 0).toFixed(2)}`, isBold: true },
   );
 
   const rowHeight = 5.8;
   const summaryHeight = Math.max(42, rows.length * rowHeight);
+  const signHeight = 20;
+  const footerHeight = 6.5;
+  const totalNeededHeight = summaryHeight + signHeight + footerHeight + 4;
+
+  // Multi-page check: if remaining space on the page is not enough, add new page
+  if (finalY + totalNeededHeight > pageHeight - bottomMargin) {
+    doc.addPage();
+    finalY = startTopY + 4;
+  }
 
   // Left Box: Words, Bank Details, Terms
   doc.rect(marginX, finalY, summaryLeftWidth, summaryHeight);
@@ -355,10 +471,10 @@ export function generateInvoicePDF(sale: any, customSettings?: any) {
   // Left Content:
   doc.setFontSize(8);
   doc.setFont('helvetica', 'bold');
-  doc.text('Amount in Words:', marginX + 3, finalY + 4.5);
+  doc.text(labels.amountInWords, marginX + 3, finalY + 4.5);
   doc.setFont('helvetica', 'italic');
   doc.setFontSize(7.5);
-  const amountWords = `${numberToWords(grandTotal)} Rupees Only`;
+  const amountWords = `${numberToWords(grandTotal)} ${labels.rupeesOnly}`;
   const splitWords = doc.splitTextToSize(amountWords, summaryLeftWidth - 6);
   doc.text(splitWords.slice(0, 2), marginX + 3, finalY + 8);
 
@@ -366,40 +482,40 @@ export function generateInvoicePDF(sale: any, customSettings?: any) {
   doc.setDrawColor(0, 0, 0);
   doc.setFontSize(8);
   doc.setFont('helvetica', 'bold');
-  doc.text('BANK DETAILS', marginX + 3, finalY + 15);
+  doc.text(labels.bankDetails, marginX + 3, finalY + 15);
   doc.line(marginX + 3, finalY + 16.5, marginX + summaryLeftWidth - 6, finalY + 16.5);
 
   doc.setFontSize(7.5);
   doc.setFont('helvetica', 'bold');
-  doc.text('A/C Holder:', marginX + 3, finalY + 20.5);
+  doc.text(labels.acHolder, marginX + 3, finalY + 20.5);
   doc.setFont('helvetica', 'normal');
   doc.text(shop.accountName || shop.ownerName || '-', marginX + 22, finalY + 20.5);
 
   doc.setFont('helvetica', 'bold');
-  doc.text('Bank:', marginX + 62, finalY + 20.5);
+  doc.text(labels.bank, marginX + 62, finalY + 20.5);
   doc.setFont('helvetica', 'normal');
   doc.text(shop.bankName || '-', marginX + 72, finalY + 20.5);
 
   doc.setFont('helvetica', 'bold');
-  doc.text('A/C No.:', marginX + 3, finalY + 25);
+  doc.text(labels.acNo, marginX + 3, finalY + 25);
   doc.setFont('helvetica', 'normal');
   doc.text(shop.accountNumber || '-', marginX + 22, finalY + 25);
 
   doc.setFont('helvetica', 'bold');
-  doc.text('IFSC:', marginX + 62, finalY + 25);
+  doc.text(labels.ifsc, marginX + 62, finalY + 25);
   doc.setFont('helvetica', 'normal');
   doc.text(shop.ifsc || '-', marginX + 72, finalY + 25);
 
   if (shop.branch || shop.accountType) {
     if (shop.branch) {
       doc.setFont('helvetica', 'bold');
-      doc.text('Branch:', marginX + 3, finalY + 29.5);
+      doc.text(labels.branch, marginX + 3, finalY + 29.5);
       doc.setFont('helvetica', 'normal');
       doc.text(shop.branch, marginX + 22, finalY + 29.5);
     }
     if (shop.accountType) {
       doc.setFont('helvetica', 'bold');
-      doc.text('A/C Type:', marginX + 62, finalY + 29.5);
+      doc.text(labels.acType, marginX + 62, finalY + 29.5);
       doc.setFont('helvetica', 'normal');
       doc.text(shop.accountType, marginX + 76, finalY + 29.5);
     }
@@ -408,7 +524,7 @@ export function generateInvoicePDF(sale: any, customSettings?: any) {
   // Terms & Conditions at bottom left
   doc.setFontSize(6.5);
   doc.setFont('helvetica', 'bold');
-  doc.text('Terms & Conditions:', marginX + 3, finalY + 34);
+  doc.text(labels.termsConditions, marginX + 3, finalY + 34);
   doc.setFont('helvetica', 'normal');
   const termsText = shop.invoiceTerms || '1. Goods once sold will not be accepted back.\n2. Interest @ 18% p.a. charged if payment not made on time.\n3. Subject to local jurisdiction only.';
   const splitTerms = doc.splitTextToSize(termsText, summaryLeftWidth - 6);
@@ -435,7 +551,6 @@ export function generateInvoicePDF(sale: any, customSettings?: any) {
 
   // ─── 5. SIGNATURE BLOCK ───
   const signY = finalY + summaryHeight;
-  const signHeight = 20;
   doc.rect(marginX, signY, contentWidth, signHeight);
 
   if (isUpi && shop.upiId && grandTotal > 0) {
@@ -469,28 +584,47 @@ export function generateInvoicePDF(sale: any, customSettings?: any) {
   doc.setFontSize(8);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(0, 0, 0);
-  doc.text('Customer Signature', marginX + 25, signY + signHeight - 3, { align: 'center' });
+  doc.text(labels.customerSign, marginX + 25, signY + signHeight - 3, { align: 'center' });
   doc.line(marginX + 10, signY + signHeight - 6, marginX + 40, signY + signHeight - 6);
 
-  doc.text(shop.authorizedSignatory || `For ${shop.shopName || 'Krushi Seva Kendra'}`, marginX + contentWidth - 35, signY + 5.5, { align: 'center' });
-  doc.text('Authorized Signatory', marginX + contentWidth - 35, signY + signHeight - 3, { align: 'center' });
+  doc.text(shop.authorizedSignatory || `${labels.forShop} ${shop.shopName || 'Krushi Seva Kendra'}`, marginX + contentWidth - 35, signY + 5.5, { align: 'center' });
+  doc.text(labels.authorizedSign, marginX + contentWidth - 35, signY + signHeight - 3, { align: 'center' });
   doc.line(marginX + contentWidth - 55, signY + signHeight - 6, marginX + contentWidth - 15, signY + signHeight - 6);
 
   // ─── 6. BORDERED FOOTER ───
   const footerY = signY + signHeight;
   doc.setFillColor(245, 245, 245);
-  doc.rect(marginX, footerY, contentWidth, 6.5, 'FD');
+  doc.rect(marginX, footerY, contentWidth, footerHeight, 'FD');
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.5);
   doc.setTextColor(60, 60, 60);
-  doc.text('This Is Computer Generated Tax Invoice', marginX + 4, footerY + 4.2);
-  doc.text(`Subject To ${shop.district ? `${shop.district} ` : ''}Jurisdiction`, marginX + (contentWidth / 2), footerY + 4.2, { align: 'center' });
-  doc.text('Page 1 of 1', marginX + contentWidth - 4, footerY + 4.2, { align: 'right' });
+  doc.text(labels.compGenerated, marginX + 4, footerY + 4.2);
+  doc.text(`Subject To ${shop.district ? `${shop.district} ` : ''}${labels.jurisdiction}`, marginX + (contentWidth / 2), footerY + 4.2, { align: 'center' });
 
-  // ─── 7. DYNAMIC OUTER BOUNDING FRAME ───
-  doc.setDrawColor(0, 0, 0);
-  doc.setLineWidth(0.3);
-  doc.rect(marginX, startTopY, contentWidth, (footerY + 6.5) - startTopY);
+  // ─── 7. MULTI-PAGE NUMBERING & BOUNDING FRAME ───
+  const totalPages = doc.getNumberOfPages();
+  for (let p = 1; p <= totalPages; p++) {
+    doc.setPage(p);
+    doc.setDrawColor(0, 0, 0);
+    doc.setLineWidth(0.3);
+
+    // Page number in footer
+    if (p === totalPages) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7.5);
+      doc.setTextColor(60, 60, 60);
+      doc.text(`${labels.page} ${p} ${labels.of} ${totalPages}`, marginX + contentWidth - 4, footerY + 4.2, { align: 'right' });
+      // Draw outer border for final page up to footer bottom
+      doc.rect(marginX, startTopY, contentWidth, (footerY + footerHeight) - startTopY);
+    } else {
+      // Draw full page border for preceding pages
+      doc.rect(marginX, startTopY, contentWidth, pageHeight - (startTopY * 2));
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7.5);
+      doc.setTextColor(60, 60, 60);
+      doc.text(`${labels.page} ${p} ${labels.of} ${totalPages}`, marginX + contentWidth - 4, pageHeight - startTopY - 2, { align: 'right' });
+    }
+  }
 
   return doc;
 }

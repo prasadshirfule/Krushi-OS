@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { IndianRupee, TrendingUp, Receipt, CreditCard, AlertTriangle, Clock } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import Link from 'next/link';
+import { useLanguage } from '@/lib/i18n';
 
 export interface DashboardStats {
   todaySales: {
@@ -25,6 +26,7 @@ interface StatsCardsProps {
 }
 
 export default function StatsCards({ stats }: StatsCardsProps) {
+  const { t } = useLanguage();
   const salesAmount = Number(stats?.todaySales?.total ?? stats?.todaySales?.amount ?? stats?.todaySales?.total_sales ?? 0);
   const todayBillsCount = Number(stats?.todaySales?.count ?? 0);
   const totalOutstanding = Number(stats?.totalOutstanding ?? 0);
@@ -35,12 +37,12 @@ export default function StatsCards({ stats }: StatsCardsProps) {
       <Card className="hover:border-primary/50 transition-colors">
         <Link href="/sales" className="block h-full cursor-pointer">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 hover:bg-muted/50 rounded-t-lg transition-colors">
-            <CardTitle className="text-sm font-medium">Today's Sales</CardTitle>
+            <CardTitle className="text-sm font-medium">{t('dashboard.todaySales', "Today's Sales")}</CardTitle>
             <IndianRupee className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent className="hover:bg-muted/50 rounded-b-lg transition-colors h-full">
             <div className="text-2xl font-bold">{formatCurrency(salesAmount)}</div>
-            <p className="text-xs text-muted-foreground">{todayBillsCount} bills today</p>
+            <p className="text-xs text-muted-foreground">{todayBillsCount} {t('sales.billsToday', 'bills today')}</p>
           </CardContent>
         </Link>
       </Card>
@@ -49,12 +51,12 @@ export default function StatsCards({ stats }: StatsCardsProps) {
       <Card className="hover:border-purple-500/50 transition-colors">
         <Link href="/sales" className="block h-full cursor-pointer">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 hover:bg-muted/50 rounded-t-lg transition-colors">
-            <CardTitle className="text-sm font-medium">Today's Bills</CardTitle>
+            <CardTitle className="text-sm font-medium">{t('sales.todayRevenue', "Today's Bills")}</CardTitle>
             <Receipt className="h-4 w-4 text-purple-600" />
           </CardHeader>
           <CardContent className="hover:bg-muted/50 rounded-b-lg transition-colors h-full">
             <div className="text-2xl font-bold">{todayBillsCount}</div>
-            <p className="text-xs text-muted-foreground">Invoices today</p>
+            <p className="text-xs text-muted-foreground">{t('sales.allRecords', 'Invoices today')}</p>
           </CardContent>
         </Link>
       </Card>

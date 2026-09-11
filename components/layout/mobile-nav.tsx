@@ -12,36 +12,38 @@ import {
   BarChart3, UserCog, Bell, Settings 
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useLanguage } from '@/lib/i18n'
 
-const navItems = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/billing', label: 'Billing / POS', icon: ShoppingCart },
-  { href: '/sales', label: 'Sales', icon: Receipt },
-  { href: '/products', label: 'Products', icon: Package },
-  { href: '/categories', label: 'Categories', icon: Grid3X3 },
-  { href: '/inventory', label: 'Inventory', icon: Warehouse },
-  { href: '/purchases', label: 'Purchases', icon: TruckIcon },
-  { href: '/customers', label: 'Customers / Farmers', icon: Users },
-  { href: '/suppliers', label: 'Suppliers', icon: Building2 },
-  { href: '/credit', label: 'Credit / Udhar', icon: CreditCard },
-  { href: '/payments', label: 'Payments', icon: Wallet },
-  { href: '/expenses', label: 'Expenses', icon: IndianRupee },
-  { href: '/reports', label: 'Reports', icon: BarChart3 },
-  { href: '/employees', label: 'Employees', icon: UserCog },
-  { href: '/notifications', label: 'Notifications', icon: Bell },
-  { href: '/settings', label: 'Settings', icon: Settings },
+const navItemConfigs = [
+  { href: '/dashboard', key: 'dashboard', defaultLabel: 'Dashboard', icon: LayoutDashboard },
+  { href: '/billing', key: 'billing', defaultLabel: 'Billing / POS', icon: ShoppingCart },
+  { href: '/sales', key: 'sales', defaultLabel: 'Sales', icon: Receipt },
+  { href: '/products', key: 'products', defaultLabel: 'Products', icon: Package },
+  { href: '/categories', key: 'categories', defaultLabel: 'Categories', icon: Grid3X3 },
+  { href: '/inventory', key: 'inventory', defaultLabel: 'Inventory', icon: Warehouse },
+  { href: '/purchases', key: 'purchases', defaultLabel: 'Purchases', icon: TruckIcon },
+  { href: '/customers', key: 'customers', defaultLabel: 'Customers / Farmers', icon: Users },
+  { href: '/suppliers', key: 'suppliers', defaultLabel: 'Suppliers', icon: Building2 },
+  { href: '/credit', key: 'credit', defaultLabel: 'Credit / Udhar', icon: CreditCard },
+  { href: '/payments', key: 'payments', defaultLabel: 'Payments', icon: Wallet },
+  { href: '/expenses', key: 'expenses', defaultLabel: 'Expenses', icon: IndianRupee },
+  { href: '/reports', key: 'reports', defaultLabel: 'Reports', icon: BarChart3 },
+  { href: '/employees', key: 'employees', defaultLabel: 'Employees', icon: UserCog },
+  { href: '/notifications', key: 'notifications', defaultLabel: 'Notifications', icon: Bell },
+  { href: '/settings', key: 'settings', defaultLabel: 'Settings', icon: Settings },
 ]
 
 export function MobileNav() {
   const [open, setOpen] = useState(false)
   const pathname = usePathname()
+  const { t } = useLanguage()
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
         <Button variant='outline' size='icon' className='shrink-0 sm:hidden'>
           <Menu className='h-5 w-5' />
-          <span className='sr-only'>Toggle navigation menu</span>
+          <span className='sr-only'>{t('nav.toggleNav', 'Toggle navigation menu')}</span>
         </Button>
       </SheetTrigger>
       <SheetContent side='left' className='w-72 p-0 flex flex-col h-full max-h-[100dvh] overflow-hidden gap-0'>
@@ -53,9 +55,10 @@ export function MobileNav() {
         </div>
         <div className='flex-1 min-h-0 overflow-y-auto overscroll-contain py-2 px-2'>
           <nav className='grid items-start gap-1 text-sm font-medium pb-10'>
-            {navItems.map((item) => {
+            {navItemConfigs.map((item) => {
               const Icon = item.icon
               const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`)
+              const label = t(`nav.${item.key}`, item.defaultLabel)
               return (
                 <Link
                   key={item.href}
@@ -67,7 +70,7 @@ export function MobileNav() {
                   )}
                 >
                   <Icon className='h-4 w-4 shrink-0' />
-                  <span>{item.label}</span>
+                  <span>{label}</span>
                 </Link>
               )
             })}

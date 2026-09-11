@@ -17,8 +17,16 @@ import {
   Download,
   AlertTriangle,
   CheckCircle2,
-  Loader2
+  Loader2,
+  ChevronDown
 } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { useLanguage } from '@/lib/i18n';
 import { format, parseISO } from 'date-fns';
 import { 
   isClientDemoMode, 
@@ -51,6 +59,7 @@ const safeFormatDate = (dateVal: any, formatStr: string) => {
 };
 
 export function SalesHistoryClient({ initialSales = [], initialError }: SalesHistoryClientProps) {
+  const { t } = useLanguage();
   const [sales, setSales] = useState<any[]>(initialSales);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(initialError || null);
@@ -229,30 +238,42 @@ export function SalesHistoryClient({ initialSales = [], initialError }: SalesHis
     <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
       <div className="flex justify-between items-center flex-wrap gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Sales History</h1>
-          <p className="text-xs sm:text-sm text-muted-foreground mt-1">View and manage all customer bills, returns, and sales transactions</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">{t('sales.title', 'Sales History')}</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-1">{t('sales.subtitle', 'View and manage all customer bills, returns, and sales transactions')}</p>
         </div>
         <div className="flex items-center flex-wrap gap-2.5">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleDownloadPDF}
-            disabled={loading || sales.length === 0}
-            className="border-border shadow-sm text-foreground hover:bg-accent text-xs sm:text-sm"
-          >
-            <Download className="h-4 w-4 mr-1.5" />
-            Download PDF
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handlePrintHistory}
-            disabled={loading || sales.length === 0}
-            className="border-border shadow-sm text-foreground hover:bg-accent text-xs sm:text-sm"
-          >
-            <Printer className="h-4 w-4 mr-1.5" />
-            Print
-          </Button>
+          {/* Export Dropdown with PDF & Print */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={loading || sales.length === 0}
+                className="border-border shadow-sm text-foreground hover:bg-accent text-xs sm:text-sm flex items-center gap-1.5 font-semibold"
+              >
+                <Download className="h-4 w-4" />
+                <span>{t('sales.exportSales', 'Export')}</span>
+                <ChevronDown className="h-3.5 w-3.5 opacity-70" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48 p-1.5 shadow-lg">
+              <DropdownMenuItem
+                onClick={handleDownloadPDF}
+                className="cursor-pointer py-2 px-2.5 font-medium text-xs sm:text-sm flex items-center gap-2"
+              >
+                <FileText className="h-4 w-4 text-rose-500" />
+                <span>{t('sales.downloadPdf', 'Download PDF')}</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={handlePrintHistory}
+                className="cursor-pointer py-2 px-2.5 font-medium text-xs sm:text-sm flex items-center gap-2"
+              >
+                <Printer className="h-4 w-4 text-primary" />
+                <span>{t('sales.printSale', 'Print')}</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
           <Button 
             variant="outline" 
             size="sm" 
@@ -261,11 +282,11 @@ export function SalesHistoryClient({ initialSales = [], initialError }: SalesHis
             className="border-border shadow-sm text-foreground hover:bg-accent text-xs sm:text-sm"
           >
             <RefreshCw className={`h-4 w-4 mr-1.5 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
+            {t('common.refresh', 'Refresh')}
           </Button>
           <Link href="/billing">
             <Button className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold shadow-sm text-xs sm:text-sm">
-              <Receipt className="h-4 w-4 mr-1.5" /> New Bill
+              <Receipt className="h-4 w-4 mr-1.5" /> {t('billing.newBill', 'New Bill')}
             </Button>
           </Link>
         </div>

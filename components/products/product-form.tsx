@@ -52,6 +52,8 @@ import {
   saveDemoBrandClient
 } from '@/lib/client-demo-store';
 
+import { useLanguage } from '@/lib/i18n';
+
 interface ProductFormProps {
   mode: 'create' | 'edit';
   initialData?: any;
@@ -61,6 +63,7 @@ interface ProductFormProps {
 
 export function ProductForm({ mode, initialData, categories, brands }: ProductFormProps) {
   const router = useRouter();
+  const { t } = useLanguage();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Categories state
@@ -451,18 +454,18 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
                 <Package className="h-5 w-5" />
               </div>
               <div>
-                <CardTitle className="text-lg font-bold text-foreground">PRODUCT DETAILS</CardTitle>
+                <CardTitle className="text-lg font-bold text-foreground">{t('products.productDetails', 'PRODUCT DETAILS')}</CardTitle>
                 <CardDescription className="text-xs text-muted-foreground">
-                  Product name, category, and manufacturer
+                  {t('products.productDetailsDesc', 'Product information, category, size, batch, and expiry')}
                 </CardDescription>
               </div>
             </div>
           </CardHeader>
-          <CardContent className="p-6 grid gap-6 md:grid-cols-2">
-            {/* Product Name (Full Width) */}
-            <div className="space-y-2 md:col-span-2">
+          <CardContent className="p-6 space-y-5">
+            {/* 1. Product Name (Full Width) */}
+            <div className="space-y-2">
               <Label htmlFor="name" className="text-sm font-semibold text-foreground">
-                Product Name <span className="text-destructive font-bold">*</span>
+                {t('products.productName', 'Product Name')} <span className="text-destructive font-bold">*</span>
               </Label>
               <Input
                 id="name"
@@ -478,146 +481,226 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
               )}
             </div>
 
-            {/* Category with Quick Add */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="category_id" className="text-sm font-semibold text-foreground">
-                  Category <span className="text-destructive font-bold">*</span>
-                </Label>
-                <button
-                  type="button"
-                  onClick={() => setIsAddCategoryOpen(true)}
-                  className="text-xs text-primary font-bold hover:underline flex items-center gap-1 cursor-pointer"
-                >
-                  <Plus className="h-3.5 w-3.5 stroke-[3]" /> Add New Category
-                </button>
-              </div>
-              <Select
-                value={form.watch('category_id') || ''}
-                onValueChange={(val) => {
-                  if (val === '__add_new__') {
-                    setIsAddCategoryOpen(true);
-                  } else {
-                    form.setValue('category_id', val, { shouldValidate: true });
-                  }
-                }}
-              >
-                <SelectTrigger id="category_id" className="h-11 rounded-lg border-border bg-background text-foreground">
-                  <SelectValue placeholder="Select Category" />
-                </SelectTrigger>
-                <SelectContent className="max-h-72">
-                  {categoriesList.length === 0 ? (
-                    <div className="px-3 py-3 text-center text-xs text-muted-foreground">
-                      No categories found for your shop yet.
-                    </div>
-                  ) : (
-                    categoriesList.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                    ))
-                  )}
-                  <div className="px-2 py-1.5 border-t border-border mt-1 bg-muted/20">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setIsAddCategoryOpen(true);
-                      }}
-                      className="w-full text-left text-xs font-bold text-primary hover:underline flex items-center gap-1.5 py-1 cursor-pointer"
-                    >
-                      <Plus className="h-3.5 w-3.5 stroke-[3]" /> + Add New Category
-                    </button>
-                  </div>
-                </SelectContent>
-              </Select>
-              {categoriesList.length === 0 && (
-                <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">
-                  No categories in your shop yet. Click{' '}
+            {/* 2. Category, Manufacturer, HSN Code */}
+            <div className="grid gap-5 grid-cols-1 md:grid-cols-3 items-start">
+              {/* Category with Quick Add */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="category_id" className="text-sm font-semibold text-foreground">
+                    {t('products.category', 'Category')} <span className="text-destructive font-bold">*</span>
+                  </Label>
                   <button
                     type="button"
                     onClick={() => setIsAddCategoryOpen(true)}
-                    className="underline font-bold hover:text-amber-700 cursor-pointer"
+                    className="text-xs text-primary font-bold hover:underline flex items-center gap-1 cursor-pointer"
                   >
-                    + Add New Category
-                  </button>{' '}
-                  to create one.
-                </p>
-              )}
-              {form.formState.errors.category_id && (
-                <p className="text-xs text-destructive font-medium">{form.formState.errors.category_id.message}</p>
-              )}
-            </div>
-
-            {/* Manufacturer / Brand with Quick Add */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="brand_id" className="text-sm font-semibold text-foreground">
-                  Manufacturer
-                </Label>
-                <button
-                  type="button"
-                  onClick={() => setIsAddBrandOpen(true)}
-                  className="text-xs text-primary font-bold hover:underline flex items-center gap-1 cursor-pointer"
+                    <Plus className="h-3.5 w-3.5 stroke-[3]" /> {t('products.addNewCategory', '+ Add New Category')}
+                  </button>
+                </div>
+                <Select
+                  value={form.watch('category_id') || ''}
+                  onValueChange={(val) => {
+                    if (val === '__add_new__') {
+                      setIsAddCategoryOpen(true);
+                    } else {
+                      form.setValue('category_id', val, { shouldValidate: true });
+                    }
+                  }}
                 >
-                  <Plus className="h-3.5 w-3.5 stroke-[3]" /> Add New Manufacturer
-                </button>
+                  <SelectTrigger id="category_id" className="h-11 rounded-lg border-border bg-background text-foreground">
+                    <SelectValue placeholder={t('products.selectCategory', 'Select Category')} />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-72">
+                    {categoriesList.length === 0 ? (
+                      <div className="px-3 py-3 text-center text-xs text-muted-foreground">
+                        {t('products.noCategories', 'No categories found for your shop yet.')}
+                      </div>
+                    ) : (
+                      categoriesList.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                      ))
+                    )}
+                    <div className="px-2 py-1.5 border-t border-border mt-1 bg-muted/20">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setIsAddCategoryOpen(true);
+                        }}
+                        className="w-full text-left text-xs font-bold text-primary hover:underline flex items-center gap-1.5 py-1 cursor-pointer"
+                      >
+                        <Plus className="h-3.5 w-3.5 stroke-[3]" /> {t('products.addNewCategory', '+ Add New Category')}
+                      </button>
+                    </div>
+                  </SelectContent>
+                </Select>
+                {form.formState.errors.category_id && (
+                  <p className="text-xs text-destructive font-medium">{form.formState.errors.category_id.message}</p>
+                )}
               </div>
-              <Select
-                value={form.watch('brand_id') || '__none__'}
-                onValueChange={(val) => {
-                  if (val === '__add_new__') {
-                    setIsAddBrandOpen(true);
-                  } else if (val === '__none__') {
-                    form.setValue('brand_id', null);
-                  } else {
-                    form.setValue('brand_id', val);
-                  }
-                }}
-              >
-                <SelectTrigger id="brand_id" className="h-11 rounded-lg border-border bg-background text-foreground">
-                  <SelectValue placeholder="Select Manufacturer" />
-                </SelectTrigger>
-                <SelectContent className="max-h-72">
-                  <SelectItem value="__none__" className="text-muted-foreground font-normal">
-                    -- No Manufacturer / Generic --
-                  </SelectItem>
-                  <div className="px-2 py-1.5 border-y border-border my-1 bg-muted/20">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setIsAddBrandOpen(true);
-                      }}
-                      className="w-full text-left text-xs font-bold text-primary hover:underline flex items-center gap-1.5 py-1"
-                    >
-                      <Plus className="h-3.5 w-3.5 stroke-[3]" /> + Add New Manufacturer
-                    </button>
-                  </div>
-                  {brandsList.map((b) => (
-                    <SelectItem key={b.id} value={b.id}>
-                      {b.name}
+
+              {/* Manufacturer / Brand with Quick Add */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="brand_id" className="text-sm font-semibold text-foreground">
+                    {t('products.manufacturer', 'Manufacturer')}
+                  </Label>
+                  <button
+                    type="button"
+                    onClick={() => setIsAddBrandOpen(true)}
+                    className="text-xs text-primary font-bold hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <Plus className="h-3.5 w-3.5 stroke-[3]" /> {t('products.addNewManufacturer', '+ Add New Manufacturer')}
+                  </button>
+                </div>
+                <Select
+                  value={form.watch('brand_id') || '__none__'}
+                  onValueChange={(val) => {
+                    if (val === '__add_new__') {
+                      setIsAddBrandOpen(true);
+                    } else if (val === '__none__') {
+                      form.setValue('brand_id', null);
+                    } else {
+                      form.setValue('brand_id', val);
+                    }
+                  }}
+                >
+                  <SelectTrigger id="brand_id" className="h-11 rounded-lg border-border bg-background text-foreground">
+                    <SelectValue placeholder={t('products.selectManufacturer', 'Select Manufacturer')} />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-72">
+                    <SelectItem value="__none__" className="text-muted-foreground font-normal">
+                      {t('products.genericBrand', '-- No Manufacturer / Generic --')}
                     </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                    <div className="px-2 py-1.5 border-y border-border my-1 bg-muted/20">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setIsAddBrandOpen(true);
+                        }}
+                        className="w-full text-left text-xs font-bold text-primary hover:underline flex items-center gap-1.5 py-1"
+                      >
+                        <Plus className="h-3.5 w-3.5 stroke-[3]" /> {t('products.addNewManufacturer', '+ Add New Manufacturer')}
+                      </button>
+                    </div>
+                    {brandsList.map((b) => (
+                      <SelectItem key={b.id} value={b.id}>
+                        {b.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* HSN Code */}
+              <div className="space-y-2">
+                <Label htmlFor="hsn_code" className="text-sm font-semibold text-foreground">
+                  {t('products.hsnCode', 'HSN Code')}
+                </Label>
+                <Input
+                  id="hsn_code"
+                  placeholder="e.g. 3105"
+                  className="h-11 text-base rounded-lg border-border bg-background"
+                  {...form.register('hsn_code')}
+                />
+              </div>
             </div>
 
-            {/* HSN Code */}
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="hsn_code" className="text-sm font-semibold text-foreground">
-                HSN Code
-              </Label>
-              <Input
-                id="hsn_code"
-                placeholder="e.g. 3105"
-                className="h-11 text-base rounded-lg border-border bg-background"
-                {...form.register('hsn_code')}
-              />
+            {/* 3. Product Size, Batch No, Exp Date (Clean 3-col Grid) */}
+            <div className="grid gap-5 grid-cols-1 md:grid-cols-3 items-start pt-1">
+              {/* Product Size (Mandatory with *) */}
+              <div className="space-y-2">
+                <Label htmlFor="product_size_value" className="text-sm font-semibold text-foreground">
+                  {t('products.productSize', 'Product Size')} <span className="text-destructive font-bold">*</span>
+                </Label>
+                <div className="flex rounded-lg border border-border bg-background focus-within:ring-2 focus-within:ring-primary focus-within:border-primary overflow-hidden h-11">
+                  <Input
+                    id="product_size_value"
+                    type="number"
+                    step="any"
+                    min="0"
+                    placeholder="e.g. 1"
+                    className="h-11 border-0 focus-visible:ring-0 focus-visible:ring-offset-0 rounded-none text-sm font-bold text-foreground px-3 flex-1 min-w-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    value={form.watch('product_size_value') ?? ''}
+                    onChange={(e) => {
+                      const val = e.target.value === '' ? null : Number(e.target.value);
+                      form.setValue('product_size_value', val, { shouldValidate: true });
+                      const unit = form.getValues('product_size_unit') || 'KG';
+                      form.setValue('pack_size', val ? `${val} ${unit}` : '', { shouldValidate: true });
+                    }}
+                  />
+                  <div className="w-[85px] shrink-0 border-l border-border bg-muted/20">
+                    <Select
+                      value={form.watch('product_size_unit') || 'KG'}
+                      onValueChange={(val) => {
+                        form.setValue('product_size_unit', val);
+                        const currentVal = form.getValues('product_size_value');
+                        if (currentVal) {
+                          form.setValue('pack_size', `${currentVal} ${val}`, { shouldValidate: true });
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="h-11 border-0 focus:ring-0 rounded-none bg-transparent font-bold text-foreground px-2 text-xs">
+                        <SelectValue placeholder="Unit" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-64">
+                        {PRODUCT_SIZE_UNITS.map((u) => (
+                          <SelectItem key={u.value} value={u.value} className="text-xs">
+                            {u.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                {form.formState.errors.product_size_value && (
+                  <p className="text-xs text-destructive font-medium">{form.formState.errors.product_size_value.message}</p>
+                )}
+              </div>
+
+              {/* Batch No (No Optional text) */}
+              <div className="space-y-2">
+                <Label htmlFor="batch_number" className="text-sm font-semibold text-foreground">
+                  {t('products.batchNo', 'Batch No')}
+                </Label>
+                <Input
+                  id="batch_number"
+                  placeholder="e.g. B-101"
+                  className="h-11 text-sm rounded-lg border-border bg-background font-mono"
+                  {...form.register('batch_number')}
+                />
+                {form.formState.errors.batch_number && (
+                  <p className="text-xs text-destructive font-medium">{form.formState.errors.batch_number.message}</p>
+                )}
+              </div>
+
+              {/* Exp Date (No Optional text) */}
+              <div className="space-y-2">
+                <Label htmlFor="expiry_date" className="text-sm font-semibold text-foreground">
+                  {t('products.expDate', 'Exp Date')}
+                </Label>
+                <div className="relative">
+                  <Input
+                    id="expiry_date"
+                    placeholder="DD/MM/YYYY"
+                    maxLength={10}
+                    className="h-11 text-sm rounded-lg border-border bg-background font-mono pl-3 pr-8"
+                    value={form.watch('expiry_date') || ''}
+                    onChange={handleExpiryChange}
+                  />
+                  <Calendar className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                </div>
+                {form.formState.errors.expiry_date && (
+                  <p className="text-xs text-destructive font-medium">{form.formState.errors.expiry_date.message}</p>
+                )}
+              </div>
             </div>
           </CardContent>
         </Card>
 
         {/* ═════════════════════════════════════════════════════════
-            SECTION 2: PRICING & TAX
+            SECTION 2: PRICING & TAX (Strictly 4 Clean Fields)
         ═════════════════════════════════════════════════════════ */}
         <Card className="border border-border bg-card shadow-sm rounded-xl overflow-hidden">
           <CardHeader className="bg-muted/30 border-b border-border pb-4">
@@ -626,81 +709,81 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
                 <IndianRupee className="h-5 w-5" />
               </div>
               <div>
-                <CardTitle className="text-lg font-bold text-foreground">PRICING, TAX & BATCH</CardTitle>
+                <CardTitle className="text-lg font-bold text-foreground">{t('products.pricingTax', 'PRICING & TAX')}</CardTitle>
                 <CardDescription className="text-xs text-muted-foreground">
-                  Purchase price, selling price, MRP, GST, size, batch number, and expiry date
+                  {t('products.pricingTaxDesc', 'Purchase price, selling price, MRP, and GST rates')}
                 </CardDescription>
               </div>
             </div>
           </CardHeader>
-          <CardContent className="p-6 grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 items-start">
+          <CardContent className="p-6 grid gap-5 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 items-start">
             {/* 1. Purchase Price */}
-            <div className="space-y-1.5 flex flex-col justify-start">
-              <Label htmlFor="purchase_price" className="text-xs font-semibold text-foreground h-5 flex items-center">
-                Purchase Price <span className="text-destructive font-bold ml-1">*</span>
+            <div className="space-y-2">
+              <Label htmlFor="purchase_price" className="text-sm font-semibold text-foreground">
+                {t('products.purchasePrice', 'Purchase Price')} <span className="text-destructive font-bold">*</span>
               </Label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold text-xs">₹</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold text-sm">₹</span>
                 <Input
                   id="purchase_price"
                   type="number"
                   step="0.01"
                   min="0"
-                  placeholder="e.g. 380.00"
-                  className="pl-7 h-11 text-sm rounded-lg border-border bg-background placeholder:text-muted-foreground/40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  placeholder="0.00"
+                  className="pl-8 h-11 text-base rounded-lg border-border bg-background [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   {...form.register('purchase_price')}
                 />
               </div>
               {form.formState.errors.purchase_price && (
-                <p className="text-[11px] text-destructive font-medium leading-tight">{form.formState.errors.purchase_price.message}</p>
+                <p className="text-xs text-destructive font-medium">{form.formState.errors.purchase_price.message}</p>
               )}
             </div>
 
-            {/* 2. Selling Price */}
-            <div className="space-y-1.5 flex flex-col justify-start">
-              <Label htmlFor="selling_price" className="text-xs font-semibold text-foreground h-5 flex items-center truncate" title="Selling Price (Including GST)">
-                Selling Price (Inc. GST) <span className="text-destructive font-bold ml-1">*</span>
+            {/* 2. Selling Price (Inc. GST) */}
+            <div className="space-y-2">
+              <Label htmlFor="selling_price" className="text-sm font-semibold text-foreground truncate block" title="Selling Price (Including GST)">
+                {t('products.sellingPriceIncGst', 'Selling Price (Inc. GST)')} <span className="text-destructive font-bold">*</span>
               </Label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-primary font-bold text-xs">₹</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-primary font-bold text-sm">₹</span>
                 <Input
                   id="selling_price"
                   type="number"
                   step="0.01"
                   min="0.01"
-                  placeholder="e.g. 450.00"
-                  className="pl-7 h-11 text-sm font-bold text-primary rounded-lg border-primary/40 bg-primary/5 placeholder:text-muted-foreground/40 focus-visible:border-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  placeholder="0.00"
+                  className="pl-8 h-11 text-base font-bold text-primary rounded-lg border-primary/40 bg-primary/5 focus-visible:border-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   {...form.register('selling_price')}
                 />
               </div>
               {form.formState.errors.selling_price && (
-                <p className="text-[11px] text-destructive font-medium leading-tight">{form.formState.errors.selling_price.message}</p>
+                <p className="text-xs text-destructive font-medium">{form.formState.errors.selling_price.message}</p>
               )}
             </div>
 
             {/* 3. MRP */}
-            <div className="space-y-1.5 flex flex-col justify-start">
-              <Label htmlFor="wholesale_price" className="text-xs font-semibold text-foreground h-5 flex items-center">
-                MRP
+            <div className="space-y-2">
+              <Label htmlFor="wholesale_price" className="text-sm font-semibold text-foreground">
+                {t('products.mrp', 'MRP')}
               </Label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold text-xs">₹</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold text-sm">₹</span>
                 <Input
                   id="wholesale_price"
                   type="number"
                   step="0.01"
                   min="0"
                   placeholder="0.00"
-                  className="pl-7 h-11 text-sm rounded-lg border-border bg-background [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  className="pl-8 h-11 text-base rounded-lg border-border bg-background [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   {...form.register('wholesale_price')}
                 />
               </div>
             </div>
 
             {/* 4. GST */}
-            <div className="space-y-1.5 flex flex-col justify-start">
-              <Label htmlFor="gst_rate" className="text-xs font-semibold text-foreground h-5 flex items-center">
-                GST
+            <div className="space-y-2">
+              <Label htmlFor="gst_rate" className="text-sm font-semibold text-foreground">
+                {t('products.gstRate', 'GST')}
               </Label>
               <Select
                 value={String(form.watch('gst_rate'))}
@@ -716,93 +799,6 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
                 </SelectContent>
               </Select>
             </div>
-
-            {/* 5. Product Size (Mandatory with *) */}
-            <div className="space-y-1.5 flex flex-col justify-start">
-              <Label htmlFor="product_size_value" className="text-xs font-semibold text-foreground h-5 flex items-center">
-                Product Size <span className="text-destructive font-bold ml-1">*</span>
-              </Label>
-              <div className="flex rounded-lg border border-border bg-background focus-within:ring-2 focus-within:ring-primary focus-within:border-primary overflow-hidden h-11">
-                <Input
-                  id="product_size_value"
-                  type="number"
-                  step="any"
-                  min="0"
-                  placeholder="e.g. 1"
-                  className="h-11 border-0 focus-visible:ring-0 focus-visible:ring-offset-0 rounded-none text-sm font-bold text-foreground px-2.5 flex-1 min-w-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                  value={form.watch('product_size_value') ?? ''}
-                  onChange={(e) => {
-                    const val = e.target.value === '' ? null : Number(e.target.value);
-                    form.setValue('product_size_value', val, { shouldValidate: true });
-                    const unit = form.getValues('product_size_unit') || 'KG';
-                    form.setValue('pack_size', val ? `${val} ${unit}` : '', { shouldValidate: true });
-                  }}
-                />
-                <div className="w-[75px] shrink-0 border-l border-border bg-muted/20">
-                  <Select
-                    value={form.watch('product_size_unit') || 'KG'}
-                    onValueChange={(val) => {
-                      form.setValue('product_size_unit', val);
-                      const currentVal = form.getValues('product_size_value');
-                      if (currentVal) {
-                        form.setValue('pack_size', `${currentVal} ${val}`, { shouldValidate: true });
-                      }
-                    }}
-                  >
-                    <SelectTrigger className="h-11 border-0 focus:ring-0 rounded-none bg-transparent font-bold text-foreground px-2 text-xs">
-                      <SelectValue placeholder="Unit" />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-64">
-                      {PRODUCT_SIZE_UNITS.map((u) => (
-                        <SelectItem key={u.value} value={u.value} className="text-xs">
-                          {u.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              {form.formState.errors.product_size_value && (
-                <p className="text-[11px] text-destructive font-medium leading-tight">{form.formState.errors.product_size_value.message}</p>
-              )}
-            </div>
-
-            {/* 6. Batch No (No Optional text) */}
-            <div className="space-y-1.5 flex flex-col justify-start">
-              <Label htmlFor="batch_number" className="text-xs font-semibold text-foreground h-5 flex items-center">
-                Batch No
-              </Label>
-              <Input
-                id="batch_number"
-                placeholder="e.g. B-101"
-                className="h-11 text-sm rounded-lg border-border bg-background font-mono"
-                {...form.register('batch_number')}
-              />
-              {form.formState.errors.batch_number && (
-                <p className="text-[11px] text-destructive font-medium leading-tight">{form.formState.errors.batch_number.message}</p>
-              )}
-            </div>
-
-            {/* 7. Exp Date (No Optional text) */}
-            <div className="space-y-1.5 flex flex-col justify-start">
-              <Label htmlFor="expiry_date" className="text-xs font-semibold text-foreground h-5 flex items-center">
-                Exp Date
-              </Label>
-              <div className="relative">
-                <Input
-                  id="expiry_date"
-                  placeholder="DD/MM/YYYY"
-                  maxLength={10}
-                  className="h-11 text-sm rounded-lg border-border bg-background font-mono pl-3 pr-8"
-                  value={form.watch('expiry_date') || ''}
-                  onChange={handleExpiryChange}
-                />
-                <Calendar className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
-              </div>
-              {form.formState.errors.expiry_date && (
-                <p className="text-[11px] text-destructive font-medium leading-tight">{form.formState.errors.expiry_date.message}</p>
-              )}
-            </div>
           </CardContent>
         </Card>
 
@@ -816,18 +812,18 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
                 <Boxes className="h-5 w-5" />
               </div>
               <div>
-                <CardTitle className="text-lg font-bold text-foreground">STOCK & INVENTORY</CardTitle>
+                <CardTitle className="text-lg font-bold text-foreground">{t('products.stockInventory', 'STOCK & INVENTORY')}</CardTitle>
                 <CardDescription className="text-xs text-muted-foreground">
-                  Opening stock quantity and low stock threshold
+                  {t('products.stockInventoryDesc', 'Stock quantities and minimum stock alert levels')}
                 </CardDescription>
               </div>
             </div>
           </CardHeader>
           <CardContent className="p-6 grid gap-6 sm:grid-cols-2">
-            {/* Quantity in Pieces */}
+            {/* Quantity in Stock */}
             <div className="space-y-2">
               <Label htmlFor="opening_stock" className="text-sm font-semibold text-foreground">
-                Quantity in Stock <span className="text-destructive font-bold">*</span>
+                {t('products.quantityInStock', 'Quantity in Stock')} <span className="text-destructive font-bold">*</span>
               </Label>
               <div className="flex rounded-lg border border-border bg-background focus-within:ring-2 focus-within:ring-primary focus-within:border-primary overflow-hidden">
                 <Input
@@ -852,7 +848,7 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
             {/* Minimum Stock Level */}
             <div className="space-y-2">
               <Label htmlFor="min_stock" className="text-sm font-semibold text-foreground">
-                Minimum Stock Level Alert
+                {t('products.minStockAlert', 'Minimum Stock Level Alert')}
               </Label>
               <div className="flex rounded-lg border border-border bg-background focus-within:ring-2 focus-within:ring-primary overflow-hidden">
                 <Input
@@ -883,7 +879,7 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
             onClick={() => router.back()}
             className="px-6 font-semibold border-border hover:bg-muted"
           >
-            Cancel
+            {t('common.cancel', 'Cancel')}
           </Button>
           <Button
             type="submit"
@@ -892,9 +888,9 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
             className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold px-8 h-12 text-base shadow-md transition-all active:scale-95"
           >
             {isSubmitting ? (
-              <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Saving Product...</>
+              <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> {t('common.saving', 'Saving Product...')}</>
             ) : (
-              <><Check className="mr-2 h-5 w-5 stroke-[3]" /> {mode === 'create' ? 'SAVE PRODUCT' : 'UPDATE PRODUCT'}</>
+              <><Check className="mr-2 h-5 w-5 stroke-[3]" /> {mode === 'create' ? t('products.createProduct', 'SAVE PRODUCT') : t('products.updateProduct', 'UPDATE PRODUCT')}</>
             )}
           </Button>
         </div>

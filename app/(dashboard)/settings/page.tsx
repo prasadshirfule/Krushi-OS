@@ -17,6 +17,7 @@ import { isValidUpiId, normalizeUpiId } from "@/lib/validations";
 import { createClient } from "@/lib/supabase/client";
 import { InvoiceFormatSelector } from "@/components/invoice/invoice-format-selector";
 import { InvoicePrintFormat } from "@/components/invoice/invoice-renderer";
+import { useLanguage } from "@/lib/i18n";
 
 const DEFAULTS = {
   invoice: {
@@ -82,6 +83,7 @@ export default function SettingsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialTab = searchParams.get('tab') || 'shop';
+  const { t, language, setLanguage } = useLanguage();
 
   const [activeTab, setActiveTab] = useState(initialTab);
   const [isSaving, setIsSaving] = useState(false);
@@ -895,6 +897,25 @@ export default function SettingsPage() {
                   <SelectItem value="Pesticide Dealer & Retailer">Pesticide Dealer & Retailer</SelectItem>
                   <SelectItem value="Farmer Producer Company (FPC / FPO)">Farmer Producer Company (FPC / FPO)</SelectItem>
                   <SelectItem value="General Farm Machinery & Input Store">General Farm Machinery & Input Store</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Language Preference */}
+            <div className="space-y-2 p-3.5 rounded-lg border bg-muted/30">
+              <Label className="text-sm font-semibold">{t('settings.language', 'Language / भाषा')}</Label>
+              <p className="text-xs text-muted-foreground">{t('settings.chooseLanguage', 'Choose Application Language')}</p>
+              <Select
+                value={language}
+                onValueChange={(val) => setLanguage(val as any)}
+              >
+                <SelectTrigger className="h-10 font-medium">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="en">English</SelectItem>
+                  <SelectItem value="mr">मराठी (Marathi)</SelectItem>
+                  <SelectItem value="hi">हिन्दी (Hindi)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
