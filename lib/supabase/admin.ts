@@ -13,7 +13,9 @@ export function createServerAdminClient() {
     process.env.SUPABASE_SERVICE_ROLE_KEY ||
     process.env.SUPABASE_SERVICE_KEY ||
     process.env.SUPABASE_SECRET_KEY ||
-    process.env.SERVICE_ROLE_KEY;
+    process.env.SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_ADMIN_KEY ||
+    process.env.SUPABASE_ROLE_KEY;
 
   if (!url || url.includes('placeholder')) {
     return null;

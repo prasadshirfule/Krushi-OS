@@ -315,6 +315,15 @@ export interface PortalAuthVerificationResult {
   authorized: boolean;
   portal: 'customer' | 'shopkeeper';
   error?: string;
+  reason?: string;
+  diagnostics?: {
+    admin_client_available: boolean;
+    customer_account_exists: boolean;
+    public_user_exists: boolean;
+    shop_exists: boolean;
+    role_exists: boolean;
+    reason: string;
+  };
 }
 
 /**
@@ -331,12 +340,25 @@ export async function verifyPortalAuthorizationAction(
     const supabase = await createServerSupabaseClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
+    const hasAdminClient = !!createServerAdminClient();
+    console.log(`[AUTH TRACE] admin_client_available=${hasAdminClient}`);
+
     if (authError || !user) {
+      console.warn('[AUTH TRACE] auth_user=false reason=' + (authError?.message || 'session_not_found'));
       return {
         success: false,
         authorized: false,
         portal: targetPortal,
         error: GENERIC_LOGIN_ERROR,
+        reason: 'auth_user_missing: ' + (authError?.message || 'session_not_found'),
+        diagnostics: {
+          admin_client_available: hasAdminClient,
+          customer_account_exists: false,
+          public_user_exists: false,
+          shop_exists: false,
+          role_exists: false,
+          reason: 'auth_user_missing',
+        },
       };
     }
 
@@ -394,6 +416,15 @@ export async function verifyPortalAuthorizationAction(
           authorized: false,
           portal: targetPortal,
           error: GENERIC_LOGIN_ERROR,
+          reason: 'account_not_authorized_for_customer_portal',
+          diagnostics: {
+            admin_client_available: hasAdminClient,
+            customer_account_exists: !!customerAccount,
+            public_user_exists: !!staffUser,
+            shop_exists: !!staffUser?.shop_id,
+            role_exists: true,
+            reason: 'account_not_authorized_for_customer_portal',
+          },
         };
       }
 
@@ -408,9 +439,24 @@ export async function verifyPortalAuthorizationAction(
         }
       }
 
-      return { success: true, authorized: true, portal: 'customer' };
+      return {
+        success: true,
+        authorized: true,
+        portal: 'customer',
+        diagnostics: {
+          admin_client_available: hasAdminClient,
+          customer_account_exists: !!customerAccount,
+          public_user_exists: !!staffUser,
+          shop_exists: !!staffUser?.shop_id,
+          role_exists: true,
+          reason: 'authorized',
+        },
+      };
     } else {
-      // Shopkeeper Portal: Must NOT be a customer account
+      // --- SHOPKEEPER PORTAL AUTHORIZATION & TRACE ---
+      console.log('[AUTH TRACE] portal=shopkeeper authorization_started=true');
+
+      // Check customer accounts
       const isCustomerRole = user.user_metadata?.role === 'customer';
       const { data: customerAccount } = await adminClient
         .from('customer_accounts')
@@ -418,31 +464,64 @@ export async function verifyPortalAuthorizationAction(
         .eq('auth_user_id', user.id)
         .maybeSingle();
 
-      if (isCustomerRole || customerAccount) {
-        console.warn('[verifyPortalAuthorizationAction] Customer account rejected for shopkeeper portal:', {
-          userId: user.id,
-          isCustomerRole,
-          hasCustomerAccount: !!customerAccount,
-        });
+      const customerAccountExists = !!customerAccount;
+
+      // Check public.users
+      let { data: staffUser, error: staffErr } = await adminClient
+        .from('users')
+        .select('id, shop_id, is_active, role_id')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      let publicUserExists = !!staffUser;
+
+      // Check public.shops (if staff has shop_id)
+      let shopExists = false;
+      if (staffUser?.shop_id) {
+        const { data: shopRow } = await adminClient
+          .from('shops')
+          .select('id')
+          .eq('id', staffUser.shop_id)
+          .maybeSingle();
+        shopExists = !!shopRow;
+      }
+
+      // Check roles
+      const { data: adminRole } = await adminClient
+        .from('roles')
+        .select('id')
+        .eq('name', 'Admin')
+        .maybeSingle();
+
+      const roleExists = !!adminRole;
+
+      console.log(`[AUTH TRACE] customer_account_exists=${customerAccountExists} public_user_exists=${publicUserExists} shop_exists=${shopExists} role_exists=${roleExists}`);
+
+      // If user is explicitly a customer account and has NO shopkeeper user profile:
+      if (!publicUserExists && (isCustomerRole || customerAccountExists)) {
+        console.warn('[AUTH TRACE] authorization_result=false reason=customer_account_rejected_from_shopkeeper');
         await supabase.auth.signOut();
         return {
           success: false,
           authorized: false,
-          portal: targetPortal,
+          portal: 'shopkeeper',
           error: GENERIC_LOGIN_ERROR,
+          reason: 'customer_account_rejected_from_shopkeeper',
+          diagnostics: {
+            admin_client_available: hasAdminClient,
+            customer_account_exists: customerAccountExists,
+            public_user_exists: publicUserExists,
+            shop_exists: shopExists,
+            role_exists: roleExists,
+            reason: 'customer_account_rejected_from_shopkeeper',
+          },
         };
       }
 
-      // Check if public.users record exists
-      let { data: staffUser } = await adminClient
-        .from('users')
-        .select('id, shop_id, is_active')
-        .eq('id', user.id)
-        .maybeSingle();
-
-      // If staff record does not exist, safely provision it for this valid shopkeeper!
-      if (!staffUser) {
-        console.log('[AUTH DEBUG] portal=shopkeeper auth_user_exists=true public_user_exists=false customer_account_exists=false attempting_provisioning');
+      // If public.users record does not exist, provision shop and user row
+      let provisioningError: string | null = null;
+      if (!publicUserExists || !shopExists) {
+        console.log('[AUTH TRACE] public_user_missing, attempting provisioning via ensureUserAndShop');
         try {
           const provisioned = await ensureUserAndShop(user);
           if (provisioned?.shop_id) {
@@ -450,26 +529,51 @@ export async function verifyPortalAuthorizationAction(
               id: provisioned.id,
               shop_id: provisioned.shop_id,
               is_active: provisioned.is_active ?? true,
+              role_id: provisioned.role_id,
             };
-            console.log('[AUTH DEBUG] portal=shopkeeper provisioning_succeeded shop_id=' + provisioned.shop_id);
+            publicUserExists = true;
+            shopExists = true;
+            console.log('[AUTH TRACE] provisioning_succeeded=true shop_id=' + provisioned.shop_id);
           }
         } catch (provErr: any) {
-          console.error('[AUTH DEBUG] portal=shopkeeper provisioning_failed:', provErr?.message || provErr);
+          provisioningError = provErr?.message || String(provErr);
+          console.error('[AUTH TRACE] provisioning_failed error=' + provisioningError);
         }
       }
 
       if (!staffUser || !staffUser.shop_id || staffUser.is_active === false) {
-        console.warn('[AUTH DEBUG] portal=shopkeeper auth_user_exists=true public_user_exists=' + !!staffUser + ' authorized=false reason=missing_or_inactive_staff_record');
+        const failReason = !hasAdminClient && !publicUserExists
+          ? 'admin_client_unavailable_provisioning_blocked'
+          : provisioningError
+          ? `provisioning_failed: ${provisioningError}`
+          : !publicUserExists
+          ? 'public_user_missing'
+          : !shopExists
+          ? 'shop_missing'
+          : staffUser?.is_active === false
+          ? 'staff_inactive'
+          : 'missing_or_invalid_shopkeeper_record';
+
+        console.warn('[AUTH TRACE] authorization_result=false reason=' + failReason);
         await supabase.auth.signOut();
         return {
           success: false,
           authorized: false,
-          portal: targetPortal,
+          portal: 'shopkeeper',
           error: GENERIC_LOGIN_ERROR,
+          reason: failReason,
+          diagnostics: {
+            admin_client_available: hasAdminClient,
+            customer_account_exists: customerAccountExists,
+            public_user_exists: publicUserExists,
+            shop_exists: shopExists,
+            role_exists: roleExists,
+            reason: failReason,
+          },
         };
       }
 
-      // Sync shopkeeper role in metadata if needed
+      // Ensure shopkeeper role in metadata
       if (user.user_metadata?.role !== 'shopkeeper' && createServerAdminClient()) {
         try {
           await createServerAdminClient()!.auth.admin.updateUserById(user.id, {
@@ -480,19 +584,41 @@ export async function verifyPortalAuthorizationAction(
         }
       }
 
-      console.log('[AUTH DEBUG] portal=shopkeeper auth_user_exists=true public_user_exists=true authorized=true');
-      return { success: true, authorized: true, portal: 'shopkeeper' };
+      console.log('[AUTH TRACE] authorization_result=true reason=authorized');
+      return {
+        success: true,
+        authorized: true,
+        portal: 'shopkeeper',
+        diagnostics: {
+          admin_client_available: hasAdminClient,
+          customer_account_exists: customerAccountExists,
+          public_user_exists: publicUserExists,
+          shop_exists: shopExists,
+          role_exists: roleExists,
+          reason: 'authorized',
+        },
+      };
     }
   } catch (err: any) {
-    console.error('Error verifying portal authorization:', err);
+    console.error('[AUTH TRACE] Error in verifyPortalAuthorizationAction:', err);
     return {
       success: false,
       authorized: false,
       portal: targetPortal,
       error: GENERIC_LOGIN_ERROR,
+      reason: err?.message || 'unexpected_exception',
+      diagnostics: {
+        admin_client_available: !!createServerAdminClient(),
+        customer_account_exists: false,
+        public_user_exists: false,
+        shop_exists: false,
+        role_exists: false,
+        reason: err?.message || 'unexpected_exception',
+      },
     };
   }
 }
+
 
 /**
  * Server Action to immediately provision a newly registered shopkeeper account.

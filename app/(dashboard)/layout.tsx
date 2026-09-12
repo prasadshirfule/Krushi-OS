@@ -14,7 +14,9 @@ export default async function DashboardLayout({
 }) {
   let user;
   try {
+    console.log('[AUTH TRACE] dashboard_layout_auth_started=true');
     user = await getAuthAndPermissions();
+    console.log('[AUTH TRACE] dashboard_layout_auth_success=true shop_id=' + user.shop_id);
   } catch (error: any) {
     if (
       error?.digest?.startsWith('NEXT_REDIRECT') ||
@@ -25,6 +27,7 @@ export default async function DashboardLayout({
       throw error;
     }
     const errMsg = error instanceof Error ? error.message : String(error || 'auth_failed');
+    console.error("[AUTH TRACE] dashboard_layout_auth_failed reason=" + errMsg);
     const errCode = error?.code || error?.status || 'AUTH_ERR';
     console.error("DashboardLayout auth error [DIAGNOSTIC]:", {
       message: errMsg,

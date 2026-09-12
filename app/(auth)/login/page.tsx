@@ -91,7 +91,7 @@ function LoginFormContent() {
       });
 
       if (error) {
-        console.warn('Shopkeeper login failed:', error.message);
+        console.warn('[AUTH TRACE] signIn=failed error=' + error.message);
         if (error.message?.toLowerCase().includes('email not confirmed')) {
           toast.error('Please check your email and verify your account before logging in.');
         } else {
@@ -101,24 +101,39 @@ function LoginFormContent() {
         return;
       }
 
+      console.log('[AUTH TRACE] signIn=success session=true user=true');
+      console.log('[AUTH TRACE] portal=shopkeeper authorization_started=true');
+
       if (data?.session) {
         // Enforce portal validation
         const verifyRes = await verifyPortalAuthorizationAction('shopkeeper');
+
+        console.log(`[AUTH TRACE] admin_client_available=${verifyRes.diagnostics?.admin_client_available}`);
+        console.log(`[AUTH TRACE] customer_account_exists=${verifyRes.diagnostics?.customer_account_exists} public_user_exists=${verifyRes.diagnostics?.public_user_exists} shop_exists=${verifyRes.diagnostics?.shop_exists} role_exists=${verifyRes.diagnostics?.role_exists}`);
+        console.log(`[AUTH TRACE] authorization_result=${verifyRes.authorized} reason=${verifyRes.reason || verifyRes.error || (verifyRes.authorized ? 'authorized' : 'unknown')}`);
+
         if (!verifyRes.authorized) {
+          console.error('[AUTH TRACE] Post-login authorization failure details:', {
+            reason: verifyRes.reason,
+            error: verifyRes.error,
+            diagnostics: verifyRes.diagnostics,
+          });
           await supabase.auth.signOut();
           toast.error('Invalid email or password.');
           setIsShopkeeperLoading(false);
           return;
         }
 
+        console.log('[AUTH TRACE] redirect=/dashboard');
         toast.success('Signed in successfully! Redirecting...');
         window.location.href = '/dashboard';
       } else {
+        console.error('[AUTH TRACE] signIn=failed session=false user=false');
         toast.error('Invalid email or password.');
         setIsShopkeeperLoading(false);
       }
     } catch (err: any) {
-      console.error('Shopkeeper login error:', err);
+      console.error('[AUTH TRACE] Post-login unexpected exception:', err);
       toast.error('Invalid email or password.');
       setIsShopkeeperLoading(false);
     }
