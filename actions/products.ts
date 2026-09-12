@@ -136,7 +136,7 @@ export async function createBrandAction(data: { name: string, manufacturer?: str
   }
 }
 
-export async function getRecentBillingProductsAction(limit: number = 20): Promise<ActionResult<any>> {
+export async function getRecentBillingProductsAction(limit: number = 4): Promise<ActionResult<any>> {
   try {
     const userData = await getAuthAndPermissions('products.view');
     const result = await productsService.getRecentBillingProducts(userData.shop_id, limit);

@@ -697,10 +697,10 @@ export async function getBrands(shopId: string) {
 }
 
 /**
- * Fetches the most recently sold / used products for a shop (limit 15–20).
+ * Fetches the most recently sold / used products for a shop (limit 4).
  * Used by Billing product selector to show fast relevant options before searching.
  */
-export async function getRecentBillingProducts(shopId: string, limit: number = 20): Promise<ProductWithRelations[]> {
+export async function getRecentBillingProducts(shopId: string, limit: number = 4): Promise<ProductWithRelations[]> {
   if (isPlaceholderMode()) {
     try {
       const demoSales = getStoredDemoSales((s: any) => s);

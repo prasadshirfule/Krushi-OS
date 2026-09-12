@@ -5,7 +5,7 @@ import { searchProductsAction, getCategoriesAction, getRecentBillingProductsActi
 import { getBatchesAction } from '@/actions/inventory';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Search, Plus, Package, AlertTriangle, Barcode, X, Sparkles, Check, Zap } from 'lucide-react';
+import { Search, Plus, Package, AlertTriangle, Barcode, X, Sparkles, Check } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { formatProductPackDisplay, formatProductNameWithSize } from '@/lib/validations';
 import { useDebounce } from '@/hooks/use-debounce';
@@ -68,7 +68,7 @@ function ProductSearchComponent({ onAddToCart }: ProductSearchProps) {
   // Load products (demo store or real Supabase)
   const loadProducts = useCallback(async () => {
     if (isClientDemoMode()) {
-      const demoRecent = getRecentDemoBillingProductsClient(20);
+      const demoRecent = getRecentDemoBillingProductsClient(4);
       setRecentProducts(demoRecent);
       const demoList = getDemoProductsClient();
       setAllProducts(demoList);
@@ -78,7 +78,7 @@ function ProductSearchComponent({ onAddToCart }: ProductSearchProps) {
 
     try {
       const [recentRes, allRes] = await Promise.allSettled([
-        getRecentBillingProductsAction(20),
+        getRecentBillingProductsAction(4),
         searchProductsAction('')
       ]);
       if (recentRes.status === 'fulfilled' && recentRes.value.success && Array.isArray(recentRes.value.data)) {
@@ -184,11 +184,18 @@ function ProductSearchComponent({ onAddToCart }: ProductSearchProps) {
   // Filter products by selected category and active search
   const displayedProducts = useMemo(() => {
     const isSearching = Boolean(query.trim());
+    const isCategoryFiltered = selectedCategory !== 'all';
+
+    // When search is empty and on 'All Products', show ONLY 3–4 recent/frequent products directly
+    if (!isSearching && !isCategoryFiltered) {
+      return (recentProducts.length > 0 ? recentProducts : allProducts).slice(0, 4);
+    }
+
     const baseList = isSearching
       ? (searchResults !== null ? searchResults : allProducts)
-      : (recentProducts.length > 0 ? recentProducts : allProducts.slice(0, 20));
+      : allProducts;
 
-    if (selectedCategory === 'all') {
+    if (!isCategoryFiltered) {
       return baseList;
     }
 
@@ -356,14 +363,6 @@ function ProductSearchComponent({ onAddToCart }: ProductSearchProps) {
           );
         })}
       </div>
-
-      {/* ─── Frequently / Recently Sold Products Badge ─── */}
-      {!query.trim() && displayedProducts.length > 0 && (
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 text-xs font-semibold w-fit animate-in fade-in">
-          <Zap className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 fill-amber-500/30 shrink-0" />
-          <span>⚡ {t('billing.recentProducts', 'Frequently / Recently Sold Products')}</span>
-        </div>
-      )}
 
       {/* ─── Products Grid ─── */}
       {loading ? (

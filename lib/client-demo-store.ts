@@ -957,7 +957,7 @@ export function getDemoProductsClient(): any[] {
   return initial;
 }
 
-export function getRecentDemoBillingProductsClient(limit: number = 20): any[] {
+export function getRecentDemoBillingProductsClient(limit: number = 4): any[] {
   const sales = getDemoSalesClient();
   const allProds = getDemoProductsClient();
   const usedIds = new Set<string>();
