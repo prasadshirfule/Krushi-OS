@@ -1,6 +1,6 @@
 import type { jsPDF } from 'jspdf';
 import { ShopDetails, formatShopAddress } from '@/lib/shop-details';
-import { formatProductNameWithSize } from '@/lib/validations';
+import { formatProductNameWithSize, formatProductPackDisplay } from '@/lib/validations';
 
 export interface ReportFilterMeta {
   reportType: 'sales' | 'inventory' | 'financial' | 'customer' | 'supplier' | 'product_sales';
@@ -1364,3 +1364,297 @@ export function printReportDocument(
     }, 250);
   };
 }
+
+/**
+ * Export Category Product Report as an A4 PDF with clean formatting.
+ * Header: Category Report – [Category Name]
+ */
+export async function exportCategoryProductReportPDF(
+  category: { id: string; name: string; description?: string | null },
+  products: any[],
+  shop: ShopDetails
+) {
+  const { jsPDF } = await import('jspdf');
+  const autoTableModule = await import('jspdf-autotable');
+  const autoTableFn = (autoTableModule as any).default || autoTableModule;
+
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'a4'
+  });
+
+  const pageWidth = 210;
+  const pageHeight = 297;
+  const dateStr = new Date().toLocaleString('en-IN');
+  const shopAddr = formatShopAddress(shop);
+
+  let currentY = 14;
+
+  // Header Section
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(14);
+  doc.setTextColor(22, 101, 52); // Krushi green
+  const shopTitle = (shop.shopName || 'KRUSHI OS STORE').toUpperCase();
+  doc.text(shopTitle, pageWidth / 2, currentY, { align: 'center' });
+  currentY += 4.5;
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(71, 85, 105);
+
+  const subHeaderLines: string[] = [];
+  if (shop.ownerName) subHeaderLines.push(`Prop: ${shop.ownerName}`);
+  if (shopAddr) subHeaderLines.push(shopAddr);
+  if (shop.contact1) subHeaderLines.push(`Phone: ${shop.contact1}`);
+  if (shop.gstNumber) subHeaderLines.push(`GSTIN: ${shop.gstNumber}`);
+  if (shop.licenseNumber) subHeaderLines.push(`Lic: ${shop.licenseNumber}`);
+
+  if (subHeaderLines.length > 0) {
+    const line1 = subHeaderLines.slice(0, 2).join(' | ');
+    doc.text(line1, pageWidth / 2, currentY, { align: 'center' });
+    currentY += 3.5;
+    if (subHeaderLines.length > 2) {
+      const line2 = subHeaderLines.slice(2).join(' | ');
+      doc.text(line2, pageWidth / 2, currentY, { align: 'center' });
+      currentY += 3.5;
+    }
+  }
+
+  // Divider Line
+  doc.setDrawColor(203, 213, 225);
+  doc.setLineWidth(0.4);
+  doc.line(14, currentY, pageWidth - 14, currentY);
+  currentY += 4.5;
+
+  // Report Title & Filter Bar
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(15, 23, 42);
+  const catTitle = `CATEGORY REPORT – ${category.name.toUpperCase()}`;
+  doc.text(catTitle, 14, currentY);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(100, 116, 139);
+  doc.text(`Generated: ${dateStr}`, pageWidth - 14, currentY, { align: 'right' });
+  currentY += 4;
+
+  if (category.description) {
+    doc.text(`Description: ${category.description}`, 14, currentY);
+    currentY += 4.5;
+  } else {
+    currentY += 2;
+  }
+
+  // Summary box
+  const totalItems = products.length;
+  const inStockCount = products.filter(p => Number(p.current_stock ?? p.stock_quantity ?? p.stock ?? 0) > 0).length;
+
+  doc.setFillColor(248, 250, 252);
+  doc.roundedRect(14, currentY, pageWidth - 28, 12, 1.5, 1.5, 'F');
+  doc.setDrawColor(226, 232, 240);
+  doc.roundedRect(14, currentY, pageWidth - 28, 12, 1.5, 1.5, 'S');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(71, 85, 105);
+  doc.text('CATEGORY:', 18, currentY + 7.5);
+  doc.setTextColor(22, 101, 52);
+  doc.text(category.name.toUpperCase(), 38, currentY + 7.5);
+
+  doc.setTextColor(71, 85, 105);
+  doc.text('TOTAL PRODUCTS:', 95, currentY + 7.5);
+  doc.setTextColor(15, 23, 42);
+  doc.text(String(totalItems), 126, currentY + 7.5);
+
+  doc.setTextColor(71, 85, 105);
+  doc.text('IN STOCK:', 148, currentY + 7.5);
+  doc.setTextColor(22, 101, 52);
+  doc.text(String(inStockCount), 166, currentY + 7.5);
+
+  currentY += 16;
+
+  // Table
+  const tableHeaders = [
+    { content: '#', styles: { halign: 'center' as const } },
+    { content: 'Product Name', styles: { halign: 'left' as const } },
+    { content: 'Company / Manufacturer', styles: { halign: 'left' as const } },
+    { content: 'Size / Unit', styles: { halign: 'center' as const } },
+    { content: 'Selling Price (Rs.)', styles: { halign: 'right' as const } },
+  ];
+
+  const tableBody = products.map((p: any, idx: number) => {
+    const mfg = p.manufacturer || p.brand?.name || p.brand?.manufacturer || '-';
+    const size = formatProductPackDisplay(p) || p.pack_size || p.unit || '-';
+    const price = Number(p.selling_price ?? p.price ?? 0);
+    return [
+      String(idx + 1),
+      (p.name || '').toUpperCase(),
+      mfg,
+      size,
+      formatPDFNumber(price),
+    ];
+  });
+
+  if (tableBody.length === 0) {
+    tableBody.push(['-', 'No products registered under this category yet.', '-', '-', '-']);
+  }
+
+  autoTableFn(doc, {
+    startY: currentY,
+    head: [tableHeaders],
+    body: tableBody,
+    theme: 'grid',
+    styles: { fontSize: 8, cellPadding: 2.5, textColor: [30, 41, 59], overflow: 'linebreak' },
+    headStyles: { fillColor: [22, 101, 52], textColor: [255, 255, 255], fontStyle: 'bold' },
+    alternateRowStyles: { fillColor: [248, 250, 252] },
+    columnStyles: {
+      0: { cellWidth: 10, halign: 'center' },
+      1: { cellWidth: 65, halign: 'left', fontStyle: 'bold' },
+      2: { cellWidth: 50, halign: 'left' },
+      3: { cellWidth: 27, halign: 'center' },
+      4: { cellWidth: 30, halign: 'right', fontStyle: 'bold' },
+    },
+    margin: { left: 14, right: 14, bottom: 15 },
+  });
+
+  // Footer on all pages
+  const totalPages = (doc as any).internal.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(148, 163, 184);
+    doc.line(14, pageHeight - 11, pageWidth - 14, pageHeight - 11);
+    doc.text('KRUSHI OS  •  Authorized Category Inventory Report', 14, pageHeight - 7);
+    doc.text(`Page ${i} of ${totalPages}`, pageWidth - 14, pageHeight - 7, { align: 'right' });
+  }
+
+  const cleanName = category.name.toLowerCase().replace(/[^a-z0-9]/g, '_');
+  const dateStamp = new Date().toISOString().split('T')[0];
+  doc.save(`Category_Report_${cleanName}_${dateStamp}.pdf`);
+}
+
+/**
+ * Print Category Product Report with clean A4 layout.
+ */
+export function printCategoryProductReport(
+  category: { id: string; name: string; description?: string | null },
+  products: any[],
+  shop: ShopDetails
+) {
+  const dateStr = new Date().toLocaleString('en-IN');
+  const shopAddr = formatShopAddress(shop);
+
+  const rowsHtml = products.map((p: any, idx: number) => {
+    const mfg = p.manufacturer || p.brand?.name || p.brand?.manufacturer || '-';
+    const size = formatProductPackDisplay(p) || p.pack_size || p.unit || '-';
+    const price = Number(p.selling_price ?? p.price ?? 0);
+    return `
+      <tr>
+        <td style="text-align: center; width: 35px;">${idx + 1}</td>
+        <td style="font-weight: 600;">${(p.name || '').toUpperCase()}</td>
+        <td>${mfg}</td>
+        <td style="text-align: center;">${size}</td>
+        <td style="text-align: right; font-weight: 600;">${formatCurrencyValue(price)}</td>
+      </tr>
+    `;
+  }).join('');
+
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>Category Report - ${category.name}</title>
+      <style>
+        @page { size: A4 portrait; margin: 12mm 14mm; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; font-size: 11px; color: #1e293b; margin: 0; padding: 0; }
+        .header { text-align: center; border-bottom: 1.5px solid #cbd5e1; padding-bottom: 8px; margin-bottom: 12px; }
+        .shop-name { font-size: 17px; font-weight: 800; color: #166534; text-transform: uppercase; margin-bottom: 3px; }
+        .shop-sub { font-size: 10px; color: #475569; }
+        .report-title-bar { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 12px; }
+        .report-title { font-size: 14px; font-weight: 700; color: #0f172a; text-transform: uppercase; }
+        .report-meta { font-size: 9px; color: #64748b; }
+        .summary-bar { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 12px; display: flex; gap: 24px; margin-bottom: 14px; font-size: 10px; font-weight: 600; }
+        table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+        th { background: #166534; color: #ffffff; font-weight: 700; text-align: left; padding: 6px 8px; font-size: 10px; border: 1px solid #166534; }
+        td { padding: 5px 8px; border: 1px solid #e2e8f0; font-size: 10px; }
+        tr:nth-child(even) { background-color: #f8fafc; }
+        .footer { margin-top: 20px; border-top: 1px solid #cbd5e1; padding-top: 6px; display: flex; justify-content: space-between; font-size: 9px; color: #94a3b8; }
+        @media print { body { print-color-adjust: exact; -webkit-print-color-adjust: exact; } }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <div class="shop-name">${(shop.shopName || 'KRUSHI OS STORE').toUpperCase()}</div>
+        <div class="shop-sub">
+          ${[shop.ownerName ? `Prop: ${shop.ownerName}` : '', shopAddr, shop.contact1 ? `Phone: ${shop.contact1}` : '', shop.gstNumber ? `GSTIN: ${shop.gstNumber}` : ''].filter(Boolean).join(' | ')}
+        </div>
+      </div>
+      <div class="report-title-bar">
+        <div>
+          <div class="report-title">Category Report – ${category.name}</div>
+          ${category.description ? `<div style="font-size: 10px; color: #64748b; margin-top: 2px;">${category.description}</div>` : ''}
+        </div>
+        <div class="report-meta">
+          <div>Generated: ${dateStr}</div>
+        </div>
+      </div>
+      <div class="summary-bar">
+        <div>Total Products: <span style="color: #166534;">${products.length}</span></div>
+        <div>In Stock: <span style="color: #166534;">${products.filter(p => Number(p.current_stock ?? p.stock_quantity ?? p.stock ?? 0) > 0).length}</span></div>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th style="text-align: center; width: 35px;">#</th>
+            <th>Product Name</th>
+            <th>Company / Manufacturer</th>
+            <th style="text-align: center;">Size / Unit</th>
+            <th style="text-align: right;">Selling Price</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rowsHtml || '<tr><td colspan="5" style="text-align: center; padding: 16px;">No products in this category.</td></tr>'}
+        </tbody>
+      </table>
+      <div class="footer">
+        <div>KRUSHI OS &bull; Category Inventory Report</div>
+        <div>Authorized System Generated Report</div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  const iframe = document.createElement('iframe');
+  iframe.style.position = 'fixed';
+  iframe.style.right = '0';
+  iframe.style.bottom = '0';
+  iframe.style.width = '0';
+  iframe.style.height = '0';
+  iframe.style.border = '0';
+  document.body.appendChild(iframe);
+
+  const docIframe = iframe.contentWindow?.document;
+  if (!docIframe) {
+    window.print();
+    return;
+  }
+
+  docIframe.open();
+  docIframe.write(htmlContent);
+  docIframe.close();
+
+  iframe.onload = () => {
+    setTimeout(() => {
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+      setTimeout(() => {
+        document.body.removeChild(iframe);
+      }, 2000);
+    }, 250);
+  };
+}
+

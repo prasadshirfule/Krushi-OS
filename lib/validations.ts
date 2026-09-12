@@ -315,12 +315,21 @@ export const productSchema = z.object({
   gst_rate: z.coerce.number().min(0).max(100),
   hsn_code: z.string().optional().nullable(),
   unit: z.string().optional().default('Piece'),
-  product_size_value: z.coerce.number().min(0).optional().nullable(),
+  product_size_value: z.preprocess(
+    (val) => (val === '' || val === null || val === undefined ? undefined : val),
+    z.coerce.number().min(0.001, 'Product size must be greater than 0').optional().nullable()
+  ),
   product_size_unit: z.string().optional().nullable(),
   pack_size: z.string().optional().nullable(),
-  min_stock: z.coerce.number().min(0).optional().nullable().default(5),
+  min_stock: z.preprocess(
+    (val) => (val === '' || val === null || val === undefined ? undefined : val),
+    z.coerce.number({ invalid_type_error: 'Minimum stock alert level is required' }).min(0, 'Minimum stock cannot be negative')
+  ),
   max_stock: z.coerce.number().min(0).optional().nullable(),
-  opening_stock: z.coerce.number({ invalid_type_error: 'Quantity is required' }).min(0.01, 'Quantity must be greater than 0'),
+  opening_stock: z.preprocess(
+    (val) => (val === '' || val === null || val === undefined ? undefined : val),
+    z.coerce.number({ invalid_type_error: 'Quantity is required' }).min(0.01, 'Quantity must be greater than 0')
+  ),
   batch_tracking: z.boolean().optional().default(true),
   expiry_tracking: z.boolean().optional().default(true),
   batch_number: z.string().optional().nullable().or(z.literal('')),

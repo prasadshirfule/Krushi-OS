@@ -161,6 +161,64 @@ export function calculateTotalOutstanding(customers: any[]): number {
 }
 
 /**
+ * Calculate customer credit/udhar outstanding created today in IST.
+ * Evaluates completed/pending sales from today that are CREDIT or PARTIAL:
+ * - CREDIT: entire sale total
+ * - PARTIAL: remaining unpaid balance (from partial_payment.remaining or total - total_paid)
+ */
+export function calculateTodayOutstanding(sales: any[], referenceDate: Date = new Date()) {
+  const todaySales = (sales || []).filter(s => {
+    if (s.status?.toUpperCase() === 'CANCELLED') return false;
+    const dateVal = s.sale_date || s.created_at;
+    return isTodayIST(dateVal, referenceDate);
+  });
+
+  let totalOutstanding = 0;
+  let creditBillsCount = 0;
+
+  for (const s of todaySales) {
+    const payStatus = (s.payment_status || '').toString().toUpperCase().trim();
+    const payMethod = (s.payment_method || s.payment_mode || '').toString().toUpperCase().trim();
+    const saleTotal = Number(s.total_amount ?? s.grand_total ?? s.payableAmount ?? s.totalAmount ?? 0);
+
+    const isCredit = payStatus === 'CREDIT' || payStatus === 'UNPAID' || payMethod === 'CREDIT' || payMethod === 'UDHAAR' || payMethod === 'DUE';
+    
+    // Check partial payment
+    const partialObj = s.partial_payment || s.partialPayment || null;
+    const isPartial = payStatus === 'PARTIAL' || payMethod === 'PARTIAL' || Boolean(partialObj);
+
+    if (isCredit) {
+      totalOutstanding += saleTotal;
+      creditBillsCount++;
+    } else if (isPartial) {
+      let remaining = 0;
+      if (partialObj && partialObj.remaining !== undefined && partialObj.remaining !== null) {
+        remaining = Math.max(0, Number(partialObj.remaining));
+      } else if (partialObj) {
+        const cash = Number(partialObj.cash || 0);
+        const upi = Number(partialObj.upi || 0);
+        const bank = Number(partialObj.bank_transfer || partialObj.bankTransfer || 0);
+        const totalPaid = Number(partialObj.total_paid ?? partialObj.totalPaid ?? (cash + upi + bank));
+        remaining = Math.max(0, saleTotal - totalPaid);
+      } else {
+        const paidAmount = Number(s.paid_amount ?? s.amount_paid ?? 0);
+        remaining = Math.max(0, saleTotal - paidAmount);
+      }
+
+      if (remaining > 0) {
+        totalOutstanding += remaining;
+        creditBillsCount++;
+      }
+    }
+  }
+
+  return {
+    total: Math.round(totalOutstanding * 100) / 100,
+    count: creditBillsCount,
+  };
+}
+
+/**
  * Single authoritative source for Low Stock:
  * Calculates both the count for StatsCards and the product list for AlertsPanel.
  */

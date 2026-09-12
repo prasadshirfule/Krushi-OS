@@ -94,16 +94,23 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
 
   // Parse existing product size safely
   const parsedInitial = parseProductSize(initialData?.pack_size, initialData?.unit);
-  const initialSizeValue = initialData?.product_size_value !== undefined && initialData?.product_size_value !== null
-    ? (initialData.product_size_value === '' ? null : Number(initialData.product_size_value))
-    : parsedInitial.sizeValue;
+  const initialSizeValue = mode === 'create'
+    ? ('' as any)
+    : (initialData?.product_size_value !== undefined && initialData?.product_size_value !== null
+      ? (initialData.product_size_value === '' ? null : Number(initialData.product_size_value))
+      : parsedInitial.sizeValue);
   const initialSizeUnit = initialData?.product_size_unit || parsedInitial.sizeUnit || 'KG';
 
   const initialBatch = initialData?.batches?.[0];
   const initialBatchNumber = initialData?.batch_number || initialBatch?.batch_number || '';
   const rawInitialExpiry = initialData?.expiry_date || initialBatch?.expiry_date || initialBatch?.exp_date || '';
   const initialExpiryFormatted = formatToDDMMYYYY(rawInitialExpiry);
-  const initialStock = initialData?.current_stock ?? initialData?.stock_quantity ?? initialData?.opening_stock ?? initialBatch?.quantity_available ?? (mode === 'create' ? 10 : 0);
+  const initialStock = mode === 'create'
+    ? ('' as any)
+    : (initialData?.current_stock ?? initialData?.stock_quantity ?? initialData?.opening_stock ?? initialBatch?.quantity_available ?? 0);
+  const initialMinStock = mode === 'create'
+    ? ('' as any)
+    : (initialData?.min_stock ?? 5);
 
   // Form Setup
   const form = useForm<ProductInput>({
@@ -123,8 +130,8 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
       product_size_value: initialSizeValue,
       product_size_unit: initialSizeUnit,
       pack_size: initialData?.pack_size || (initialSizeValue ? `${initialSizeValue} ${initialSizeUnit}` : ''),
-      min_stock: initialData?.min_stock ?? 5,
-      opening_stock: Number(initialStock),
+      min_stock: initialMinStock,
+      opening_stock: initialStock,
       batch_tracking: true,
       expiry_tracking: true,
       batch_number: initialBatchNumber,
@@ -614,23 +621,23 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
                 <Label htmlFor="product_size_value" className="text-sm font-semibold text-foreground">
                   {t('products.productSize', 'Product Size')} <span className="text-destructive font-bold">*</span>
                 </Label>
-                <div className="flex rounded-lg border border-border bg-background focus-within:ring-2 focus-within:ring-primary focus-within:border-primary overflow-hidden h-11">
+                <div className="relative flex items-stretch rounded-lg border border-input bg-background focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary transition-all overflow-hidden h-11">
                   <Input
                     id="product_size_value"
                     type="number"
                     step="any"
                     min="0"
                     placeholder="e.g. 1"
-                    className="h-11 border-0 focus-visible:ring-0 focus-visible:ring-offset-0 rounded-none text-sm font-bold text-foreground px-3 flex-1 min-w-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    className="h-full border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 rounded-none text-sm font-semibold text-foreground px-3 flex-1 min-w-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     value={form.watch('product_size_value') ?? ''}
                     onChange={(e) => {
                       const val = e.target.value === '' ? null : Number(e.target.value);
-                      form.setValue('product_size_value', val, { shouldValidate: true });
+                      form.setValue('product_size_value', val as any, { shouldValidate: true });
                       const unit = form.getValues('product_size_unit') || 'KG';
                       form.setValue('pack_size', val ? `${val} ${unit}` : '', { shouldValidate: true });
                     }}
                   />
-                  <div className="w-[85px] shrink-0 border-l border-border bg-muted/20">
+                  <div className="h-full shrink-0 border-l border-border bg-muted/20 flex items-center">
                     <Select
                       value={form.watch('product_size_unit') || 'KG'}
                       onValueChange={(val) => {
@@ -641,12 +648,12 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
                         }
                       }}
                     >
-                      <SelectTrigger className="h-11 border-0 focus:ring-0 rounded-none bg-transparent font-bold text-foreground px-2 text-xs">
+                      <SelectTrigger className="h-full w-[80px] border-0 rounded-none bg-transparent hover:bg-muted/40 focus:ring-0 focus:ring-offset-0 px-2 text-xs font-semibold text-foreground shadow-none justify-between">
                         <SelectValue placeholder="Unit" />
                       </SelectTrigger>
                       <SelectContent className="max-h-64">
                         {PRODUCT_SIZE_UNITS.map((u) => (
-                          <SelectItem key={u.value} value={u.value} className="text-xs">
+                          <SelectItem key={u.value} value={u.value} className="text-xs font-medium">
                             {u.label}
                           </SelectItem>
                         ))}
@@ -831,7 +838,7 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
                   type="number"
                   step="1"
                   min="0"
-                  placeholder="10"
+                  placeholder="e.g. 10"
                   className="h-11 border-0 focus-visible:ring-0 focus-visible:ring-offset-0 rounded-none text-base font-bold text-foreground px-3.5 flex-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   {...form.register('opening_stock')}
                 />
@@ -848,14 +855,14 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
             {/* Minimum Stock Level */}
             <div className="space-y-2">
               <Label htmlFor="min_stock" className="text-sm font-semibold text-foreground">
-                {t('products.minStockAlert', 'Minimum Stock Level Alert')}
+                {t('products.minStockAlert', 'Minimum Stock Level Alert')} <span className="text-destructive font-bold">*</span>
               </Label>
               <div className="flex rounded-lg border border-border bg-background focus-within:ring-2 focus-within:ring-primary overflow-hidden">
                 <Input
                   id="min_stock"
                   type="number"
                   min="0"
-                  placeholder="5"
+                  placeholder="e.g. 5"
                   className="h-11 border-0 focus-visible:ring-0 focus-visible:ring-offset-0 rounded-none text-base px-3.5 flex-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   {...form.register('min_stock')}
                 />
@@ -863,6 +870,9 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
                   Pieces
                 </div>
               </div>
+              {form.formState.errors.min_stock && (
+                <p className="text-xs text-destructive font-medium">{form.formState.errors.min_stock.message}</p>
+              )}
               <p className="text-[11px] text-muted-foreground">Alerts when stock reaches or falls below this count</p>
             </div>
           </CardContent>

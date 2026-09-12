@@ -1,8 +1,9 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { CreateProductInput, UpdateProductInput, ProductWithRelations, ProductListResponse } from '@/types/products';
 import { MOCK_CATEGORIES, MOCK_PRODUCTS, MOCK_BRANDS } from '@/lib/mock-data';
-import { getStoredDemoProducts, saveStoredDemoProducts } from '@/lib/demo-storage';
+import { getStoredDemoProducts, saveStoredDemoProducts, getStoredDemoSales } from '@/lib/demo-storage';
 import { formatDDMMYYYYtoDB } from '@/lib/validations';
+import { DEFAULT_POPULAR_CATEGORIES, DEFAULT_POPULAR_BRANDS } from '@/lib/constants';
 
 const demoBrands: Array<{ id: string; name: string; manufacturer?: string | null; shop_id: string; is_active: boolean; created_at: string }> = [];
 
@@ -562,6 +563,28 @@ export async function getCategories(shopId: string) {
       console.error("Error fetching categories:", error);
       return [];
     }
+
+    // If shop has no categories in database, auto-seed popular categories with real UUIDs
+    if (!data || data.length === 0) {
+      try {
+        const toInsert = DEFAULT_POPULAR_CATEGORIES.map(c => ({
+          shop_id: shopId,
+          name: c.name.toUpperCase(),
+          description: c.description,
+          is_active: true,
+        }));
+        const { data: inserted } = await supabase
+          .from('categories')
+          .insert(toInsert)
+          .select('*, products(count)');
+        if (inserted && inserted.length > 0) {
+          return inserted.map(c => ({ ...c, count: 0 }));
+        }
+      } catch (seedErr) {
+        console.warn("Could not auto-seed categories:", seedErr);
+      }
+    }
+
     return (data || []).map(c => ({ ...c, count: c.products?.[0]?.count || 0 }));
   } catch (error) {
     console.error("Failed to load categories:", error);
@@ -644,9 +667,150 @@ export async function getBrands(shopId: string) {
       console.error("Error fetching brands:", error);
       return [];
     }
+
+    // If shop has no brands in database, auto-seed popular manufacturers with real UUIDs
+    if (!data || data.length === 0) {
+      try {
+        const toInsert = DEFAULT_POPULAR_BRANDS.map(b => ({
+          shop_id: shopId,
+          name: b.name.toUpperCase(),
+          manufacturer: b.manufacturer.toUpperCase(),
+          is_active: true,
+        }));
+        const { data: inserted } = await supabase
+          .from('brands')
+          .insert(toInsert)
+          .select('*');
+        if (inserted && inserted.length > 0) {
+          return inserted;
+        }
+      } catch (seedErr) {
+        console.warn("Could not auto-seed brands:", seedErr);
+      }
+    }
+
     return data || [];
   } catch (error) {
     console.error("Failed to load brands:", error);
+    return [];
+  }
+}
+
+/**
+ * Fetches the most recently sold / used products for a shop (limit 15–20).
+ * Used by Billing product selector to show fast relevant options before searching.
+ */
+export async function getRecentBillingProducts(shopId: string, limit: number = 20): Promise<ProductWithRelations[]> {
+  if (isPlaceholderMode()) {
+    try {
+      const demoSales = getStoredDemoSales((s: any) => s);
+      const allDemo = getStoredDemoProducts((p: any) => p);
+      const usedIds = new Set<string>();
+      const orderedProds: any[] = [];
+
+      for (const s of demoSales) {
+        const items = s.items || s.sale_items || [];
+        for (const it of items) {
+          const pid = String(it.product_id || it.id);
+          if (pid && !usedIds.has(pid)) {
+            usedIds.add(pid);
+            const found = allDemo.find((p: any) => String(p.id) === pid);
+            if (found && found.is_active !== false) {
+              orderedProds.push(found);
+            }
+          }
+          if (orderedProds.length >= limit) break;
+        }
+        if (orderedProds.length >= limit) break;
+      }
+
+      // If fewer than limit, supplement with active demo products
+      if (orderedProds.length < limit) {
+        for (const p of allDemo) {
+          if (p.is_active !== false && !usedIds.has(String(p.id))) {
+            orderedProds.push(p);
+            usedIds.add(String(p.id));
+          }
+          if (orderedProds.length >= limit) break;
+        }
+      }
+
+      return orderedProds.map(normalizeProduct);
+    } catch (err) {
+      console.warn("Error getting recent demo billing products:", err);
+      return [];
+    }
+  }
+
+  try {
+    const supabase = await createServerSupabaseClient();
+    
+    // 1. Fetch recent sale items for this shop
+    const { data: recentItems } = await supabase
+      .from('sale_items')
+      .select('product_id, created_at')
+      .eq('shop_id', shopId)
+      .order('created_at', { ascending: false })
+      .limit(100);
+
+    const recentProductIds: string[] = [];
+    const seen = new Set<string>();
+
+    if (Array.isArray(recentItems)) {
+      for (const item of recentItems) {
+        if (item.product_id && !seen.has(item.product_id)) {
+          seen.add(item.product_id);
+          recentProductIds.push(item.product_id);
+          if (recentProductIds.length >= limit) break;
+        }
+      }
+    }
+
+    let products: any[] = [];
+
+    if (recentProductIds.length > 0) {
+      const { data: prodData } = await supabase
+        .from('products')
+        .select('*, category:categories(id, name), brand:brands(id, name, manufacturer), batches:product_batches(*)')
+        .eq('shop_id', shopId)
+        .eq('is_active', true)
+        .in('id', recentProductIds);
+
+      if (Array.isArray(prodData)) {
+        // Preserve recency order
+        const map = new Map<string, any>(prodData.map(p => [p.id, p]));
+        for (const id of recentProductIds) {
+          const p = map.get(id);
+          if (p) products.push(p);
+        }
+      }
+    }
+
+    // 2. If fewer than limit, supplement with recently added/updated active products
+    if (products.length < limit) {
+      const remainingNeeded = limit - products.length;
+      let query = supabase
+        .from('products')
+        .select('*, category:categories(id, name), brand:brands(id, name, manufacturer), batches:product_batches(*)')
+        .eq('shop_id', shopId)
+        .eq('is_active', true);
+
+      if (seen.size > 0) {
+        query = query.not('id', 'in', `(${Array.from(seen).join(',')})`);
+      }
+
+      const { data: fallbackProds } = await query
+        .order('created_at', { ascending: false })
+        .limit(remainingNeeded);
+
+      if (Array.isArray(fallbackProds)) {
+        products = [...products, ...fallbackProds];
+      }
+    }
+
+    return (products as ProductWithRelations[]) || [];
+  } catch (error) {
+    console.error("Failed to load recent billing products:", error);
     return [];
   }
 }

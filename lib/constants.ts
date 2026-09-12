@@ -25,6 +25,36 @@ export const PRODUCT_UNITS = [
 ] as const;
 
 
+export const DEFAULT_POPULAR_CATEGORIES = [
+  { name: 'Seeds', description: 'Hybrid, Research & Certified Agricultural Seeds' },
+  { name: 'Fertilizers', description: 'Chemical, Organic & Water Soluble Fertilizers' },
+  { name: 'Insecticides', description: 'Crop Protection Insecticides' },
+  { name: 'Fungicides', description: 'Systemic & Contact Fungicides' },
+  { name: 'Herbicides', description: 'Weedicides & Plant Protection Chemicals' },
+  { name: 'Pesticides', description: 'General Agricultural Pest Control' },
+  { name: 'Bio Products', description: 'Bio-fertilizers, Bio-pesticides & Organic Inputs' },
+  { name: 'Growth Promoters', description: 'Plant Growth Regulators & Micronutrients' },
+  { name: 'Agro Tools & Equipment', description: 'Sprayers, Cutters, Nozzles & Implements' },
+];
+
+export const DEFAULT_POPULAR_BRANDS = [
+  { name: 'Bayer CropScience', manufacturer: 'Bayer India Ltd' },
+  { name: 'Syngenta', manufacturer: 'Syngenta India Ltd' },
+  { name: 'UPL Limited', manufacturer: 'UPL Limited' },
+  { name: 'IFFCO', manufacturer: 'Indian Farmers Fertiliser Cooperative' },
+  { name: 'Coromandel', manufacturer: 'Coromandel International Ltd' },
+  { name: 'Rallis India', manufacturer: 'Tata Rallis India Ltd' },
+  { name: 'Dhanuka', manufacturer: 'Dhanuka Agritech Ltd' },
+  { name: 'BASF', manufacturer: 'BASF India Ltd' },
+  { name: 'FMC', manufacturer: 'FMC India Pvt Ltd' },
+  { name: 'PI Industries', manufacturer: 'PI Industries Ltd' },
+  { name: 'Sumitomo Chemical', manufacturer: 'Sumitomo Chemical India Ltd' },
+  { name: 'Adama', manufacturer: 'Adama India Pvt Ltd' },
+  { name: 'Mahyco', manufacturer: 'Maharashtra Hybrid Seeds Co' },
+  { name: 'Kaveri Seeds', manufacturer: 'Kaveri Seed Company Ltd' },
+  { name: 'Nuziveedu Seeds', manufacturer: 'Nuziveedu Seeds Ltd' },
+];
+
 export const PRODUCT_CATEGORIES = [
   'Seeds',
   'Fertilizers',

@@ -95,7 +95,7 @@ export default function RegisterPage() {
       }
 
       toast.success('Account created successfully! Welcome to KRUSHI OS.');
-      window.location.href = '/dashboard';
+      window.location.href = '/billing';
     } else if (authData?.user) {
       // Email confirmation required — do NOT attempt shop provisioning yet
       setRegisteredEmail(data.email.trim());

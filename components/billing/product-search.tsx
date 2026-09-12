@@ -1,11 +1,11 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { searchProductsAction, getCategoriesAction } from '@/actions/products';
+import { searchProductsAction, getCategoriesAction, getRecentBillingProductsAction } from '@/actions/products';
 import { getBatchesAction } from '@/actions/inventory';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Search, Plus, Package, AlertTriangle, Barcode, X, Sparkles, Check } from 'lucide-react';
+import { Search, Plus, Package, AlertTriangle, Barcode, X, Sparkles, Check, Zap } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { formatProductPackDisplay, formatProductNameWithSize } from '@/lib/validations';
 import { useDebounce } from '@/hooks/use-debounce';
@@ -14,18 +14,22 @@ import {
   isClientDemoMode, 
   getDemoProductsClient, 
   searchDemoProductsClient,
-  getDemoCategoriesClient 
+  getDemoCategoriesClient,
+  getRecentDemoBillingProductsClient 
 } from '@/lib/client-demo-store';
+import { useLanguage } from '@/lib/i18n';
 
 interface ProductSearchProps {
   onAddToCart: (item: any) => void;
 }
 
 function ProductSearchComponent({ onAddToCart }: ProductSearchProps) {
+  const { t } = useLanguage();
   const [query, setQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [categories, setCategories] = useState<Array<{ id: string; name: string }>>(MOCK_CATEGORIES);
   const [allProducts, setAllProducts] = useState<any[]>([]);
+  const [recentProducts, setRecentProducts] = useState<any[]>([]);
   const [searchResults, setSearchResults] = useState<any[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [addedProductId, setAddedProductId] = useState<string | null>(null);
@@ -64,6 +68,8 @@ function ProductSearchComponent({ onAddToCart }: ProductSearchProps) {
   // Load products (demo store or real Supabase)
   const loadProducts = useCallback(async () => {
     if (isClientDemoMode()) {
+      const demoRecent = getRecentDemoBillingProductsClient(20);
+      setRecentProducts(demoRecent);
       const demoList = getDemoProductsClient();
       setAllProducts(demoList);
       cacheBatches(demoList);
@@ -71,10 +77,17 @@ function ProductSearchComponent({ onAddToCart }: ProductSearchProps) {
     }
 
     try {
-      const res = await searchProductsAction('');
-      if (res.success && Array.isArray(res.data) && res.data.length > 0) {
-        setAllProducts(res.data);
-        cacheBatches(res.data);
+      const [recentRes, allRes] = await Promise.allSettled([
+        getRecentBillingProductsAction(20),
+        searchProductsAction('')
+      ]);
+      if (recentRes.status === 'fulfilled' && recentRes.value.success && Array.isArray(recentRes.value.data)) {
+        setRecentProducts(recentRes.value.data);
+        cacheBatches(recentRes.value.data);
+      }
+      if (allRes.status === 'fulfilled' && allRes.value.success && Array.isArray(allRes.value.data)) {
+        setAllProducts(allRes.value.data);
+        cacheBatches(allRes.value.data);
       }
     } catch (err) {
       console.warn('Failed to fetch products for billing:', err);
@@ -170,7 +183,10 @@ function ProductSearchComponent({ onAddToCart }: ProductSearchProps) {
 
   // Filter products by selected category and active search
   const displayedProducts = useMemo(() => {
-    const baseList = searchResults !== null ? searchResults : allProducts;
+    const isSearching = Boolean(query.trim());
+    const baseList = isSearching
+      ? (searchResults !== null ? searchResults : allProducts)
+      : (recentProducts.length > 0 ? recentProducts : allProducts.slice(0, 20));
 
     if (selectedCategory === 'all') {
       return baseList;
@@ -184,7 +200,7 @@ function ProductSearchComponent({ onAddToCart }: ProductSearchProps) {
 
       return catId === selectedCategory || (targetName && catName === targetName);
     });
-  }, [searchResults, allProducts, selectedCategory, categories]);
+  }, [searchResults, allProducts, recentProducts, selectedCategory, categories, query]);
 
   // Handle adding product to cart (INSTANT OPTIMISTIC UI)
   const handleAdd = useCallback((product: any) => {
@@ -261,9 +277,7 @@ function ProductSearchComponent({ onAddToCart }: ProductSearchProps) {
             batchesCache.current[product.id] = batchesRes.data;
           }
         })
-        .catch(err => {
-          console.warn('Background batch prefetch failed:', err);
-        });
+        .catch(err => console.warn('Non-blocking batch fetch failed:', err));
     }
   }, [onAddToCart]);
 
@@ -275,7 +289,9 @@ function ProductSearchComponent({ onAddToCart }: ProductSearchProps) {
           <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center">
             <Package className="h-5 w-5 text-primary" />
           </div>
-          <h2 className="text-lg font-semibold text-foreground">Select Products</h2>
+          <h2 className="text-lg font-semibold text-foreground">
+            {t('billing.searchProduct', 'Select Products')}
+          </h2>
         </div>
 
         {/* Search Bar */}
@@ -285,7 +301,7 @@ function ProductSearchComponent({ onAddToCart }: ProductSearchProps) {
             ref={searchInputRef}
             value={query}
             onChange={e => setQuery(e.target.value)}
-            placeholder="Search product or barcode (F4)..."
+            placeholder={t('billing.searchAnyProduct', 'Search product or barcode (F4)...')}
             className="pl-10 pr-10 py-5 text-base rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground focus-visible:border-primary"
           />
           {query ? (
@@ -318,7 +334,7 @@ function ProductSearchComponent({ onAddToCart }: ProductSearchProps) {
           }`}
           onClick={() => setSelectedCategory('all')}
         >
-          <Sparkles className="h-3.5 w-3.5 mr-1.5" /> All Products
+          <Sparkles className="h-3.5 w-3.5 mr-1.5" /> {t('billing.allCategories', 'All Products')}
         </Button>
         {categories.map(cat => {
           const isSelected = selectedCategory === cat.id;
@@ -341,11 +357,19 @@ function ProductSearchComponent({ onAddToCart }: ProductSearchProps) {
         })}
       </div>
 
+      {/* ─── Frequently / Recently Sold Products Badge ─── */}
+      {!query.trim() && displayedProducts.length > 0 && (
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 text-xs font-semibold w-fit animate-in fade-in">
+          <Zap className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 fill-amber-500/30 shrink-0" />
+          <span>⚡ {t('billing.recentProducts', 'Frequently / Recently Sold Products')}</span>
+        </div>
+      )}
+
       {/* ─── Products Grid ─── */}
       {loading ? (
         <div className="py-12 text-center text-muted-foreground flex flex-col items-center gap-2">
           <div className="h-8 w-8 rounded-full border-4 border-primary border-t-transparent animate-spin" />
-          <p className="text-sm font-medium">Searching products...</p>
+          <p className="text-sm font-medium">{t('common.loading', 'Searching products...')}</p>
         </div>
       ) : displayedProducts.length === 0 ? (
         <div className="py-12 text-center border-2 border-dashed border-border rounded-xl p-8">
@@ -364,7 +388,7 @@ function ProductSearchComponent({ onAddToCart }: ProductSearchProps) {
                 setSelectedCategory('all');
               }}
             >
-              Reset Filters
+              {t('billing.resetFilters', 'Reset Filters')}
             </Button>
           )}
         </div>

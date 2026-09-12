@@ -1,5 +1,6 @@
 import {
   calculateTodaySales,
+  calculateTodayOutstanding,
   calculateSaleProfit,
   calculateTotalBills,
   calculateTotalOutstanding,
@@ -214,6 +215,57 @@ const recentSales = calculateRecentSales(sampleSales, 10);
 assert(recentSales[0].id === 'sale-3', `Most recent sale should be sale-3, got ${recentSales[0].id}`);
 assert(recentSales.length === 4, `Recent sales should have 4 valid sales (excluding cancelled), got ${recentSales.length}`);
 
+// ───────────────────────────────────────────────────
+// TEST 11: Today's Outstanding (Credit + Partial)
+// ───────────────────────────────────────────────────
+const creditSalesSample = [
+  // Completed credit sale today: ₹2,000 outstanding
+  {
+    id: 'cs-1',
+    total_amount: 2000,
+    status: 'COMPLETED',
+    payment_status: 'CREDIT',
+    sale_date: '2026-09-05T11:00:00+05:30',
+  },
+  // Completed partial sale today: ₹1,500 total, ₹500 paid, ₹1,000 remaining
+  {
+    id: 'cs-2',
+    total_amount: 1500,
+    status: 'COMPLETED',
+    payment_status: 'PARTIAL',
+    partial_payment: { total_paid: 500, remaining: 1000 },
+    sale_date: '2026-09-05T14:00:00+05:30',
+  },
+  // Paid sale today: ₹0 outstanding
+  {
+    id: 'cs-3',
+    total_amount: 800,
+    status: 'COMPLETED',
+    payment_status: 'PAID',
+    sale_date: '2026-09-05T15:00:00+05:30',
+  },
+  // Credit sale from yesterday: should be ignored by Today's Outstanding
+  {
+    id: 'cs-4',
+    total_amount: 5000,
+    status: 'COMPLETED',
+    payment_status: 'CREDIT',
+    sale_date: '2026-09-04T12:00:00+05:30',
+  },
+  // Cancelled credit sale today: should be ignored
+  {
+    id: 'cs-5',
+    total_amount: 3000,
+    status: 'CANCELLED',
+    payment_status: 'CREDIT',
+    sale_date: '2026-09-05T16:00:00+05:30',
+  },
+];
+
+const todayOutstandingRes = calculateTodayOutstanding(creditSalesSample, testNow);
+assert(todayOutstandingRes.total === 3000, `Today's outstanding should be 3000 (2000 + 1000), got ${todayOutstandingRes.total}`);
+assert(todayOutstandingRes.count === 2, `Today's outstanding count should be 2, got ${todayOutstandingRes.count}`);
+
 console.log("=========================================");
-console.log("ALL 10 TEST SUITES PASSED SUCCESSFULLY!");
+console.log("ALL 11 TEST SUITES PASSED SUCCESSFULLY!");
 console.log("=========================================");

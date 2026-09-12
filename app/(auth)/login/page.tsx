@@ -20,6 +20,8 @@ import {
 } from 'lucide-react';
 
 import { verifyPortalAuthorizationAction } from '@/actions/customer-auth';
+import { LanguageSwitcher } from '@/components/layout/language-switcher';
+import { useLanguage } from '@/lib/i18n';
 
 type LoginRole = 'select' | 'shopkeeper' | 'customer';
 
@@ -27,6 +29,7 @@ function LoginFormContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialType = searchParams.get('type');
+  const { t } = useLanguage();
 
   const [role, setRole] = useState<LoginRole>('select');
 
@@ -124,9 +127,15 @@ function LoginFormContent() {
           return;
         }
 
-        console.log('[AUTH TRACE] redirect=/dashboard');
-        toast.success('Signed in successfully! Redirecting...');
-        window.location.href = '/dashboard';
+        const urlParams = new URLSearchParams(window.location.search);
+        const redirectParam = urlParams.get('redirect');
+        const targetUrl = (redirectParam && redirectParam.startsWith('/') && !redirectParam.startsWith('//'))
+          ? redirectParam
+          : '/billing';
+
+        console.log(`[AUTH TRACE] redirect=${targetUrl}`);
+        toast.success(t('auth.loginSuccessRedirect', 'Signed in successfully! Redirecting...'));
+        window.location.href = targetUrl;
       } else {
         console.error('[AUTH TRACE] signIn=failed session=false user=false');
         toast.error('Invalid email or password.');
@@ -216,16 +225,29 @@ function LoginFormContent() {
     }
   };
 
+  const renderLanguageHeader = () => (
+    <div className="flex items-center justify-between pb-3 mb-2 border-b border-border/60">
+      <span className="text-xs text-muted-foreground font-medium flex items-center gap-1.5">
+        🌐 {t('auth.selectLanguage', 'Language / भाषा')}
+      </span>
+      <LanguageSwitcher variant="header" className="h-8 text-xs font-semibold" />
+    </div>
+  );
+
   // ========================================================
   // 1. ROLE SELECTION SCREEN
   // ========================================================
   if (role === 'select') {
     return (
       <div className="space-y-6">
+        {renderLanguageHeader()}
+
         <div className="text-center space-y-1.5">
-          <h2 className="text-2xl font-bold tracking-tight text-foreground">Welcome to Krushi OS</h2>
+          <h2 className="text-2xl font-bold tracking-tight text-foreground">
+            {t('auth.welcomeTitle', 'Welcome to Krushi OS')}
+          </h2>
           <p className="text-sm text-muted-foreground">
-            Choose what type of account you want to access
+            {t('auth.welcomeSubtitle', 'Choose what type of account you want to access')}
           </p>
         </div>
 
@@ -242,12 +264,12 @@ function LoginFormContent() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between">
                   <h3 className="font-bold text-base text-foreground group-hover:text-primary transition-colors">
-                    🏪 Shopkeeper
+                    {t('auth.shopkeeperRole', '🏪 Shopkeeper')}
                   </h3>
                   <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
                 </div>
                 <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                  Manage your shop, billing, inventory & customers
+                  {t('auth.shopkeeperRoleDesc', 'Manage your shop, billing, inventory & customers')}
                 </p>
               </div>
             </div>
@@ -259,7 +281,7 @@ function LoginFormContent() {
                 setRole('shopkeeper');
               }}
             >
-              Continue as Shopkeeper
+              {t('auth.continueAsShopkeeper', 'Continue as Shopkeeper')}
             </Button>
           </div>
 
@@ -275,12 +297,12 @@ function LoginFormContent() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between">
                   <h3 className="font-bold text-base text-foreground group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
-                    👨‍🌾 Farmer & Customer
+                    {t('auth.customerRole', '🌾 Farmer & Customer')}
                   </h3>
                   <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-emerald-600 group-hover:translate-x-0.5 transition-all" />
                 </div>
                 <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                  View your bills, payments & purchase history
+                  {t('auth.customerRoleDesc', 'View your bills, payments & purchase history')}
                 </p>
               </div>
             </div>
@@ -293,7 +315,7 @@ function LoginFormContent() {
                 setRole('customer');
               }}
             >
-              Continue as Farmer & Customer
+              {t('auth.continueAsCustomer', 'Continue as Farmer & Customer')}
             </Button>
           </div>
         </div>
@@ -307,33 +329,39 @@ function LoginFormContent() {
   if (role === 'shopkeeper') {
     return (
       <div className="space-y-6">
+        {renderLanguageHeader()}
+
         <button
           type="button"
           onClick={() => setRole('select')}
           className="inline-flex items-center text-xs font-medium text-muted-foreground hover:text-foreground gap-1 transition-colors"
         >
-          <ArrowLeft className="h-3.5 w-3.5" /> Back to account selection
+          <ArrowLeft className="h-3.5 w-3.5" /> {t('auth.backToSelection', 'Back to account selection')}
         </button>
 
         <div className="text-center space-y-1">
           <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-primary/10 text-primary mb-1">
-            <Store className="h-3.5 w-3.5" /> Shopkeeper Portal
+            <Store className="h-3.5 w-3.5" /> {t('auth.shopkeeperPortal', 'Shopkeeper Portal')}
           </div>
-          <h2 className="text-2xl font-bold tracking-tight">Sign in to your account</h2>
+          <h2 className="text-2xl font-bold tracking-tight">
+            {t('auth.signInToAccount', 'Sign in to your account')}
+          </h2>
           <p className="text-sm text-muted-foreground">
-            Enter your credentials to access your KRUSHI OS store
+            {t('auth.shopkeeperSignInDesc', 'Enter your credentials to access your KRUSHI OS store')}
           </p>
         </div>
 
         <form onSubmit={handleShopkeeperSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="email" className="text-sm font-medium">Email address</Label>
+            <Label htmlFor="email" className="text-sm font-medium">
+              {t('auth.email', 'Email address')}
+            </Label>
             <div className="relative">
               <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
               <Input
                 id="email"
                 type="email"
-                placeholder="name@example.com"
+                placeholder={t('auth.emailPlaceholder', 'name@example.com')}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -346,9 +374,11 @@ function LoginFormContent() {
 
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <Label htmlFor="password" className="text-sm font-medium">Password</Label>
+              <Label htmlFor="password" className="text-sm font-medium">
+                {t('auth.password', 'Password')}
+              </Label>
               <Link href="/forgot-password" className="text-xs text-primary hover:underline font-medium">
-                Forgot password?
+                {t('auth.forgotPassword', 'Forgot password?')}
               </Link>
             </div>
             <div className="relative">
@@ -356,7 +386,7 @@ function LoginFormContent() {
               <Input
                 id="password"
                 type="password"
-                placeholder="••••••••"
+                placeholder={t('auth.passwordPlaceholder', '••••••••')}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
@@ -375,11 +405,11 @@ function LoginFormContent() {
             {isShopkeeperLoading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Signing in...
+                {t('auth.signingIn', 'Signing in...')}
               </>
             ) : (
               <>
-                Sign in as Shopkeeper <ArrowRight className="ml-2 h-4 w-4" />
+                {t('auth.signInAsShopkeeper', 'Sign in as Shopkeeper')} <ArrowRight className="ml-2 h-4 w-4" />
               </>
             )}
           </Button>
@@ -387,9 +417,9 @@ function LoginFormContent() {
 
         <div className="space-y-3 text-center text-sm pt-2 border-t border-border">
           <div>
-            <span className="text-muted-foreground">Don&apos;t have a shop account? </span>
+            <span className="text-muted-foreground">{t('auth.dontHaveShopAccount', "Don't have a shop account?")} </span>
             <Link href="/register" className="text-primary hover:underline font-semibold">
-              Create an account
+              {t('auth.createAccount', 'Create an account')}
             </Link>
           </div>
 
@@ -399,7 +429,8 @@ function LoginFormContent() {
               onClick={() => setRole('customer')}
               className="text-xs text-muted-foreground hover:text-primary transition-colors"
             >
-              Are you a farmer/customer? <span className="font-semibold text-primary underline">Customer Login</span>
+              {t('auth.areYouFarmer', 'Are you a farmer/customer?')}{' '}
+              <span className="font-semibold text-primary underline">{t('auth.customerLogin', 'Customer Login')}</span>
             </button>
           </div>
         </div>
@@ -412,33 +443,39 @@ function LoginFormContent() {
   // ========================================================
   return (
     <div className="space-y-6">
+      {renderLanguageHeader()}
+
       <button
         type="button"
         onClick={() => setRole('select')}
         className="inline-flex items-center text-xs font-medium text-muted-foreground hover:text-foreground gap-1 transition-colors"
       >
-        <ArrowLeft className="h-3.5 w-3.5" /> Back to account selection
+        <ArrowLeft className="h-3.5 w-3.5" /> {t('auth.backToSelection', 'Back to account selection')}
       </button>
 
       <div className="text-center space-y-1">
         <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 mb-1">
-          <ShieldCheck className="h-3.5 w-3.5" /> Farmer & Customer Login
+          <ShieldCheck className="h-3.5 w-3.5" /> {t('auth.customerPortal', 'Farmer & Customer Login')}
         </div>
-        <h2 className="text-2xl font-bold tracking-tight">Customer Login</h2>
+        <h2 className="text-2xl font-bold tracking-tight">
+          {t('auth.customerLoginTitle', 'Customer Login')}
+        </h2>
         <p className="text-sm text-muted-foreground">
-          Enter your email and password to access your bills
+          {t('auth.customerSignInDesc', 'Enter your email and password to access your bills')}
         </p>
       </div>
 
       <form onSubmit={handleCustomerLogin} className="space-y-4">
         <div className="space-y-2">
-          <Label htmlFor="customerEmail" className="text-sm font-medium">Email</Label>
+          <Label htmlFor="customerEmail" className="text-sm font-medium">
+            {t('auth.email', 'Email')}
+          </Label>
           <div className="relative">
             <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
             <Input
               id="customerEmail"
               type="email"
-              placeholder="name@example.com"
+              placeholder={t('auth.emailPlaceholder', 'name@example.com')}
               value={customerEmail}
               onChange={(e) => setCustomerEmail(e.target.value)}
               required
@@ -452,13 +489,15 @@ function LoginFormContent() {
 
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <Label htmlFor="customerPassword" className="text-sm font-medium">Password</Label>
+            <Label htmlFor="customerPassword" className="text-sm font-medium">
+              {t('auth.password', 'Password')}
+            </Label>
             <button
               type="button"
               onClick={handleCustomerForgotPassword}
               className="text-xs text-emerald-600 dark:text-emerald-400 hover:underline font-medium"
             >
-              Forgot Password?
+              {t('auth.forgotPassword', 'Forgot Password?')}
             </button>
           </div>
           <div className="relative">
@@ -466,7 +505,7 @@ function LoginFormContent() {
             <Input
               id="customerPassword"
               type="password"
-              placeholder="••••••••"
+              placeholder={t('auth.passwordPlaceholder', '••••••••')}
               value={customerPassword}
               onChange={(e) => setCustomerPassword(e.target.value)}
               required
@@ -485,11 +524,11 @@ function LoginFormContent() {
           {isCustomerLoading ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Signing in...
+              {t('auth.signingIn', 'Signing in...')}
             </>
           ) : (
             <>
-              Login <ArrowRight className="ml-2 h-4 w-4" />
+              {t('auth.login', 'Login')} <ArrowRight className="ml-2 h-4 w-4" />
             </>
           )}
         </Button>
@@ -497,12 +536,12 @@ function LoginFormContent() {
 
       <div className="space-y-3 text-center text-sm pt-2 border-t border-border">
         <div>
-          <span className="text-muted-foreground">Don&apos;t have an account? </span>
+          <span className="text-muted-foreground">{t('auth.dontHaveAccount', "Don't have an account?")} </span>
           <Link
             href="/register/customer"
             className="text-emerald-600 dark:text-emerald-400 hover:underline font-semibold"
           >
-            Create Customer Account
+            {t('auth.createCustomerAccount', 'Create Customer Account')}
           </Link>
         </div>
 
@@ -512,7 +551,8 @@ function LoginFormContent() {
             onClick={() => setRole('shopkeeper')}
             className="text-xs text-muted-foreground hover:text-primary transition-colors"
           >
-            Are you an agricultural store owner? <span className="font-semibold text-primary underline">Shopkeeper Login</span>
+            {t('auth.areYouShopOwner', 'Are you an agricultural store owner?')}{' '}
+            <span className="font-semibold text-primary underline">{t('auth.shopkeeperLogin', 'Shopkeeper Login')}</span>
           </button>
         </div>
       </div>

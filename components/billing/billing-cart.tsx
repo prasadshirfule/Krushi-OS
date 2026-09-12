@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { getBatchesAction } from '@/actions/inventory';
 import { toast } from 'sonner';
+import { useLanguage } from '@/lib/i18n';
 
 interface BillingCartProps {
   items: BillingCartItem[];
@@ -23,6 +24,7 @@ interface BillingCartProps {
 }
 
 export default function BillingCart({ items, onChange, onClear, totals: propTotals }: BillingCartProps) {
+  const { t } = useLanguage();
   const [showDiscountIndex, setShowDiscountIndex] = useState<number | null>(null);
   const [batchSelectorIndex, setBatchSelectorIndex] = useState<number | null>(null);
   const [rowBatches, setRowBatches] = useState<Record<string, any[]>>({});
@@ -136,7 +138,9 @@ export default function BillingCart({ items, onChange, onClear, totals: propTota
             <Receipt className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <h2 className="text-lg font-semibold text-foreground">Current Bill</h2>
+            <h2 className="text-lg font-semibold text-foreground">
+              {t('billing.currentBill', 'Current Bill')}
+            </h2>
             <span className="text-xs text-muted-foreground font-medium">
               {items.length} {items.length === 1 ? 'item' : 'items'} added
             </span>
@@ -150,7 +154,7 @@ export default function BillingCart({ items, onChange, onClear, totals: propTota
             onClick={onClear}
             className="text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive text-xs"
           >
-            Clear All (F2)
+            {t('billing.clearCart', 'Clear All (F2)')}
           </Button>
         )}
       </div>
@@ -159,9 +163,11 @@ export default function BillingCart({ items, onChange, onClear, totals: propTota
       {items.length === 0 ? (
         <div className="py-12 border-2 border-dashed border-border rounded-xl flex flex-col items-center justify-center text-center p-6 gap-2">
           <ShoppingBasket className="h-12 w-12 text-muted-foreground/30" />
-          <p className="text-base font-semibold text-foreground">Your bill is empty</p>
+          <p className="text-base font-semibold text-foreground">
+            {t('billing.emptyCart', 'Your bill is empty')}
+          </p>
           <p className="text-sm text-muted-foreground max-w-sm">
-            Select products from the list above or type in the search box to add items to this bill.
+            {t('billing.emptyCartDesc', 'Select products from the list above or type in the search box to add items to this bill.')}
           </p>
         </div>
       ) : (
@@ -173,9 +179,9 @@ export default function BillingCart({ items, onChange, onClear, totals: propTota
                 <tr className="bg-muted/50 text-xs font-semibold text-muted-foreground uppercase tracking-wider border-b border-border">
                   <th className="py-3 px-3 w-10 text-center">#</th>
                   <th className="py-3 px-4">Product Name & Batch</th>
-                  <th className="py-3 px-3 text-right">Rate</th>
-                  <th className="py-3 px-4 text-center w-36">Quantity</th>
-                  <th className="py-3 px-4 text-right">Amount</th>
+                  <th className="py-3 px-3 text-right">{t('billing.rate', 'Rate')}</th>
+                  <th className="py-3 px-4 text-center w-36">{t('billing.qty', 'Quantity')}</th>
+                  <th className="py-3 px-4 text-right">{t('billing.amount', 'Amount')}</th>
                   <th className="py-3 px-3 w-10 text-center"></th>
                 </tr>
               </thead>

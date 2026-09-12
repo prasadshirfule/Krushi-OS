@@ -30,6 +30,8 @@ export default async function DashboardPage() {
       <DashboardClientWrapper
         initialStats={{
           todaySales: { count: 0, total: 0, profit: 0 },
+          todayOutstanding: 0,
+          todayOutstandingCount: 0,
           totalBills: 0,
           totalOutstanding: 0,
           totalPayable: 0,

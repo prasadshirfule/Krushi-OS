@@ -14,11 +14,13 @@ export interface DashboardStats {
     profit?: number;
     count?: number;
   };
+  todayOutstanding?: number;
+  todayOutstandingCount?: number;
   totalBills?: number;
-  totalOutstanding: number;
-  totalPayable: number;
-  lowStockCount: number;
-  expiringCount: number;
+  totalOutstanding?: number;
+  totalPayable?: number;
+  lowStockCount?: number;
+  expiringCount?: number;
 }
 
 interface StatsCardsProps {
@@ -29,7 +31,7 @@ export default function StatsCards({ stats }: StatsCardsProps) {
   const { t } = useLanguage();
   const salesAmount = Number(stats?.todaySales?.total ?? stats?.todaySales?.amount ?? stats?.todaySales?.total_sales ?? 0);
   const todayBillsCount = Number(stats?.todaySales?.count ?? 0);
-  const totalOutstanding = Number(stats?.totalOutstanding ?? 0);
+  const todayOutstanding = Number(stats?.todayOutstanding ?? 0);
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
@@ -61,16 +63,16 @@ export default function StatsCards({ stats }: StatsCardsProps) {
         </Link>
       </Card>
 
-      {/* 3. Outstanding -> /customers */}
+      {/* 3. Today's Outstanding -> /sales?filter=credit */}
       <Card className="hover:border-orange-500/50 transition-colors">
-        <Link href="/customers" className="block h-full cursor-pointer">
+        <Link href="/sales?filter=credit" className="block h-full cursor-pointer">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 hover:bg-muted/50 rounded-t-lg transition-colors">
-            <CardTitle className="text-sm font-medium">Outstanding</CardTitle>
-            <CreditCard className={`h-4 w-4 ${totalOutstanding > 50000 ? 'text-red-600' : 'text-orange-600'}`} />
+            <CardTitle className="text-sm font-medium">{t('dashboard.todayOutstanding', "Today's Outstanding")}</CardTitle>
+            <CreditCard className={`h-4 w-4 ${todayOutstanding > 10000 ? 'text-red-600' : 'text-orange-600'}`} />
           </CardHeader>
           <CardContent className="hover:bg-muted/50 rounded-b-lg transition-colors h-full">
-            <div className="text-2xl font-bold">{formatCurrency(totalOutstanding)}</div>
-            <p className="text-xs text-muted-foreground">To be collected</p>
+            <div className="text-2xl font-bold">{formatCurrency(todayOutstanding)}</div>
+            <p className="text-xs text-muted-foreground">{t('dashboard.todayOutstandingDesc', 'Credit & partial bills today')}</p>
           </CardContent>
         </Link>
       </Card>
@@ -79,12 +81,12 @@ export default function StatsCards({ stats }: StatsCardsProps) {
       <Card className="hover:border-red-500/50 transition-colors">
         <Link href="/inventory?filter=low-stock" className="block h-full cursor-pointer">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 hover:bg-muted/50 rounded-t-lg transition-colors">
-            <CardTitle className="text-sm font-medium">Low Stock</CardTitle>
+            <CardTitle className="text-sm font-medium">{t('dashboard.lowStock', 'Low Stock')}</CardTitle>
             <AlertTriangle className="h-4 w-4 text-red-600" />
           </CardHeader>
           <CardContent className="hover:bg-muted/50 rounded-b-lg transition-colors h-full">
             <div className="text-2xl font-bold">{stats?.lowStockCount ?? 0}</div>
-            <p className="text-xs text-muted-foreground">Items need reorder</p>
+            <p className="text-xs text-muted-foreground">{t('dashboard.lowStockDesc', 'Items need reorder')}</p>
           </CardContent>
         </Link>
       </Card>
@@ -93,12 +95,12 @@ export default function StatsCards({ stats }: StatsCardsProps) {
       <Card className="hover:border-amber-500/50 transition-colors">
         <Link href="/inventory?filter=expiring" className="block h-full cursor-pointer">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 hover:bg-muted/50 rounded-t-lg transition-colors">
-            <CardTitle className="text-sm font-medium">Expiring Soon</CardTitle>
+            <CardTitle className="text-sm font-medium">{t('dashboard.expiringSoon', 'Expiring Soon')}</CardTitle>
             <Clock className="h-4 w-4 text-amber-600" />
           </CardHeader>
           <CardContent className="hover:bg-muted/50 rounded-b-lg transition-colors h-full">
             <div className="text-2xl font-bold">{stats?.expiringCount ?? 0}</div>
-            <p className="text-xs text-muted-foreground">Batches near expiry</p>
+            <p className="text-xs text-muted-foreground">{t('dashboard.expiringSoonDesc', 'Batches near expiry')}</p>
           </CardContent>
         </Link>
       </Card>

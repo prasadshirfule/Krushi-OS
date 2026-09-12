@@ -22,6 +22,11 @@ export const MOCK_CATEGORIES = [
   { id: 'cat-2', name: 'Pesticides', description: 'Insecticides, Fungicides, Herbicides', count: 24 },
   { id: 'cat-3', name: 'Seeds', description: 'Hybrid & High-Yield Seeds', count: 18 },
   { id: 'cat-4', name: 'Agro Tools', description: 'Sprayers, Cutters & Equipment', count: 8 },
+  { id: 'cat-5', name: 'Insecticides', description: 'Crop Protection Insecticides', count: 15 },
+  { id: 'cat-6', name: 'Fungicides', description: 'Systemic & Contact Fungicides', count: 10 },
+  { id: 'cat-7', name: 'Herbicides', description: 'Weedicides & Plant Protection Chemicals', count: 9 },
+  { id: 'cat-8', name: 'Bio Products', description: 'Bio-fertilizers & Organic Inputs', count: 6 },
+  { id: 'cat-9', name: 'Growth Promoters', description: 'Plant Growth Regulators & Micronutrients', count: 7 },
 ];
 
 export const MOCK_BRANDS = [

@@ -5,6 +5,7 @@ import {
   calculateTodaySales,
   calculateTotalBills,
   calculateTotalOutstanding,
+  calculateTodayOutstanding,
   calculateLowStock,
   calculateExpiringBatches,
   calculateTopSellingProducts,
@@ -956,6 +957,42 @@ export function getDemoProductsClient(): any[] {
   return initial;
 }
 
+export function getRecentDemoBillingProductsClient(limit: number = 20): any[] {
+  const sales = getDemoSalesClient();
+  const allProds = getDemoProductsClient();
+  const usedIds = new Set<string>();
+  const results: any[] = [];
+
+  for (const s of sales) {
+    const items = s.items || s.sale_items || [];
+    for (const it of items) {
+      const pid = String(it.product_id || it.id);
+      if (pid && !usedIds.has(pid)) {
+        usedIds.add(pid);
+        const p = allProds.find((prod: any) => String(prod.id) === pid);
+        if (p && p.is_active !== false) {
+          results.push(p);
+        }
+      }
+      if (results.length >= limit) break;
+    }
+    if (results.length >= limit) break;
+  }
+
+  // If fewer than limit, fill up with other active products
+  if (results.length < limit) {
+    for (const p of allProds) {
+      if (p.is_active !== false && !usedIds.has(String(p.id))) {
+        results.push(p);
+        usedIds.add(String(p.id));
+      }
+      if (results.length >= limit) break;
+    }
+  }
+
+  return results;
+}
+
 export function saveDemoProductClient(data: any): any {
   const current = getDemoProductsClient();
   const id = `p-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -1221,6 +1258,7 @@ export function getDemoDashboardDataClient() {
   const customers = getDemoCustomersClient();
 
   const todaySalesStats = calculateTodaySales(sales, products);
+  const todayOutstandingData = calculateTodayOutstanding(sales);
   const totalBills = calculateTotalBills(sales);
   const totalOutstanding = calculateTotalOutstanding(customers);
   const lowStock = calculateLowStock(products);
@@ -1239,6 +1277,8 @@ export function getDemoDashboardDataClient() {
         profit: todaySalesStats.profit,
         count: todaySalesStats.count,
       },
+      todayOutstanding: todayOutstandingData.total,
+      todayOutstandingCount: todayOutstandingData.count,
       totalBills,
       totalOutstanding,
       totalPayable: 0,

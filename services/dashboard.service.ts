@@ -5,6 +5,7 @@ import {
   calculateTodaySales,
   calculateTotalBills,
   calculateTotalOutstanding,
+  calculateTodayOutstanding,
   calculateLowStock,
   calculateExpiringBatches,
   calculateTopSellingProducts,
@@ -23,6 +24,7 @@ export async function getDashboardStats(shopId: string) {
       const customers = getStoredDemoCustomers((c: any) => c);
 
       const todayStats = calculateTodaySales(sales, products);
+      const todayOutstandingData = calculateTodayOutstanding(sales);
       const totalBills = calculateTotalBills(sales);
       const totalOutstanding = calculateTotalOutstanding(customers);
       const lowStock = calculateLowStock(products);
@@ -34,6 +36,8 @@ export async function getDashboardStats(shopId: string) {
 
       return {
         todaySales: todayStats,
+        todayOutstanding: todayOutstandingData.total,
+        todayOutstandingCount: todayOutstandingData.count,
         totalBills,
         totalOutstanding,
         totalPayable: 0,
@@ -87,6 +91,7 @@ export async function getDashboardStats(shopId: string) {
 
     // Authoritative calculations using India Standard Time and real sales data
     const todaySales = calculateTodaySales(sales, products);
+    const todayOutstandingData = calculateTodayOutstanding(sales);
     const totalBills = calculateTotalBills(sales);
     const totalOutstanding = calculateTotalOutstanding(customers);
     const totalPayable = calculateTotalOutstanding(suppliers);
@@ -101,6 +106,8 @@ export async function getDashboardStats(shopId: string) {
 
     return {
       todaySales,
+      todayOutstanding: todayOutstandingData.total,
+      todayOutstandingCount: todayOutstandingData.count,
       totalBills,
       totalOutstanding,
       totalPayable,
@@ -117,6 +124,8 @@ export async function getDashboardStats(shopId: string) {
     console.error("Failed to load dashboard stats:", error);
     return {
       todaySales: { count: 0, total: 0, profit: 0 },
+      todayOutstanding: 0,
+      todayOutstandingCount: 0,
       totalBills: 0,
       totalOutstanding: 0,
       totalPayable: 0,
