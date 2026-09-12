@@ -230,6 +230,7 @@ export async function downloadInvoicePDF(
     // by the browser engine but never appears in the user's viewport.
     // DO NOT use z-index (unreliable, flashes behind content).
     // DO NOT use opacity:0 or visibility:hidden (html2canvas may skip).
+    const isThermal = format === 'THERMAL_80MM';
     const container = document.createElement('div');
     container.style.position = 'fixed';
     container.style.top = '0px';
@@ -238,6 +239,21 @@ export async function downloadInvoicePDF(
     container.style.backgroundColor = '#ffffff';
     container.style.margin = '0';
     container.style.padding = '0';
+    container.style.boxSizing = 'border-box';
+    container.style.overflow = 'hidden';
+
+    if (!isThermal) {
+      container.style.width = '210mm';
+      container.style.minWidth = '210mm';
+      container.style.maxWidth = '210mm';
+      container.style.height = '148mm';
+      container.style.minHeight = '148mm';
+      container.style.maxHeight = '148mm';
+    } else {
+      container.style.width = '80mm';
+      container.style.minWidth = '80mm';
+      container.style.maxWidth = '80mm';
+    }
 
     // ── Clone the capture target ──
     // Preserve ALL inline styles from the React component (flex, centering, padding,
@@ -258,6 +274,9 @@ export async function downloadInvoicePDF(
     }
     await new Promise((r) => setTimeout(r, 100));
 
+    const canvasWidth = clone.offsetWidth || clone.clientWidth;
+    const canvasHeight = clone.offsetHeight || clone.clientHeight;
+
     const canvas = await html2canvas(clone, {
       scale: 3, // 300 DPI high-resolution capture
       useCORS: true,
@@ -265,6 +284,10 @@ export async function downloadInvoicePDF(
       backgroundColor: '#ffffff',
       scrollX: 0,
       scrollY: 0,
+      width: canvasWidth,
+      height: canvasHeight,
+      windowWidth: Math.max(1200, canvasWidth + 200),
+      windowHeight: Math.max(900, canvasHeight + 200),
     });
 
     // Remove the staging container immediately after capture

@@ -309,7 +309,7 @@ export function ThermalReceiptInvoice({ sale, shopDetails: customShopDetails, cu
               transform: 'translate(-50%, -50%)',
               pointerEvents: 'none',
               zIndex: 0,
-              opacity: 0.06,
+              opacity: 0.12,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',

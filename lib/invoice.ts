@@ -167,6 +167,20 @@ export function generateInvoicePDF(sale: any, customSettings?: any) {
 
   const dynamicAddress = formatShopAddress(shop);
 
+  // ─── WATERMARK ───
+  if (shop.logoBase64) {
+    try {
+      doc.saveGraphicsState();
+      // 0.12 opacity watermark
+      doc.setGState(new (doc as any).GState({ opacity: 0.12 }));
+      const wmSize = 75;
+      doc.addImage(shop.logoBase64, 'PNG', marginX + (contentWidth - wmSize) / 2, (pageHeight - wmSize) / 2, wmSize, wmSize);
+      doc.restoreGraphicsState();
+    } catch {
+      // Fallback if GState or image not supported in current environment
+    }
+  }
+
   // ─── 1. SHOP HEADER ───
   let headerY = startTopY + 2;
   doc.setFont('helvetica', 'bold');
@@ -455,8 +469,8 @@ export function generateInvoicePDF(sale: any, customSettings?: any) {
     { label: labels.balanceUdhari, val: `Rs. ${(isCredit ? Math.max(0, grandTotal - (s.paid_amount || 0)) : 0).toFixed(2)}`, isBold: true },
   );
 
-  const rowHeight = 5.8;
-  const summaryHeight = Math.max(42, rows.length * rowHeight);
+  const rowHeight = 6.0;
+  const summaryHeight = Math.max(46, rows.length * rowHeight);
   const signHeight = 20;
   const footerHeight = 6.5;
   const totalNeededHeight = summaryHeight + signHeight + footerHeight + 4;
@@ -491,7 +505,7 @@ export function generateInvoicePDF(sale: any, customSettings?: any) {
   doc.text(labels.bankDetails, marginX + 3, bankStartY);
   doc.line(marginX + 3, bankStartY + 1.5, marginX + summaryLeftWidth - 6, bankStartY + 1.5);
 
-  let bankY = bankStartY + 5;
+  let bankY = bankStartY + 4.5;
   doc.setFontSize(7.5);
   doc.setFont('helvetica', 'bold');
   doc.text(labels.acHolder, marginX + 3, bankY);
@@ -503,7 +517,7 @@ export function generateInvoicePDF(sale: any, customSettings?: any) {
   doc.setFont('helvetica', 'normal');
   doc.text(shop.bankName || '-', marginX + 72, bankY);
 
-  bankY += 4;
+  bankY += 3.6;
   doc.setFont('helvetica', 'bold');
   doc.text(labels.acNo, marginX + 3, bankY);
   doc.setFont('helvetica', 'normal');
@@ -515,7 +529,7 @@ export function generateInvoicePDF(sale: any, customSettings?: any) {
   doc.text(shop.ifsc || '-', marginX + 72, bankY);
 
   if (shop.branch || shop.accountType) {
-    bankY += 4;
+    bankY += 3.6;
     if (shop.branch) {
       doc.setFont('helvetica', 'bold');
       doc.text(labels.branch, marginX + 3, bankY);
