@@ -318,11 +318,14 @@ export interface PortalAuthVerificationResult {
 
 /**
  * Validates that an authenticated session matches the intended portal (Customer vs Shopkeeper).
- * Prevents staff users from inadvertently landing on or accessing customer portals and vice versa.
+ * Prevents staff users from accessing customer portals and customer users from accessing shopkeeper portals.
+ * Never leaks role or account identity in client error messages.
  */
 export async function verifyPortalAuthorizationAction(
   targetPortal: 'customer' | 'shopkeeper'
 ): Promise<PortalAuthVerificationResult> {
+  const GENERIC_LOGIN_ERROR = 'Invalid email or password.';
+
   try {
     const supabase = await createServerSupabaseClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -332,48 +335,108 @@ export async function verifyPortalAuthorizationAction(
         success: false,
         authorized: false,
         portal: targetPortal,
-        error: 'User session not found. Please log in again.'
+        error: GENERIC_LOGIN_ERROR,
       };
     }
 
     const adminClient = createServerAdminClient() || supabase;
 
     if (targetPortal === 'customer') {
-      // 1. Check if user is registered as a customer or has a customer_accounts row
+      // Customer Portal: Must be a customer account and NOT a shopkeeper
+      const isCustomerRole = user.user_metadata?.role === 'customer';
       const { data: customerAccount } = await adminClient
         .from('customer_accounts')
         .select('id')
         .eq('auth_user_id', user.id)
         .maybeSingle();
 
-      const isCustomerRole = user.user_metadata?.role === 'customer';
+      const { data: staffUser } = await adminClient
+        .from('users')
+        .select('id, shop_id')
+        .eq('id', user.id)
+        .maybeSingle();
 
-      if (!customerAccount && !isCustomerRole) {
+      const isAuthorizedCustomer = (customerAccount || isCustomerRole) && !staffUser?.shop_id;
+
+      if (!isAuthorizedCustomer) {
+        console.warn('[verifyPortalAuthorizationAction] Account rejected for customer portal:', {
+          userId: user.id,
+          hasCustomerAccount: !!customerAccount,
+          isCustomerRole,
+          hasStaffShop: !!staffUser?.shop_id,
+        });
+        await supabase.auth.signOut();
         return {
           success: false,
           authorized: false,
           portal: targetPortal,
-          error: 'This account is registered as a Shopkeeper / Staff account. Please use the Shopkeeper Login portal.'
+          error: GENERIC_LOGIN_ERROR,
         };
+      }
+
+      // Sync user_metadata.role if not set so middleware can route correctly
+      if (!isCustomerRole && createServerAdminClient()) {
+        try {
+          await createServerAdminClient()!.auth.admin.updateUserById(user.id, {
+            user_metadata: { ...user.user_metadata, role: 'customer' },
+          });
+        } catch (syncErr) {
+          console.warn('[verifyPortalAuthorizationAction] Could not sync customer role metadata:', syncErr);
+        }
       }
 
       return { success: true, authorized: true, portal: 'customer' };
     } else {
-      // 2. Shopkeeper portal validation
+      // Shopkeeper Portal: Must NOT be a customer account
       const isCustomerRole = user.user_metadata?.role === 'customer';
+      const { data: customerAccount } = await adminClient
+        .from('customer_accounts')
+        .select('id')
+        .eq('auth_user_id', user.id)
+        .maybeSingle();
+
+      if (isCustomerRole || customerAccount) {
+        console.warn('[verifyPortalAuthorizationAction] Customer account rejected for shopkeeper portal:', {
+          userId: user.id,
+          isCustomerRole,
+          hasCustomerAccount: !!customerAccount,
+        });
+        await supabase.auth.signOut();
+        return {
+          success: false,
+          authorized: false,
+          portal: targetPortal,
+          error: GENERIC_LOGIN_ERROR,
+        };
+      }
+
+      // If active staff record exists, verify it is not deactivated
       const { data: staffUser } = await adminClient
         .from('users')
         .select('id, shop_id, is_active')
         .eq('id', user.id)
         .maybeSingle();
 
-      if (isCustomerRole && !staffUser) {
+      if (staffUser && staffUser.is_active === false) {
+        console.warn('[verifyPortalAuthorizationAction] Deactivated staff account:', user.id);
+        await supabase.auth.signOut();
         return {
           success: false,
           authorized: false,
           portal: targetPortal,
-          error: 'This account is registered as a Farmer & Customer account. Please use the Customer Login portal.'
+          error: GENERIC_LOGIN_ERROR,
         };
+      }
+
+      // Sync shopkeeper role in metadata if needed
+      if (user.user_metadata?.role !== 'shopkeeper' && createServerAdminClient()) {
+        try {
+          await createServerAdminClient()!.auth.admin.updateUserById(user.id, {
+            user_metadata: { ...user.user_metadata, role: 'shopkeeper' },
+          });
+        } catch (syncErr) {
+          console.warn('[verifyPortalAuthorizationAction] Could not sync shopkeeper role metadata:', syncErr);
+        }
       }
 
       return { success: true, authorized: true, portal: 'shopkeeper' };
@@ -384,7 +447,7 @@ export async function verifyPortalAuthorizationAction(
       success: false,
       authorized: false,
       portal: targetPortal,
-      error: err.message || 'Authorization check failed.'
+      error: GENERIC_LOGIN_ERROR,
     };
   }
 }

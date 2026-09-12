@@ -56,32 +56,42 @@ export async function updateSession(request: NextRequest) {
   }
 
   // 3. Auth pages: redirect authenticated users to their corresponding dashboard
+  // Public auth pages: /login, /customer/login, /register, /forgot-password
   // Exception: /reset-password must remain accessible during password recovery sessions
   // Do NOT redirect Server Action requests or non-GET requests (e.g. verifyPortalAuthorizationAction)
-  const isAuthPage = pathname.startsWith('/login') || pathname.startsWith('/register') || pathname.startsWith('/forgot-password')
+  const isAuthPage =
+    pathname === '/login' ||
+    pathname === '/customer/login' ||
+    pathname.startsWith('/register') ||
+    pathname.startsWith('/forgot-password')
   const isResetPasswordPage = pathname.startsWith('/reset-password')
   const isServerAction = request.headers.has('next-action') || request.headers.get('accept')?.includes('text/x-component') || request.method !== 'GET'
-  const hasAuthError = request.nextUrl.searchParams.has('error')
-  if (isAuthPage && !isResetPasswordPage && user && !isServerAction && !hasAuthError) {
+  if (isAuthPage && !isResetPasswordPage && user && !isServerAction) {
     const redirectUrl = request.nextUrl.clone()
     redirectUrl.pathname = isCustomerUser ? '/customer/dashboard' : '/dashboard'
+    redirectUrl.search = ''
     return NextResponse.redirect(redirectUrl)
   }
 
   // 4. Customer protected routes
-  const isCustomerPath = pathname === '/customer' || pathname.startsWith('/customer/')
+  // Exclude public customer login and public customer bill print view
+  const isCustomerPath =
+    pathname === '/customer' ||
+    (pathname.startsWith('/customer/') && pathname !== '/customer/login' && !pathname.startsWith('/customer/bills/'))
+
   if (isCustomerPath) {
     if (!user) {
       const redirectUrl = request.nextUrl.clone()
-      redirectUrl.pathname = '/login'
-      redirectUrl.searchParams.set('type', 'customer')
+      redirectUrl.pathname = '/customer/login'
+      redirectUrl.search = ''
       return NextResponse.redirect(redirectUrl)
     }
     if (!isCustomerUser) {
-      // Non-customer identity attempting to access customer routes
+      // Authenticated shopkeeper attempting customer routes:
+      // Redirect safely to shopkeeper portal without role leakage
       const redirectUrl = request.nextUrl.clone()
-      redirectUrl.pathname = '/login'
-      redirectUrl.searchParams.set('type', 'customer')
+      redirectUrl.pathname = '/dashboard'
+      redirectUrl.search = ''
       return NextResponse.redirect(redirectUrl)
     }
     return supabaseResponse
@@ -111,14 +121,15 @@ export async function updateSession(request: NextRequest) {
     if (!user) {
       const redirectUrl = request.nextUrl.clone()
       redirectUrl.pathname = '/login'
-      redirectUrl.searchParams.set('type', 'shopkeeper')
+      redirectUrl.search = ''
       return NextResponse.redirect(redirectUrl)
     }
     if (isCustomerUser) {
-      // Customer identity attempting to access shopkeeper management
+      // Authenticated customer attempting shopkeeper routes:
+      // Redirect safely to customer portal without role leakage
       const redirectUrl = request.nextUrl.clone()
-      redirectUrl.pathname = '/login'
-      redirectUrl.searchParams.set('type', 'shopkeeper')
+      redirectUrl.pathname = '/customer/dashboard'
+      redirectUrl.search = ''
       return NextResponse.redirect(redirectUrl)
     }
   }

@@ -48,12 +48,9 @@ function LoginFormContent() {
     }
 
     const err = searchParams.get('error');
-    const reason = searchParams.get('reason');
-    if (err === 'auth_failed') {
-      const decodedReason = reason ? decodeURIComponent(reason) : 'Authentication failed. Please verify your account and try again.';
-      toast.error(`Login error: ${decodedReason}`, {
+    if (err) {
+      toast.error('Invalid email or password.', {
         id: 'auth-error-toast',
-        duration: 7000,
       });
     }
   }, [initialType, searchParams]);
@@ -63,7 +60,7 @@ function LoginFormContent() {
     e.preventDefault();
 
     if (!email.trim() || !password.trim()) {
-      toast.error('Please enter both email and password.');
+      toast.error('Invalid email or password.');
       return;
     }
 
@@ -77,7 +74,8 @@ function LoginFormContent() {
       });
 
       if (error) {
-        toast.error(error.message || 'Invalid email or password');
+        console.warn('Shopkeeper login failed:', error.message);
+        toast.error('Invalid email or password.');
         setIsShopkeeperLoading(false);
         return;
       }
@@ -87,7 +85,7 @@ function LoginFormContent() {
         const verifyRes = await verifyPortalAuthorizationAction('shopkeeper');
         if (!verifyRes.authorized) {
           await supabase.auth.signOut();
-          toast.error(verifyRes.error || 'Access denied for Shopkeeper portal.');
+          toast.error('Invalid email or password.');
           setIsShopkeeperLoading(false);
           return;
         }
@@ -95,12 +93,12 @@ function LoginFormContent() {
         toast.success('Signed in successfully! Redirecting...');
         window.location.href = '/dashboard';
       } else {
-        toast.error('Could not start session. Please try again.');
+        toast.error('Invalid email or password.');
         setIsShopkeeperLoading(false);
       }
     } catch (err: any) {
       console.error('Shopkeeper login error:', err);
-      toast.error(err.message || 'An unexpected error occurred during login.');
+      toast.error('Invalid email or password.');
       setIsShopkeeperLoading(false);
     }
   };
@@ -109,13 +107,8 @@ function LoginFormContent() {
   const handleCustomerLogin = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!customerEmail.trim()) {
-      toast.error('Please enter your email address.');
-      return;
-    }
-
-    if (!customerPassword.trim()) {
-      toast.error('Please enter your password.');
+    if (!customerEmail.trim() || !customerPassword.trim()) {
+      toast.error('Invalid email or password.');
       return;
     }
 
@@ -129,18 +122,8 @@ function LoginFormContent() {
       });
 
       if (error) {
-        const msg = error.message || 'Login failed';
-        const lower = msg.toLowerCase();
-
-        if (lower.includes('invalid login credentials') || lower.includes('invalid email or password')) {
-          toast.error('Invalid email or password. Please try again.');
-        } else if (lower.includes('email not confirmed') || lower.includes('not confirmed')) {
-          toast.error('Email not verified. Please check your email and verify your account before logging in.');
-        } else if (lower.includes('too many requests') || lower.includes('rate limit')) {
-          toast.error('Too many login attempts. Please wait a moment and try again.');
-        } else {
-          toast.error(msg);
-        }
+        console.warn('Customer login failed:', error.message);
+        toast.error('Invalid email or password.');
         setIsCustomerLoading(false);
         return;
       }
@@ -150,21 +133,20 @@ function LoginFormContent() {
         const verifyRes = await verifyPortalAuthorizationAction('customer');
         if (!verifyRes.authorized) {
           await supabase.auth.signOut();
-          toast.error(verifyRes.error || 'Access denied for Farmer & Customer portal.');
+          toast.error('Invalid email or password.');
           setIsCustomerLoading(false);
           return;
         }
 
         toast.success('Signed in successfully! Redirecting...');
-        router.push('/customer/dashboard');
-        router.refresh();
+        window.location.href = '/customer/dashboard';
       } else {
-        toast.error('Could not establish session. Please try again.');
+        toast.error('Invalid email or password.');
         setIsCustomerLoading(false);
       }
     } catch (err: any) {
       console.error('Customer login error:', err);
-      toast.error(err.message || 'An unexpected error occurred during login.');
+      toast.error('Invalid email or password.');
       setIsCustomerLoading(false);
     }
   };

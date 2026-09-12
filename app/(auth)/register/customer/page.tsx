@@ -80,8 +80,8 @@ export default function CustomerRegisterPage() {
         const msg = authError.message || 'Failed to create account';
         const lower = msg.toLowerCase();
 
-        if (lower.includes('already registered') || lower.includes('already exists')) {
-          toast.error('An account with this email already exists. Please log in instead.');
+        if (lower.includes('already registered') || lower.includes('already exists') || lower.includes('duplicate')) {
+          toast.error('This email is already registered. Please use a different email address.');
         } else if (lower.includes('password')) {
           toast.error(`Password error: ${msg}`);
         } else if (lower.includes('email')) {
@@ -89,6 +89,13 @@ export default function CustomerRegisterPage() {
         } else {
           toast.error(msg);
         }
+        setIsLoading(false);
+        return;
+      }
+
+      // Check if user already exists when email confirmation is enabled (identities array is empty)
+      if (authData?.user && (!authData.user.identities || authData.user.identities.length === 0)) {
+        toast.error('This email is already registered. Please use a different email address.');
         setIsLoading(false);
         return;
       }
@@ -105,8 +112,7 @@ export default function CustomerRegisterPage() {
         }
 
         toast.success('Account created successfully! Redirecting...');
-        router.push('/customer/dashboard');
-        router.refresh();
+        window.location.href = '/customer/dashboard';
       } else if (authData?.user) {
         // Email confirmation is enabled — show confirmation message
         setRegisteredEmail(data.email.trim());
@@ -141,12 +147,12 @@ export default function CustomerRegisterPage() {
           </p>
         </div>
 
-        <Link href="/login?type=customer">
+        <Link href="/customer/login">
           <Button
             variant="outline"
             className="w-full mt-4 font-semibold py-5"
           >
-            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Login
+            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Customer Login
           </Button>
         </Link>
       </div>
@@ -156,7 +162,7 @@ export default function CustomerRegisterPage() {
   return (
     <div className="space-y-6">
       <Link
-        href="/login?type=customer"
+        href="/customer/login"
         className="inline-flex items-center text-xs font-medium text-muted-foreground hover:text-foreground gap-1 transition-colors"
       >
         <ArrowLeft className="h-3.5 w-3.5" /> Back to Customer Login
@@ -313,7 +319,7 @@ export default function CustomerRegisterPage() {
             Already have an account?{' '}
           </span>
           <Link
-            href="/login?type=customer"
+            href="/customer/login"
             className="text-emerald-600 dark:text-emerald-400 hover:underline font-semibold"
           >
             Sign in
@@ -322,7 +328,7 @@ export default function CustomerRegisterPage() {
 
         <div className="pt-1">
           <Link
-            href="/login?type=shopkeeper"
+            href="/login"
             className="text-xs text-muted-foreground hover:text-primary transition-colors"
           >
             Are you an agricultural store owner?{' '}

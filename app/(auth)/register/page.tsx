@@ -38,31 +38,43 @@ export default function RegisterPage() {
   const onSubmit = async (data: RegisterFormValues) => {
     setIsLoading(true)
     
-    // Create user
     const { data: authData, error: authError } = await supabase.auth.signUp({
-      email: data.email,
+      email: data.email.trim(),
       password: data.password,
       options: {
         data: {
-          full_name: data.fullName,
-          phone: data.phone,
+          full_name: data.fullName.trim(),
+          phone: data.phone.trim(),
+          shop_name: data.shopName.trim(),
+          role: 'shopkeeper',
         }
       }
     })
 
     if (authError) {
-      toast.error(authError.message || 'Failed to register')
-      setIsLoading(false)
-      return
+      const msg = authError.message || 'Failed to register';
+      const lower = msg.toLowerCase();
+      if (lower.includes('already registered') || lower.includes('already exists') || lower.includes('duplicate')) {
+        toast.error('This email is already registered. Please use a different email address.');
+      } else {
+        toast.error(msg);
+      }
+      setIsLoading(false);
+      return;
     }
 
-    if (authData.session) {
+    if (authData?.user && (!authData.user.identities || authData.user.identities.length === 0)) {
+      toast.error('This email is already registered. Please use a different email address.');
+      setIsLoading(false);
+      return;
+    }
+
+    if (authData?.session) {
       toast.success('Account created successfully! Welcome to KRUSHI OS.');
-      router.push('/dashboard');
-      router.refresh();
-    } else if (authData.user) {
+      window.location.href = '/dashboard';
+    } else if (authData?.user) {
       toast.success('Registration successful! Please check your email or sign in.');
-      router.push('/login');
+      window.location.href = '/login';
     }
   }
 

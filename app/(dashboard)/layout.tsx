@@ -42,13 +42,12 @@ export default async function DashboardLayout({
         ),
       }
     });
-    const safeReason = encodeURIComponent(errMsg.replace(/[^a-zA-Z0-9 _:-]/g, '').slice(0, 100));
-    redirect(`/login?error=auth_failed&reason=${safeReason}`);
+    redirect('/login?error=auth_failed');
   }
 
   if (!user) {
     console.warn("DashboardLayout: user returned from getAuthAndPermissions is null/undefined");
-    redirect('/login?error=auth_failed&reason=no_user_found');
+    redirect('/login?error=auth_failed');
   }
 
   return (
