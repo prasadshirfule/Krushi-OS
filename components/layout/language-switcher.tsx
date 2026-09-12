@@ -27,11 +27,11 @@ export function LanguageSwitcher({ variant = 'header', className = '' }: Languag
         <Button
           variant="outline"
           size="sm"
-          className={`h-9 gap-1.5 font-medium border-border/80 bg-background/80 hover:bg-accent text-xs sm:text-sm ${className}`}
+          className={`h-9 px-2 sm:px-3 gap-1.5 font-medium border-border/80 bg-background/80 hover:bg-accent text-xs sm:text-sm shrink-0 ${className}`}
           aria-label="Select Language"
         >
-          <Globe className="h-4 w-4 text-primary" />
-          <span className="font-semibold">{currentLang.nativeLabel}</span>
+          <Globe className="h-4 w-4 text-primary shrink-0" />
+          <span className="hidden sm:inline font-semibold">{currentLang.nativeLabel}</span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-36 p-1">

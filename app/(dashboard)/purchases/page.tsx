@@ -21,7 +21,7 @@ export default async function PurchasesPage() {
   ]);
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6 p-3 sm:p-6 min-w-0 max-w-full">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold tracking-tight">Purchases</h1>
         <Link href="/purchases/new">

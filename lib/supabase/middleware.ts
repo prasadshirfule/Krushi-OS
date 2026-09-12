@@ -57,9 +57,12 @@ export async function updateSession(request: NextRequest) {
 
   // 3. Auth pages: redirect authenticated users to their corresponding dashboard
   // Exception: /reset-password must remain accessible during password recovery sessions
+  // Do NOT redirect Server Action requests or non-GET requests (e.g. verifyPortalAuthorizationAction)
   const isAuthPage = pathname.startsWith('/login') || pathname.startsWith('/register') || pathname.startsWith('/forgot-password')
   const isResetPasswordPage = pathname.startsWith('/reset-password')
-  if (isAuthPage && !isResetPasswordPage && user) {
+  const isServerAction = request.headers.has('next-action') || request.headers.get('accept')?.includes('text/x-component') || request.method !== 'GET'
+  const hasAuthError = request.nextUrl.searchParams.has('error')
+  if (isAuthPage && !isResetPasswordPage && user && !isServerAction && !hasAuthError) {
     const redirectUrl = request.nextUrl.clone()
     redirectUrl.pathname = isCustomerUser ? '/customer/dashboard' : '/dashboard'
     return NextResponse.redirect(redirectUrl)

@@ -172,11 +172,14 @@ export function printInvoiceDirectly(elementId: string, format: InvoicePrintForm
 /**
  * Universal PDF downloader that captures the exact working invoice layout via html2canvas.
  *
- * The clone is placed far off-screen (large negative left) so that it is rendered by the
- * browser but never visible in the user's viewport.  The clone preserves the exact same
- * 204 mm × 142 mm dimensions and all descendant styles as the working View/Print invoice.
- * The captured raster is placed at 3, 3 inside an A5-landscape PDF — identical proportions
- * to the on-screen invoice.
+ * KEY DESIGN: The capture clones the FULL .invoice-page wrapper (210×148mm) — not just
+ * the inner .invoice element — because .invoice-page provides the flex-centering context,
+ * 3mm padding, and A5-page geometry that the working View/Print invoice relies on.
+ * Stripping this parent alters the clone's internal layout.
+ *
+ * The clone is placed off-screen (large negative left) so it is rendered by the browser
+ * but never visible.  The captured 210×148mm raster fills the entire A5-landscape PDF
+ * at (0, 0) — producing an identical result to View/Print.
  */
 export async function downloadInvoicePDF(
   elementId: string,
@@ -193,24 +196,40 @@ export async function downloadInvoicePDF(
     return;
   }
 
-  // Target the actual inner invoice container (.invoice / #printable-tax-invoice)
-  // rather than the outer .invoice-page wrapper which adds 3mm padding.
-  const targetElement = (
-    element.querySelector('.invoice') ||
-    element.querySelector('#printable-tax-invoice') ||
-    element.querySelector('.thermal-receipt') ||
-    element
-  ) as HTMLElement;
-
   try {
     const html2canvasModule = await import('html2canvas');
     const html2canvas = html2canvasModule.default || html2canvasModule;
 
+    // ── Determine capture target ──
+    // For A5: capture the full .invoice-page wrapper (210×148mm) which provides the
+    // flex-centering parent context, 3mm padding, and the complete .invoice child.
+    // The element can be:
+    //   - a wrapper containing .invoice-page  (bill-success-dialog: #bill-success-invoice)
+    //   - the .invoice element itself          (sale-detail-view: #printable-tax-invoice)
+    //   - the .invoice-page itself             (unlikely but handled)
+    // Use closest() (walks UP) and querySelector() (walks DOWN) to find .invoice-page.
+    let captureTarget: HTMLElement;
+
+    if (format === 'THERMAL_80MM') {
+      captureTarget = (
+        element.closest('.thermal-receipt-page') ||
+        element.querySelector('.thermal-receipt-page') ||
+        element.querySelector('.thermal-receipt') ||
+        element
+      ) as HTMLElement;
+    } else {
+      captureTarget = (
+        element.closest('.invoice-page') ||
+        element.querySelector('.invoice-page') ||
+        element
+      ) as HTMLElement;
+    }
+
     // ── Staging container ──
-    // Placed far off-screen (negative left) so the clone is fully rendered by the
-    // browser engine but never appears in the user's viewport.
-    // DO NOT use z-index:-99999 (unreliable, can flash behind content).
-    // DO NOT use opacity:0 or visibility:hidden (html2canvas may skip hidden content).
+    // Positioned off-screen via large negative left so the clone is fully rendered
+    // by the browser engine but never appears in the user's viewport.
+    // DO NOT use z-index (unreliable, flashes behind content).
+    // DO NOT use opacity:0 or visibility:hidden (html2canvas may skip).
     const container = document.createElement('div');
     container.style.position = 'fixed';
     container.style.top = '0px';
@@ -219,30 +238,16 @@ export async function downloadInvoicePDF(
     container.style.backgroundColor = '#ffffff';
     container.style.margin = '0';
     container.style.padding = '0';
-    container.style.boxSizing = 'border-box';
 
-    if (format === 'THERMAL_80MM') {
-      container.style.width = '78mm';
-    } else {
-      container.style.width = '204mm';
-      container.style.height = '142mm';
-    }
-
-    // ── Clone the invoice ──
-    // Preserve the exact same dimensions and all descendant styles.
-    // DO NOT alter overflow, height, or internal layout — the working invoice
-    // CSS is the source of truth.
-    const clone = targetElement.cloneNode(true) as HTMLElement;
-    clone.style.transform = 'none';
+    // ── Clone the capture target ──
+    // Preserve ALL inline styles from the React component (flex, centering, padding,
+    // dimensions, borders, overflow, typography).
+    // Only override margin (prevent auto-centering in staging) and ensure visibility.
+    // DO NOT override display, width, height, overflow, or any internal layout property.
+    const clone = captureTarget.cloneNode(true) as HTMLElement;
     clone.style.margin = '0';
     clone.style.visibility = 'visible';
     clone.style.opacity = '1';
-    clone.style.display = 'block';
-    if (format !== 'THERMAL_80MM') {
-      clone.style.width = '204mm';
-      clone.style.height = '142mm';
-      clone.style.boxSizing = 'border-box';
-    }
 
     container.appendChild(clone);
     document.body.appendChild(container);
@@ -281,14 +286,15 @@ export async function downloadInvoicePDF(
       pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight, undefined, 'FAST');
       pdf.save(filename);
     } else {
-      // A5 landscape: 210 × 148 mm
-      // Invoice: 204 × 142 mm centered with 3mm margin on each side
+      // A5 landscape page: 210 × 148 mm — same dimensions as .invoice-page
+      // The captured .invoice-page fills the entire page edge-to-edge.
+      // The 3mm margin and centered .invoice are part of the captured image.
       const pdf = new jsPDF({
         orientation: 'landscape',
         unit: 'mm',
         format: 'a5',
       });
-      pdf.addImage(imgData, 'JPEG', 3, 3, 204, 142, undefined, 'FAST');
+      pdf.addImage(imgData, 'JPEG', 0, 0, 210, 148, undefined, 'FAST');
       pdf.save(filename);
     }
   } catch (err) {

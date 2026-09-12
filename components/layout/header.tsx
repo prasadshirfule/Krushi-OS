@@ -47,19 +47,20 @@ export function Header({ user }: { user: any }) {
   }
 
   return (
-    <header className='sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background px-4 sm:static sm:h-auto sm:border-0 sm:bg-transparent sm:px-6 py-4'>
+    <header className='sticky top-0 z-30 flex min-h-14 items-center gap-2 sm:gap-4 border-b bg-background/95 backdrop-blur-md px-3 sm:px-6 pt-[max(env(safe-area-inset-top,0px),0.75rem)] pb-2.5 sm:pt-4 sm:pb-4 sm:static sm:h-auto sm:border-0 sm:bg-transparent w-full min-w-0 max-w-full'>
       <MobileNav />
       
-      <div className='flex w-full items-center gap-2 sm:gap-4 md:ml-auto md:gap-2 lg:gap-4'>
-        <form className='ml-auto flex-1 sm:flex-initial' onSubmit={(e) => { e.preventDefault(); setOpenCommand(true); }}>
-          <div className='relative'>
-            <Search className='absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground' />
+      <div className='flex w-full min-w-0 items-center gap-1.5 sm:gap-4 md:ml-auto md:gap-2 lg:gap-4'>
+        <form className='ml-auto flex-1 min-w-0 sm:flex-initial' onSubmit={(e) => { e.preventDefault(); setOpenCommand(true); }}>
+          <div className='relative w-full min-w-0'>
+            <Search className='absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground' />
             <Button
+              type="button"
               variant='outline'
-              className='w-full sm:w-[260px] md:w-[300px] justify-start text-sm text-muted-foreground bg-background pl-8'
+              className='w-full sm:w-[220px] md:w-[280px] justify-start text-xs sm:text-sm text-muted-foreground bg-background pl-8 pr-2 h-9 truncate'
               onClick={() => setOpenCommand(true)}
             >
-              {t('common.search', 'Search (Ctrl+K)')}
+              <span className="truncate">{t('common.search', 'Search (Ctrl+K)')}</span>
             </Button>
           </div>
         </form>

@@ -388,21 +388,29 @@ export const supplierSchema = z.object({
 });
 
 export const purchaseItemSchema = z.object({
-  product_id: z.string().uuid(),
-  batch_number: z.string(),
-  manufacturing_date: z.date().optional().nullable(),
-  expiry_date: z.date(),
+  product_id: z.string(),
+  product_name: z.string().optional().nullable(),
+  batch_id: z.string().optional().nullable(),
+  batch_number: z.string().optional().nullable(),
+  manufacturing_date: z.coerce.date().optional().nullable(),
+  expiry_date: z.coerce.date().optional().nullable(),
   quantity: z.number().int().min(1),
   purchase_price: z.number().min(0),
-  gst_rate: z.number().min(0),
+  selling_price: z.number().min(0).optional().nullable(),
+  gst_rate: z.number().min(0).optional().nullable(),
+  gst_amount: z.number().min(0).optional().nullable(),
+  total_amount: z.number().min(0).optional().nullable(),
 });
 
 export const purchaseSchema = z.object({
-  supplier_id: z.string().uuid(),
+  supplier_id: z.string(),
   invoice_number: z.string().optional().nullable(),
-  purchase_date: z.date(),
+  purchase_date: z.coerce.date(),
   items: z.array(purchaseItemSchema).min(1),
   notes: z.string().optional().nullable(),
+  paid_amount: z.number().min(0).optional().nullable(),
+  payment_method: z.string().optional().nullable(),
+  idempotency_key: z.string().optional().nullable(),
 });
 
 export const paymentSplitSchema = z.object({

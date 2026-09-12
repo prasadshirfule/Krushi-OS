@@ -171,28 +171,48 @@ export default function ProductSearch({ onAddToCart }: ProductSearchProps) {
     setAddedProductId(product.id);
     setTimeout(() => setAddedProductId(null), 700);
 
-    let activeBatch: any = null;
-
+    let allBatches: any[] = [];
     if (product.batches && Array.isArray(product.batches) && product.batches.length > 0) {
-      activeBatch = product.batches.find((b: any) => {
-        const qty = b.quantity_available ?? b.stock_quantity ?? 0;
-        const exp = b.expiry_date || b.exp_date;
-        return qty > 0 && (!exp || new Date(exp) > new Date());
-      }) || product.batches[0];
+      allBatches = product.batches;
     } else if (!isClientDemoMode()) {
       try {
         const batchesRes = await getBatchesAction(product.id);
         if (batchesRes.success && Array.isArray(batchesRes.data) && batchesRes.data.length > 0) {
-          activeBatch = batchesRes.data.find((b: any) => {
-            const qty = b.quantity_available ?? b.stock_quantity ?? 0;
-            const exp = b.expiry_date || b.exp_date;
-            return qty > 0 && (!exp || new Date(exp) > new Date());
-          }) || batchesRes.data[0];
+          allBatches = batchesRes.data;
         }
       } catch (err) {
         console.warn('Batch lookup failed, using default product values:', err);
       }
     }
+
+    // Business Logic: Strict FEFO (First Expired, First Out) batch selection
+    // 1. Only active batches (is_active !== false)
+    // 2. Must have available stock (quantity_available > 0)
+    // 3. Must not be expired (expiry_date >= today if expiry specified)
+    // 4. Earliest valid expiry first. Missing/null expiry placed after valid future expiries.
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const eligibleBatches = allBatches
+      .filter((b: any) => {
+        const isActive = b.is_active !== false;
+        const qty = Number(b.quantity_available ?? b.stock_quantity ?? 0);
+        const expStr = b.expiry_date || b.exp_date;
+        const isNotExpired = !expStr || new Date(expStr) >= today;
+        return isActive && qty > 0 && isNotExpired;
+      })
+      .sort((a: any, b: any) => {
+        const expA = a.expiry_date || a.exp_date;
+        const expB = b.expiry_date || b.exp_date;
+        if (expA && expB) {
+          return new Date(expA).getTime() - new Date(expB).getTime();
+        }
+        if (expA) return -1;
+        if (expB) return 1;
+        return 0;
+      });
+
+    const activeBatch = eligibleBatches.length > 0 ? eligibleBatches[0] : (allBatches[0] || null);
 
     const prodFullName = formatProductNameWithSize(product.name, product.pack_size, product.unit);
 
@@ -203,6 +223,7 @@ export default function ProductSearch({ onAddToCart }: ProductSearchProps) {
       batch_id: activeBatch?.id || null,
       batch_number: activeBatch?.batch_number || product.batch_number || null,
       expiry_date: activeBatch?.expiry_date || activeBatch?.exp_date || product.expiry_date || null,
+      batches: allBatches,
       hsn_code: product.hsn_code || product.hsnCode || null,
       manufacturer: product.manufacturer || product.brand?.manufacturer || product.brand?.name || product.brand || '',
       unit: product.unit || undefined,
@@ -213,7 +234,7 @@ export default function ProductSearch({ onAddToCart }: ProductSearchProps) {
       rate: activeBatch?.selling_price || product.selling_price || 0,
       gst_rate: product.gst_rate || 0,
       discount: 0,
-      available_stock: activeBatch?.quantity_available ?? activeBatch?.stock_quantity ?? totalStock,
+      available_stock: activeBatch ? (Number(activeBatch.quantity_available ?? activeBatch.stock_quantity ?? 0)) : totalStock,
     };
 
     onAddToCart(cartItem);

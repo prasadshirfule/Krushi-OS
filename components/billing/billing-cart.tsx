@@ -1,13 +1,19 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { BillingCartItem } from '@/types/sales';
 import { calculateItemTotal, calculateBillTotal } from '@/lib/calculations';
-import { formatCurrency, numberToWords } from '@/lib/utils';
-import { formatProductPackDisplay, formatProductNameWithSize } from '@/lib/validations';
+import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatProductNameWithSize } from '@/lib/validations';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Trash2, ShoppingBasket, Plus, Minus, Receipt, Percent, AlertCircle, Tag } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { 
+  Trash2, ShoppingBasket, Plus, Minus, Receipt, Tag, 
+  AlertCircle, Layers, Check, X, Loader2 
+} from 'lucide-react';
+import { getBatchesAction } from '@/actions/inventory';
+import { toast } from 'sonner';
 
 interface BillingCartProps {
   items: BillingCartItem[];
@@ -18,6 +24,9 @@ interface BillingCartProps {
 
 export default function BillingCart({ items, onChange, onClear, totals: propTotals }: BillingCartProps) {
   const [showDiscountIndex, setShowDiscountIndex] = useState<number | null>(null);
+  const [batchSelectorIndex, setBatchSelectorIndex] = useState<number | null>(null);
+  const [rowBatches, setRowBatches] = useState<Record<string, any[]>>({});
+  const [loadingBatchesRow, setLoadingBatchesRow] = useState<number | null>(null);
 
   // Use passed totals or calculate on the fly
   const totals = propTotals || calculateBillTotal(items);
@@ -34,12 +43,12 @@ export default function BillingCart({ items, onChange, onClear, totals: propTota
     const maxStock = item.available_stock || 9999;
 
     if (newQty < 1) {
-      // Remove item if decremented below 1
       removeItem(index);
       return;
     }
 
     if (newQty > maxStock) {
+      toast.warning(`Cannot exceed available batch stock (${maxStock} units)`);
       return;
     }
 
@@ -48,13 +57,78 @@ export default function BillingCart({ items, onChange, onClear, totals: propTota
 
   const removeItem = (index: number) => {
     onChange(items.filter((_, i) => i !== index));
-    if (showDiscountIndex === index) {
-      setShowDiscountIndex(null);
+    if (showDiscountIndex === index) setShowDiscountIndex(null);
+    if (batchSelectorIndex === index) setBatchSelectorIndex(null);
+  };
+
+  // Open / toggle batch switcher for a cart item
+  const handleToggleBatchSelector = async (index: number) => {
+    if (batchSelectorIndex === index) {
+      setBatchSelectorIndex(null);
+      return;
+    }
+
+    const item = items[index];
+    const prodId = item.product_id || (item.product as any)?.id;
+
+    if (!prodId) {
+      toast.error('Product information not available');
+      return;
+    }
+
+    setBatchSelectorIndex(index);
+
+    // If batches already loaded on row, don't re-fetch
+    if (rowBatches[prodId] && rowBatches[prodId].length > 0) {
+      return;
+    }
+
+    // Check if batches are embedded in item.batches
+    if (item.batches && Array.isArray(item.batches) && item.batches.length > 0) {
+      setRowBatches(prev => ({ ...prev, [prodId]: item.batches || [] }));
+      return;
+    }
+
+    setLoadingBatchesRow(index);
+    try {
+      const res = await getBatchesAction(prodId);
+      if (res.success && Array.isArray(res.data)) {
+        setRowBatches(prev => ({ ...prev, [prodId]: res.data }));
+      }
+    } catch (err) {
+      console.warn('Failed to load batches for switcher:', err);
+    } finally {
+      setLoadingBatchesRow(null);
     }
   };
 
+  // Switch cart item to a different batch
+  const handleSelectBatch = (index: number, newBatch: any) => {
+    const item = items[index];
+    const maxStock = Number(newBatch.quantity_available ?? newBatch.stock_quantity ?? 0);
+    const currentQty = item.quantity || 1;
+    const clampedQty = Math.max(1, Math.min(currentQty, maxStock));
+
+    if (currentQty > maxStock) {
+      toast.info(`Adjusted quantity to ${maxStock} (max available in batch "${newBatch.batch_number}")`);
+    } else {
+      toast.success(`Switched to batch "${newBatch.batch_number}"`);
+    }
+
+    updateItem(index, {
+      batch_id: newBatch.id,
+      batch_number: newBatch.batch_number,
+      expiry_date: newBatch.expiry_date || null,
+      available_stock: maxStock,
+      rate: Number(newBatch.selling_price || item.rate),
+      quantity: clampedQty,
+    });
+
+    setBatchSelectorIndex(null);
+  };
+
   return (
-    <section className="rounded-xl border border-border bg-card p-5 md:p-6 shadow-sm space-y-5 text-card-foreground">
+    <section className="rounded-xl border border-border bg-card p-4 sm:p-6 shadow-sm space-y-5 text-card-foreground min-w-0 max-w-full">
       {/* ─── Header ─── */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2.5">
@@ -91,14 +165,14 @@ export default function BillingCart({ items, onChange, onClear, totals: propTota
           </p>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-4 min-w-0 max-w-full">
           {/* Scrollable Table on mobile/tablet */}
-          <div className="overflow-x-auto rounded-xl border border-border bg-background/40">
-            <table className="w-full text-left border-collapse">
+          <div className="overflow-x-auto rounded-xl border border-border bg-background/40 w-full max-w-full">
+            <table className="w-full text-left border-collapse min-w-[580px] sm:min-w-[620px]">
               <thead>
                 <tr className="bg-muted/50 text-xs font-semibold text-muted-foreground uppercase tracking-wider border-b border-border">
                   <th className="py-3 px-3 w-10 text-center">#</th>
-                  <th className="py-3 px-4">Product Name</th>
+                  <th className="py-3 px-4">Product Name & Batch</th>
                   <th className="py-3 px-3 text-right">Rate</th>
                   <th className="py-3 px-4 text-center w-36">Quantity</th>
                   <th className="py-3 px-4 text-right">Amount</th>
@@ -117,29 +191,66 @@ export default function BillingCart({ items, onChange, onClear, totals: propTota
                     { discountAmount: effectiveDiscount }
                   );
                   const isDiscountOpen = showDiscountIndex === idx;
+                  const isBatchSelectorOpen = batchSelectorIndex === idx;
                   const hasDiscount = effectiveDiscount > 0;
                   const stockExceeded = item.available_stock && item.quantity > item.available_stock;
+                  const prodId = item.product_id || (item.product as any)?.id || '';
+
+                  // Get eligible batches for this row (active, quantity > 0, not expired)
+                  const rawBatches = rowBatches[prodId] || item.batches || [];
+                  const today = new Date();
+                  today.setHours(0, 0, 0, 0);
+
+                  const eligibleBatches = rawBatches
+                    .filter((b: any) => {
+                      const isActive = b.is_active !== false;
+                      const qty = Number(b.quantity_available ?? b.stock_quantity ?? 0);
+                      const expStr = b.expiry_date || b.exp_date;
+                      const isNotExpired = !expStr || new Date(expStr) >= today;
+                      return isActive && qty > 0 && isNotExpired;
+                    })
+                    .sort((a: any, b: any) => {
+                      const expA = a.expiry_date || a.exp_date;
+                      const expB = b.expiry_date || b.exp_date;
+                      if (expA && expB) return new Date(expA).getTime() - new Date(expB).getTime();
+                      if (expA) return -1;
+                      if (expB) return 1;
+                      return 0;
+                    });
 
                   return (
                     <tr key={item.id || idx} className="hover:bg-accent/30 transition-colors">
                       {/* # Index */}
-                      <td className="py-3.5 px-3 text-center text-sm text-muted-foreground font-mono">
+                      <td className="py-3.5 px-3 text-center text-sm text-muted-foreground font-mono align-top">
                         {idx + 1}
                       </td>
 
-                      {/* Product Name */}
-                      <td className="py-3.5 px-4">
+                      {/* Product Name & Batch Controls */}
+                      <td className="py-3.5 px-4 align-top">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-bold text-foreground text-base">
+                          <span className="font-bold text-foreground text-sm sm:text-base">
                             {formatProductNameWithSize(item.product_name || (item as any).name, item.pack_size || item.product?.pack_size, item.unit || item.product?.unit)}
                           </span>
                         </div>
-                        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                          {item.batch_number && (
-                            <span className="text-[11px] text-muted-foreground font-mono bg-muted px-1.5 py-0.5 rounded border border-border">
-                              Batch: {item.batch_number}
-                            </span>
-                          )}
+
+                        {/* Batch, GST, Discount, and "Change Batch" Trigger */}
+                        <div className="flex items-center gap-2 mt-1 flex-wrap">
+                          {/* Selected Batch Badge */}
+                          <Badge variant="outline" className="font-mono text-[11px] bg-muted/60 text-foreground border-border px-1.5 py-0.5">
+                            Batch: {item.batch_number || 'Default'}
+                          </Badge>
+
+                          {/* Change Batch compact button */}
+                          <button
+                            type="button"
+                            onClick={() => handleToggleBatchSelector(idx)}
+                            className="text-[11px] text-primary hover:underline flex items-center gap-1 font-semibold transition-colors"
+                            title="Change inventory stock batch"
+                          >
+                            <Layers className="h-3 w-3" />
+                            <span>Change Batch</span>
+                          </button>
+
                           <span className="text-[11px] text-muted-foreground">
                             GST: {item.gst_rate || 0}%
                           </span>
@@ -158,6 +269,75 @@ export default function BillingCart({ items, onChange, onClear, totals: propTota
                             {hasDiscount ? `₹${effectiveDiscount.toFixed(2)} off` : '+ Add Discount (₹)'}
                           </button>
                         </div>
+
+                        {/* ─── Compact Batch Selector Panel ─── */}
+                        {isBatchSelectorOpen && (
+                          <div className="mt-2.5 p-3 bg-card border border-primary/40 rounded-xl shadow-lg space-y-2 max-w-md animate-in fade-in-50 duration-150">
+                            <div className="flex items-center justify-between border-b border-border pb-1.5">
+                              <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                                <Layers className="h-3.5 w-3.5 text-primary" /> Select Stock Batch (FEFO)
+                              </span>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-5 w-5 text-muted-foreground hover:text-foreground"
+                                onClick={() => setBatchSelectorIndex(null)}
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+
+                            {loadingBatchesRow === idx ? (
+                              <div className="py-4 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
+                                <Loader2 className="h-4 w-4 animate-spin text-primary" /> Loading available batches...
+                              </div>
+                            ) : eligibleBatches.length === 0 ? (
+                              <div className="py-2 text-xs text-muted-foreground italic">
+                                No other active batches with available stock for this product.
+                              </div>
+                            ) : (
+                              <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                                {eligibleBatches.map((b: any) => {
+                                  const isCurrent = (b.id === item.batch_id || b.batch_number === item.batch_number);
+                                  const bQty = Number(b.quantity_available ?? b.stock_quantity ?? 0);
+                                  const bRate = Number(b.selling_price || item.rate);
+
+                                  return (
+                                    <div
+                                      key={b.id}
+                                      onClick={() => handleSelectBatch(idx, b)}
+                                      className={`p-2 rounded-lg border text-xs cursor-pointer flex items-center justify-between transition-all ${
+                                        isCurrent
+                                          ? 'border-primary bg-primary/10 text-primary font-bold shadow-xs'
+                                          : 'border-border/80 hover:bg-muted/70 text-foreground'
+                                      }`}
+                                    >
+                                      <div>
+                                        <div className="flex items-center gap-1.5">
+                                          <span className="font-mono font-bold text-foreground">{b.batch_number}</span>
+                                          {isCurrent && (
+                                            <Badge className="text-[9px] h-4 px-1 bg-primary text-primary-foreground">
+                                              Current
+                                            </Badge>
+                                          )}
+                                        </div>
+                                        <div className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-2">
+                                          <span>Exp: {b.expiry_date ? formatDate(b.expiry_date) : 'No Expiry'}</span>
+                                          <span>Rate: {formatCurrency(bRate)}</span>
+                                        </div>
+                                      </div>
+                                      <div className="text-right shrink-0">
+                                        <span className="font-mono font-extrabold text-foreground text-sm">{bQty}</span>
+                                        <span className="block text-[10px] text-muted-foreground">avail</span>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        )}
 
                         {/* Inline Discount Editor in ₹ */}
                         {isDiscountOpen && (
@@ -198,19 +378,19 @@ export default function BillingCart({ items, onChange, onClear, totals: propTota
                         )}
 
                         {stockExceeded && (
-                          <div className="text-[11px] text-destructive flex items-center gap-1 mt-1">
-                            <AlertCircle className="h-3 w-3" /> Exceeds available stock ({item.available_stock})
+                          <div className="text-[11px] text-destructive flex items-center gap-1 mt-1 font-semibold">
+                            <AlertCircle className="h-3 w-3" /> Exceeds available batch stock ({item.available_stock})
                           </div>
                         )}
                       </td>
 
                       {/* Rate */}
-                      <td className="py-3.5 px-3 text-right font-medium text-muted-foreground">
+                      <td className="py-3.5 px-3 text-right font-medium text-muted-foreground align-top font-mono">
                         {formatCurrency(item.rate || 0)}
                       </td>
 
-                      {/* Quantity Stepper with Large + and − buttons */}
-                      <td className="py-3.5 px-4">
+                      {/* Quantity Stepper */}
+                      <td className="py-3.5 px-4 align-top">
                         <div className="flex flex-col items-center gap-1">
                           <div className="flex items-center justify-center gap-1">
                             <Button
@@ -228,8 +408,15 @@ export default function BillingCart({ items, onChange, onClear, totals: propTota
                               min="1"
                               max={item.available_stock}
                               value={item.quantity}
-                              onChange={e => updateItem(idx, { quantity: Math.max(1, Number(e.target.value) || 1) })}
-                              className="h-8 w-14 text-center font-bold text-base px-1 rounded-lg bg-background border-border text-foreground"
+                              onChange={e => {
+                                const val = Number(e.target.value) || 1;
+                                const maxStock = item.available_stock || 9999;
+                                if (val > maxStock) {
+                                  toast.warning(`Cannot exceed available batch stock (${maxStock} units)`);
+                                }
+                                updateItem(idx, { quantity: Math.min(maxStock, Math.max(1, val)) });
+                              }}
+                              className="h-8 w-14 text-center font-bold text-base px-1 rounded-lg bg-background border-border text-foreground font-mono"
                             />
                             <Button
                               type="button"
@@ -244,25 +431,25 @@ export default function BillingCart({ items, onChange, onClear, totals: propTota
                             </Button>
                           </div>
                           <span className="text-[11px] font-medium text-muted-foreground">
-                            Pieces
+                            {item.available_stock ? `${item.available_stock} avail` : 'Units'}
                           </span>
                         </div>
                       </td>
 
                       {/* Amount */}
-                      <td className="py-3.5 px-4 text-right">
-                        <span className="font-extrabold text-base text-foreground">
+                      <td className="py-3.5 px-4 text-right align-top">
+                        <span className="font-extrabold text-base text-foreground font-mono">
                           {formatCurrency(itemTotal.total)}
                         </span>
                         {hasDiscount && (
-                          <span className="block text-[11px] text-muted-foreground line-through">
+                          <span className="block text-[11px] text-muted-foreground line-through font-mono">
                             {formatCurrency(itemTotal.subtotal)}
                           </span>
                         )}
                       </td>
 
                       {/* Remove Button */}
-                      <td className="py-3.5 px-3 text-center">
+                      <td className="py-3.5 px-3 text-center align-top">
                         <Button
                           variant="ghost"
                           size="icon"
@@ -280,7 +467,7 @@ export default function BillingCart({ items, onChange, onClear, totals: propTota
             </table>
           </div>
 
-          {/* ─── Bill Breakdown Summary (Dark Theme) ─── */}
+          {/* ─── Bill Breakdown Summary ─── */}
           <div className="bg-muted/30 rounded-xl border border-border p-4 md:p-5">
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm pb-4 border-b border-border">
               <div>
@@ -291,72 +478,35 @@ export default function BillingCart({ items, onChange, onClear, totals: propTota
               </div>
               <div>
                 <span className="text-xs text-muted-foreground block font-medium">Subtotal</span>
-                <span className="font-bold text-foreground text-base">
+                <span className="font-bold text-foreground text-base font-mono">
                   {formatCurrency(totals.subtotal || 0)}
                 </span>
               </div>
               <div>
                 <span className="text-xs text-muted-foreground block font-medium">Total GST</span>
-                <span className="font-bold text-foreground text-base">
+                <span className="font-bold text-foreground text-base font-mono">
                   {formatCurrency(totals.totalTax || 0)}
                 </span>
               </div>
               <div>
                 <span className="text-xs text-muted-foreground block font-medium">Product Discount</span>
-                <span className="font-bold text-amber-400 text-base">
+                <span className="font-bold text-amber-400 text-base font-mono">
                   {(totals.totalDiscount || 0) > 0 ? `-${formatCurrency(totals.totalDiscount)}` : '₹0.00'}
                 </span>
               </div>
             </div>
 
-            {/* Adjustments row if present */}
-            {((totals.totalAdditions || 0) > 0 || (totals.totalDeductions || 0) > 0) && (
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm py-3 border-b border-border/60 bg-muted/20 px-2 rounded-md my-2">
-                <div>
-                  <span className="text-xs text-muted-foreground block font-medium">Products Total</span>
-                  <span className="font-semibold text-foreground text-sm">
-                    {formatCurrency(totals.productsTotal || (totals.subtotal + totals.totalTax - totals.totalDiscount))}
-                  </span>
-                </div>
-                {(totals.totalAdditions || 0) > 0 ? (
-                  <div>
-                    <span className="text-xs text-emerald-400 block font-medium">Added Charges (+)</span>
-                    <span className="font-bold text-emerald-400 text-sm">
-                      +{formatCurrency(totals.totalAdditions)}
-                    </span>
-                  </div>
-                ) : <div />}
-                {(totals.totalDeductions || 0) > 0 ? (
-                  <div>
-                    <span className="text-xs text-amber-400 block font-medium">Deductions (-)</span>
-                    <span className="font-bold text-amber-400 text-sm">
-                      -{formatCurrency(totals.totalDeductions)}
-                    </span>
-                  </div>
-                ) : <div />}
-                <div />
-              </div>
-            )}
-
-            {/* Prominent Grand Total Display */}
-            <div className="pt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            {/* Final Grand Total */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-4">
               <div>
-                <span className="text-xs uppercase font-bold text-primary tracking-wider block">
-                  Total Payable Amount
-                </span>
-                <span className="text-xs text-muted-foreground italic">
-                  {numberToWords(totals.payableAmount || 0)}
+                <span className="text-xs text-muted-foreground block">Net Payable Amount</span>
+                <span className="text-2xl sm:text-3xl font-extrabold text-primary font-mono">
+                  {formatCurrency(totals.payableAmount ?? totals.grandTotal ?? 0)}
                 </span>
               </div>
-
-              <div className="text-right">
-                <span className="text-3xl md:text-4xl font-black text-primary tracking-tight">
-                  {formatCurrency(totals.payableAmount || 0)}
-                </span>
-                {totals.roundOff !== 0 && (
-                  <span className="text-[11px] text-muted-foreground block">
-                    (Round off: {totals.roundOff > 0 ? `+${totals.roundOff}` : totals.roundOff})
-                  </span>
+              <div className="text-right text-xs text-muted-foreground">
+                {(totals.roundOff || 0) !== 0 && (
+                  <span>Round off adjustment: {formatCurrency(totals.roundOff || 0)}</span>
                 )}
               </div>
             </div>

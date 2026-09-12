@@ -71,6 +71,8 @@ export interface BillingCartItem {
   gst_rate: number;
   gst?: number;
   available_stock?: number;
+  expiry_date?: string | null;
+  batches?: any[];
   subtotal?: number;
   total?: number;
 }

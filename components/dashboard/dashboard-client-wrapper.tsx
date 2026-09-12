@@ -91,25 +91,27 @@ export default function DashboardClientWrapper({
   }, [initialStats, initialLowStock, initialExpiring, initialActivities, syncData]);
 
   return (
-    <div className="flex flex-col gap-6 p-6">
-      <h1 className="text-3xl font-bold tracking-tight">{t('dashboard.title', 'Dashboard')}</h1>
+    <div className="flex flex-col gap-6 p-3 sm:p-6 min-w-0 max-w-full w-full">
+      <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">{t('dashboard.title', 'Dashboard')}</h1>
       
-      <StatsCards stats={stats} />
+      <div className="min-w-0 max-w-full w-full">
+        <StatsCards stats={stats} />
+      </div>
       
-      <div className="grid grid-cols-1 lg:grid-cols-7 gap-6">
-        <div className="lg:col-span-4">
+      <div className="grid grid-cols-1 lg:grid-cols-7 gap-6 min-w-0 max-w-full w-full">
+        <div className="lg:col-span-4 min-w-0 max-w-full w-full">
           <SalesChart data={stats?.salesChart || []} />
         </div>
-        <div className="lg:col-span-3">
+        <div className="lg:col-span-3 min-w-0 max-w-full w-full">
           <TopProducts products={stats?.topProducts || []} />
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-7 gap-6">
-        <div className="lg:col-span-4">
+      <div className="grid grid-cols-1 lg:grid-cols-7 gap-6 min-w-0 max-w-full w-full">
+        <div className="lg:col-span-4 min-w-0 max-w-full w-full">
           <RecentSales sales={stats?.recentSales || []} />
         </div>
-        <div className="lg:col-span-3">
+        <div className="lg:col-span-3 min-w-0 max-w-full w-full">
           <AlertsPanel 
             lowStockProducts={lowStockProducts || []} 
             expiringBatches={expiringBatches || []} 
@@ -117,7 +119,7 @@ export default function DashboardClientWrapper({
         </div>
       </div>
 
-      <div className="grid grid-cols-1">
+      <div className="grid grid-cols-1 min-w-0 max-w-full w-full">
         <ActivityFeed activities={activities || []} />
       </div>
     </div>

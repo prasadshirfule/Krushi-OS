@@ -1457,10 +1457,11 @@ export async function downloadInvoiceAsPDF(
   const element = document.getElementById(elementId);
   if (!element) return;
 
-  const targetElement = (
+  const captureTarget = (
+    element.closest('.invoice-page') ||
+    element.querySelector('.invoice-page') ||
     element.querySelector('.invoice') ||
     element.querySelector('#printable-tax-invoice') ||
-    element.querySelector('.thermal-receipt') ||
     element
   ) as HTMLElement;
 
@@ -1476,19 +1477,11 @@ export async function downloadInvoiceAsPDF(
     container.style.backgroundColor = '#ffffff';
     container.style.margin = '0';
     container.style.padding = '0';
-    container.style.boxSizing = 'border-box';
-    container.style.width = '204mm';
-    container.style.height = '142mm';
 
-    const clone = targetElement.cloneNode(true) as HTMLElement;
-    clone.style.transform = 'none';
+    const clone = captureTarget.cloneNode(true) as HTMLElement;
     clone.style.margin = '0';
     clone.style.visibility = 'visible';
     clone.style.opacity = '1';
-    clone.style.display = 'block';
-    clone.style.width = '204mm';
-    clone.style.height = '142mm';
-    clone.style.boxSizing = 'border-box';
 
     container.appendChild(clone);
     document.body.appendChild(container);
@@ -1519,8 +1512,12 @@ export async function downloadInvoiceAsPDF(
       format: 'a5',
     });
 
-    // Center 204x142 inside 210x148
-    pdf.addImage(imgData, 'JPEG', 3, 3, 204, 142, undefined, 'FAST');
+    const isFullPage = captureTarget.classList.contains('invoice-page');
+    if (isFullPage) {
+      pdf.addImage(imgData, 'JPEG', 0, 0, 210, 148, undefined, 'FAST');
+    } else {
+      pdf.addImage(imgData, 'JPEG', 3, 3, 204, 142, undefined, 'FAST');
+    }
     pdf.save(filename);
   } catch (err) {
     console.error('Error generating PDF from DOM:', err);

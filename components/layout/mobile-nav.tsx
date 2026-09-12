@@ -46,7 +46,7 @@ export function MobileNav() {
           <span className='sr-only'>{t('nav.toggleNav', 'Toggle navigation menu')}</span>
         </Button>
       </SheetTrigger>
-      <SheetContent side='left' className='w-72 p-0 flex flex-col h-full max-h-[100dvh] overflow-hidden gap-0'>
+      <SheetContent side='left' className='w-72 p-0 flex flex-col h-full max-h-[100dvh] overflow-hidden gap-0 pt-[max(env(safe-area-inset-top,0px),0.75rem)]'>
         <div className='flex h-14 items-center border-b px-4 shrink-0'>
           <Link href='/dashboard' className='flex items-center gap-2 font-semibold text-primary' onClick={() => setOpen(false)}>
             <span className='text-xl'>🌾</span>

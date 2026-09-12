@@ -18,6 +18,10 @@ export async function completePurchaseAction(data: any): Promise<ActionResult<an
     const result = await purchasesService.completePurchase(userData.shop_id, validated.data as any, userData.id);
     revalidatePath('/purchases');
     revalidatePath('/inventory');
+    revalidatePath('/products');
+    revalidatePath('/billing');
+    revalidatePath('/dashboard');
+    revalidatePath('/reports');
     return { success: true, data: result };
   } catch (error: any) {
     return { success: false, error: error.message || 'An unexpected error occurred' };
