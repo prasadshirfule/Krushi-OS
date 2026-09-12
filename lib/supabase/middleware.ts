@@ -61,7 +61,8 @@ export async function updateSession(request: NextRequest) {
     pathname === '/customer/login' ||
     pathname.startsWith('/register') ||
     pathname.startsWith('/forgot-password') ||
-    pathname.startsWith('/reset-password')
+    pathname.startsWith('/reset-password') ||
+    pathname.startsWith('/auth')
 
   if (isPublicAuthPage) {
     console.log(`[AUTH DEBUG] pathname=${pathname} authenticated=${!!user} portal=${isCustomerUser ? 'customer' : 'shopkeeper'} authorized=true redirect=none`)

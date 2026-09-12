@@ -64,10 +64,15 @@ export default function CustomerRegisterPage() {
       const supabase = createClient();
       const normalizedMobile = normalizeIndianMobile(data.mobile);
 
+      const origin = typeof window !== 'undefined' && window.location.origin
+        ? window.location.origin
+        : 'https://krushios.vercel.app';
+
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: data.email.trim(),
         password: data.password,
         options: {
+          emailRedirectTo: `${origin}/auth/confirm?next=/customer/login?confirmed=true`,
           data: {
             role: 'customer',
             full_name: data.fullName.trim(),
@@ -117,7 +122,8 @@ export default function CustomerRegisterPage() {
         // Email confirmation is enabled — show confirmation message
         setRegisteredEmail(data.email.trim());
         setEmailConfirmationSent(true);
-        toast.success('Account created! Please check your email to verify.');
+        toast.success('Account created. Please check your email to verify your account.');
+        setIsLoading(false);
       } else {
         toast.error('Unable to create account. Please try again.');
         setIsLoading(false);
@@ -141,9 +147,8 @@ export default function CustomerRegisterPage() {
             Check your email
           </h2>
           <p className="text-sm text-muted-foreground leading-relaxed max-w-sm mx-auto">
-            Account created successfully. Please check your email at{' '}
-            <strong className="text-foreground">{registeredEmail}</strong> and
-            verify your account before logging in.
+            Account created. Please check your email to verify your account. We sent a verification link to{' '}
+            <strong className="text-foreground">{registeredEmail}</strong>.
           </p>
         </div>
 

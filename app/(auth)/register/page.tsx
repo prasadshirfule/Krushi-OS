@@ -13,6 +13,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { provisionShopkeeperAccountAction } from '@/actions/customer-auth'
 
+import { CheckCircle2, ArrowLeft, Mail } from 'lucide-react'
+
 const registerSchema = z.object({
   fullName: z.string().min(2, 'Name is required'),
   email: z.string().email('Invalid email address'),
@@ -29,6 +31,8 @@ type RegisterFormValues = z.infer<typeof registerSchema>
 
 export default function RegisterPage() {
   const [isLoading, setIsLoading] = useState(false)
+  const [emailConfirmationSent, setEmailConfirmationSent] = useState(false)
+  const [registeredEmail, setRegisteredEmail] = useState('')
   const router = useRouter()
   const supabase = createClient()
   
@@ -39,10 +43,15 @@ export default function RegisterPage() {
   const onSubmit = async (data: RegisterFormValues) => {
     setIsLoading(true)
     
+    const origin = typeof window !== 'undefined' && window.location.origin
+      ? window.location.origin
+      : 'https://krushios.vercel.app';
+
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: data.email.trim(),
       password: data.password,
       options: {
+        emailRedirectTo: `${origin}/auth/confirm?next=/login?confirmed=true`,
         data: {
           full_name: data.fullName.trim(),
           phone: data.phone.trim(),
@@ -71,7 +80,7 @@ export default function RegisterPage() {
     }
 
     if (authData?.session) {
-      // Immediately provision the shopkeeper profile on the server before navigating!
+      // Direct session granted (email confirmation disabled) — immediately provision shopkeeper
       const provRes = await provisionShopkeeperAccountAction({
         shopName: data.shopName.trim(),
         fullName: data.fullName.trim(),
@@ -88,9 +97,42 @@ export default function RegisterPage() {
       toast.success('Account created successfully! Welcome to KRUSHI OS.');
       window.location.href = '/dashboard';
     } else if (authData?.user) {
-      toast.success('Registration successful! Please check your email or sign in.');
-      window.location.href = '/login';
+      // Email confirmation required — do NOT attempt shop provisioning yet
+      setRegisteredEmail(data.email.trim());
+      setEmailConfirmationSent(true);
+      toast.success('Account created. Please check your email to verify your account.');
+      setIsLoading(false);
+    } else {
+      toast.error('Unable to create account. Please try again.');
+      setIsLoading(false);
     }
+  }
+
+  if (emailConfirmationSent) {
+    return (
+      <div className="space-y-6">
+        <div className="text-center space-y-3">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-primary">
+            <CheckCircle2 className="h-8 w-8" />
+          </div>
+          <h2 className="text-2xl font-bold tracking-tight text-foreground">
+            Check your email
+          </h2>
+          <p className="text-sm text-muted-foreground leading-relaxed max-w-sm mx-auto">
+            Account created. Please check your email to verify your account. We sent a verification link to{' '}
+            <strong className="text-foreground">{registeredEmail}</strong>.
+          </p>
+        </div>
+
+        <div className="pt-2">
+          <Link href="/login">
+            <Button variant="outline" className="w-full font-semibold py-5">
+              <ArrowLeft className="mr-2 h-4 w-4" /> Go to Sign In
+            </Button>
+          </Link>
+        </div>
+      </div>
+    );
   }
 
   return (

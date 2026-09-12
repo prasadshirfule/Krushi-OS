@@ -21,15 +21,28 @@ function CustomerLoginForm() {
   const [isResetting, setIsResetting] = useState(false);
 
   useEffect(() => {
+    const confirmed = searchParams.get('confirmed');
+    if (confirmed === 'true') {
+      toast.success('Email verified successfully! Please sign in to continue.', {
+        id: 'customer-email-confirmed-toast',
+      });
+    }
+
     const err = searchParams.get('error');
     if (err) {
       try {
         const supabase = createClient();
         supabase.auth.signOut().catch(() => {});
       } catch {}
-      toast.error(GENERIC_LOGIN_ERROR, {
-        id: 'auth-error-toast',
-      });
+      if (err === 'confirmation_failed') {
+        toast.error('Email confirmation link was invalid or has expired. Please try signing in or register again.', {
+          id: 'auth-error-toast',
+        });
+      } else {
+        toast.error(GENERIC_LOGIN_ERROR, {
+          id: 'auth-error-toast',
+        });
+      }
     }
   }, [searchParams]);
 
@@ -52,7 +65,11 @@ function CustomerLoginForm() {
 
       if (error) {
         console.warn('Customer login failed:', error.message);
-        toast.error(GENERIC_LOGIN_ERROR);
+        if (error.message?.toLowerCase().includes('email not confirmed')) {
+          toast.error('Please check your email and verify your account before logging in.');
+        } else {
+          toast.error(GENERIC_LOGIN_ERROR);
+        }
         setIsLoading(false);
         return;
       }

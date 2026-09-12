@@ -345,7 +345,7 @@ export async function verifyPortalAuthorizationAction(
     if (targetPortal === 'customer') {
       // Customer Portal: Must be a customer account and NOT a shopkeeper
       const isCustomerRole = user.user_metadata?.role === 'customer';
-      const { data: customerAccount } = await adminClient
+      let { data: customerAccount } = await adminClient
         .from('customer_accounts')
         .select('id')
         .eq('auth_user_id', user.id)
@@ -356,6 +356,28 @@ export async function verifyPortalAuthorizationAction(
         .select('id, shop_id')
         .eq('id', user.id)
         .maybeSingle();
+
+      // If user registered as customer or has customer role, but customer_accounts does not exist yet (email verification deferred it):
+      if (!customerAccount && isCustomerRole && !staffUser?.shop_id) {
+        console.log('[AUTH DEBUG] portal=customer syncing customer account for verified user:', user.id);
+        try {
+          const syncRes = await syncCustomerAccountAction({
+            email: user.email,
+            name: user.user_metadata?.full_name || user.user_metadata?.name,
+            phone: user.user_metadata?.phone,
+          });
+          if (syncRes.success) {
+            const { data: createdAcct } = await adminClient
+              .from('customer_accounts')
+              .select('id')
+              .eq('auth_user_id', user.id)
+              .maybeSingle();
+            customerAccount = createdAcct;
+          }
+        } catch (syncErr) {
+          console.warn('[AUTH DEBUG] Customer account sync during login warning:', syncErr);
+        }
+      }
 
       const isAuthorizedCustomer = (customerAccount || isCustomerRole) && !staffUser?.shop_id;
 
