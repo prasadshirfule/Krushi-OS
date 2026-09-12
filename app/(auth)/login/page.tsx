@@ -46,7 +46,17 @@ function LoginFormContent() {
     } else if (initialType === 'customer') {
       setRole('customer');
     }
-  }, [initialType]);
+
+    const err = searchParams.get('error');
+    const reason = searchParams.get('reason');
+    if (err === 'auth_failed') {
+      const decodedReason = reason ? decodeURIComponent(reason) : 'Authentication failed. Please verify your account and try again.';
+      toast.error(`Login error: ${decodedReason}`, {
+        id: 'auth-error-toast',
+        duration: 7000,
+      });
+    }
+  }, [initialType, searchParams]);
 
   // --- SHOPKEEPER SUBMIT ---
   const handleShopkeeperSubmit = async (e: React.FormEvent) => {
@@ -83,8 +93,7 @@ function LoginFormContent() {
         }
 
         toast.success('Signed in successfully! Redirecting...');
-        router.push('/dashboard');
-        router.refresh();
+        window.location.href = '/dashboard';
       } else {
         toast.error('Could not start session. Please try again.');
         setIsShopkeeperLoading(false);

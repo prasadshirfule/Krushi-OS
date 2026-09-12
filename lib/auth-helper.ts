@@ -26,12 +26,57 @@ export async function ensureUserAndShop(authUser: { id: string; email?: string; 
   const supabase = await createServerSupabaseClient();
   const adminClient = createServerAdminClient() || supabase;
 
-  // 1. Try to fetch existing public.users record
-  const { data: existingUser } = await adminClient
+  // 1. Try to fetch existing public.users record with roles join
+  let existingUser: any = null;
+  const { data: userWithRoles, error: userFetchError } = await adminClient
     .from('users')
     .select('*, roles(*)')
     .eq('id', authUser.id)
     .maybeSingle();
+
+  if (userFetchError) {
+    console.warn("[ensureUserAndShop] Query users with roles(*) error:", {
+      message: userFetchError.message,
+      code: userFetchError.code,
+      details: userFetchError.details,
+      userId: authUser.id,
+      hasAdminClient: !!createServerAdminClient(),
+    });
+  } else if (userWithRoles) {
+    existingUser = userWithRoles;
+  }
+
+  // 1a. If relational query returned null or failed, fallback to direct select on users without join
+  if (!existingUser) {
+    const { data: simpleUser, error: simpleUserErr } = await adminClient
+      .from('users')
+      .select('*')
+      .eq('id', authUser.id)
+      .maybeSingle();
+
+    if (simpleUserErr) {
+      console.warn("[ensureUserAndShop] Direct query users error:", {
+        message: simpleUserErr.message,
+        code: simpleUserErr.code,
+        userId: authUser.id,
+      });
+    } else if (simpleUser) {
+      console.log("[ensureUserAndShop] Found user via direct query on users:", simpleUser.id);
+      let roleData: any = undefined;
+      if (simpleUser.role_id) {
+        const { data: r, error: rErr } = await adminClient
+          .from('roles')
+          .select('*')
+          .eq('id', simpleUser.role_id)
+          .maybeSingle();
+        if (!rErr && r) roleData = r;
+      }
+      existingUser = {
+        ...simpleUser,
+        roles: roleData,
+      };
+    }
+  }
 
   if (existingUser?.shop_id) {
     return existingUser as AuthenticatedUser;
@@ -39,16 +84,21 @@ export async function ensureUserAndShop(authUser: { id: string; email?: string; 
 
   // 1b. If user is explicitly a customer or has a customer_account, do not provision a shop
   if (authUser.user_metadata?.role === 'customer') {
+    console.warn("[ensureUserAndShop] Account has customer role metadata:", authUser.id);
     throw new Error("Customer accounts cannot access shopkeeper features.");
   }
 
-  const { data: existingCustomerAccount } = await adminClient
+  const { data: existingCustomerAccount, error: custAcctErr } = await adminClient
     .from('customer_accounts')
     .select('id')
     .eq('auth_user_id', authUser.id)
     .maybeSingle();
 
   if (existingCustomerAccount?.id) {
+    console.warn("[ensureUserAndShop] Account has existing customer_accounts row:", {
+      userId: authUser.id,
+      customerAccountId: existingCustomerAccount.id,
+    });
     throw new Error("Customer accounts cannot access shopkeeper features.");
   }
 
@@ -59,16 +109,20 @@ export async function ensureUserAndShop(authUser: { id: string; email?: string; 
 
   // 2a. Find or create 'Admin' role
   let roleId: string | null = null;
-  const { data: existingRole } = await adminClient
+  const { data: existingRole, error: roleErr } = await adminClient
     .from('roles')
     .select('id')
     .eq('name', 'Admin')
     .maybeSingle();
 
+  if (roleErr) {
+    console.warn("[ensureUserAndShop] Query roles Admin error:", roleErr);
+  }
+
   if (existingRole?.id) {
     roleId = existingRole.id;
   } else {
-    const { data: newRole } = await adminClient
+    const { data: newRole, error: newRoleErr } = await adminClient
       .from('roles')
       .insert({
         name: 'Admin',
@@ -77,6 +131,9 @@ export async function ensureUserAndShop(authUser: { id: string; email?: string; 
       })
       .select('id')
       .single();
+    if (newRoleErr) {
+      console.error("[ensureUserAndShop] Create role error:", newRoleErr);
+    }
     roleId = newRole?.id || null;
   }
 
@@ -95,7 +152,7 @@ export async function ensureUserAndShop(authUser: { id: string; email?: string; 
     .single();
 
   if (shopError || !newShop?.id) {
-    console.error("Failed to provision shop record:", shopError);
+    console.error("[ensureUserAndShop] Failed to provision shop record:", shopError);
     throw new Error(`Failed to initialize shop profile: ${shopError?.message || 'Database error'}`);
   }
 
@@ -115,7 +172,7 @@ export async function ensureUserAndShop(authUser: { id: string; email?: string; 
     .single();
 
   if (userError || !newUser) {
-    console.error("Failed to provision public.users record:", userError);
+    console.error("[ensureUserAndShop] Failed to provision public.users record:", userError);
     throw new Error(`Failed to initialize user record: ${userError?.message || 'Database error'}`);
   }
 
@@ -130,12 +187,21 @@ const resolveAuthenticatedUser = cache(async (): Promise<AuthenticatedUser> => {
   const { data: { user }, error: authError } = await supabase.auth.getUser();
 
   if (authError || !user) {
-    throw new Error("Please log in to continue.");
+    console.error("[resolveAuthenticatedUser] auth.getUser() failed:", {
+      authError: authError?.message,
+      authCode: authError?.status,
+      hasUser: !!user,
+    });
+    throw new Error(authError?.message || "Please log in to continue.");
   }
 
   const userData = await ensureUserAndShop(user);
 
   if (!userData?.shop_id) {
+    console.error("[resolveAuthenticatedUser] User has no shop_id configured:", {
+      userId: user.id,
+      userData,
+    });
     throw new Error("Your shop profile is not configured. Please complete setup.");
   }
 

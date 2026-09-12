@@ -5,6 +5,8 @@ import { GlobalNavigationIndicator } from '@/components/layout/global-navigation
 import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
 
+export const dynamic = 'force-dynamic';
+
 export default async function DashboardLayout({
   children,
 }: {
@@ -14,13 +16,39 @@ export default async function DashboardLayout({
   try {
     user = await getAuthAndPermissions();
   } catch (error: any) {
-    if (error?.digest?.startsWith('NEXT_REDIRECT')) throw error;
-    console.error("DashboardLayout auth error:", error);
-    redirect('/login?error=auth_failed');
+    if (
+      error?.digest?.startsWith('NEXT_REDIRECT') ||
+      error?.digest === 'DYNAMIC_SERVER_USAGE' ||
+      error?.message?.includes('DYNAMIC_SERVER_USAGE') ||
+      error?.message?.includes('Dynamic server usage')
+    ) {
+      throw error;
+    }
+    const errMsg = error instanceof Error ? error.message : String(error || 'auth_failed');
+    const errCode = error?.code || error?.status || 'AUTH_ERR';
+    console.error("DashboardLayout auth error [DIAGNOSTIC]:", {
+      message: errMsg,
+      code: errCode,
+      name: error?.name,
+      stack: error?.stack,
+      env: {
+        hasSupabaseUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+        hasAnonKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+        hasServiceKey: !!(
+          process.env.SUPABASE_SERVICE_ROLE_KEY ||
+          process.env.SUPABASE_SERVICE_KEY ||
+          process.env.SUPABASE_SECRET_KEY ||
+          process.env.SERVICE_ROLE_KEY
+        ),
+      }
+    });
+    const safeReason = encodeURIComponent(errMsg.replace(/[^a-zA-Z0-9 _:-]/g, '').slice(0, 100));
+    redirect(`/login?error=auth_failed&reason=${safeReason}`);
   }
 
   if (!user) {
-    redirect('/login');
+    console.warn("DashboardLayout: user returned from getAuthAndPermissions is null/undefined");
+    redirect('/login?error=auth_failed&reason=no_user_found');
   }
 
   return (
