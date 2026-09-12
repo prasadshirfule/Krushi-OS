@@ -21,7 +21,7 @@ interface ProductSearchProps {
   onAddToCart: (item: any) => void;
 }
 
-export default function ProductSearch({ onAddToCart }: ProductSearchProps) {
+function ProductSearchComponent({ onAddToCart }: ProductSearchProps) {
   const [query, setQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [categories, setCategories] = useState<Array<{ id: string; name: string }>>(MOCK_CATEGORIES);
@@ -30,6 +30,12 @@ export default function ProductSearch({ onAddToCart }: ProductSearchProps) {
   const [loading, setLoading] = useState(false);
   const [addedProductId, setAddedProductId] = useState<string | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const batchesCache = useRef<Record<string, any[]>>({});
+  const queryRef = useRef(query);
+
+  useEffect(() => {
+    queryRef.current = query;
+  }, [query]);
 
   const debouncedQuery = useDebounce(query, 300);
 
@@ -45,11 +51,22 @@ export default function ProductSearch({ onAddToCart }: ProductSearchProps) {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  // Helper to populate batches cache
+  const cacheBatches = (products: any[]) => {
+    if (!Array.isArray(products)) return;
+    for (const p of products) {
+      if (p?.id && Array.isArray(p.batches) && p.batches.length > 0) {
+        batchesCache.current[p.id] = p.batches;
+      }
+    }
+  };
+
   // Load products (demo store or real Supabase)
   const loadProducts = useCallback(async () => {
     if (isClientDemoMode()) {
       const demoList = getDemoProductsClient();
       setAllProducts(demoList);
+      cacheBatches(demoList);
       return;
     }
 
@@ -57,6 +74,7 @@ export default function ProductSearch({ onAddToCart }: ProductSearchProps) {
       const res = await searchProductsAction('');
       if (res.success && Array.isArray(res.data) && res.data.length > 0) {
         setAllProducts(res.data);
+        cacheBatches(res.data);
       }
     } catch (err) {
       console.warn('Failed to fetch products for billing:', err);
@@ -88,8 +106,10 @@ export default function ProductSearch({ onAddToCart }: ProductSearchProps) {
     const handleProductsUpdated = () => {
       loadProducts();
       // If active search in demo mode, update search results too
-      if (isClientDemoMode() && query.trim()) {
-        setSearchResults(searchDemoProductsClient(query.trim()));
+      if (isClientDemoMode() && queryRef.current.trim()) {
+        const results = searchDemoProductsClient(queryRef.current.trim());
+        setSearchResults(results);
+        cacheBatches(results);
       }
     };
     const handleCategoriesUpdated = () => {
@@ -102,7 +122,7 @@ export default function ProductSearch({ onAddToCart }: ProductSearchProps) {
       window.removeEventListener('krushi-products-updated', handleProductsUpdated);
       window.removeEventListener('krushi-categories-updated', handleCategoriesUpdated);
     };
-  }, [loadProducts, loadCategories, query]);
+  }, [loadProducts, loadCategories]);
 
   // Fetch search results when debounced query changes
   useEffect(() => {
@@ -118,7 +138,10 @@ export default function ProductSearch({ onAddToCart }: ProductSearchProps) {
       try {
         if (isClientDemoMode()) {
           const results = searchDemoProductsClient(trimmed);
-          if (isCurrent) setSearchResults(results);
+          if (isCurrent) {
+            setSearchResults(results);
+            cacheBatches(results);
+          }
           return;
         }
 
@@ -126,6 +149,7 @@ export default function ProductSearch({ onAddToCart }: ProductSearchProps) {
         if (isCurrent) {
           if (res.success && Array.isArray(res.data)) {
             setSearchResults(res.data);
+            cacheBatches(res.data);
           } else {
             setSearchResults([]);
           }
@@ -162,8 +186,8 @@ export default function ProductSearch({ onAddToCart }: ProductSearchProps) {
     });
   }, [searchResults, allProducts, selectedCategory, categories]);
 
-  // Handle adding product to cart
-  const handleAdd = async (product: any) => {
+  // Handle adding product to cart (INSTANT OPTIMISTIC UI)
+  const handleAdd = useCallback((product: any) => {
     const totalStock = product.current_stock ?? product.stock_quantity ?? product.stock ?? 0;
     if (totalStock === 0) return;
 
@@ -171,19 +195,8 @@ export default function ProductSearch({ onAddToCart }: ProductSearchProps) {
     setAddedProductId(product.id);
     setTimeout(() => setAddedProductId(null), 700);
 
-    let allBatches: any[] = [];
-    if (product.batches && Array.isArray(product.batches) && product.batches.length > 0) {
-      allBatches = product.batches;
-    } else if (!isClientDemoMode()) {
-      try {
-        const batchesRes = await getBatchesAction(product.id);
-        if (batchesRes.success && Array.isArray(batchesRes.data) && batchesRes.data.length > 0) {
-          allBatches = batchesRes.data;
-        }
-      } catch (err) {
-        console.warn('Batch lookup failed, using default product values:', err);
-      }
-    }
+    // Retrieve batches from in-memory cache or product object
+    let allBatches: any[] = batchesCache.current[product.id] || (Array.isArray(product.batches) ? product.batches : []);
 
     // Business Logic: Strict FEFO (First Expired, First Out) batch selection
     // 1. Only active batches (is_active !== false)
@@ -231,14 +244,28 @@ export default function ProductSearch({ onAddToCart }: ProductSearchProps) {
       product_size_value: product.product_size_value ?? undefined,
       product_size_unit: product.product_size_unit ?? undefined,
       quantity: 1,
-      rate: activeBatch?.selling_price || product.selling_price || 0,
-      gst_rate: product.gst_rate || 0,
+      rate: Number(activeBatch?.selling_price ?? product.selling_price ?? 0),
+      gst_rate: Number(product.gst_rate ?? 0),
       discount: 0,
-      available_stock: activeBatch ? (Number(activeBatch.quantity_available ?? activeBatch.stock_quantity ?? 0)) : totalStock,
+      available_stock: activeBatch ? Number(activeBatch.quantity_available ?? activeBatch.stock_quantity ?? 0) : totalStock,
     };
 
+    // INSTANT: notify parent immediately without waiting for any network round-trip
     onAddToCart(cartItem);
-  };
+
+    // If batches were not cached or attached, prefetch in the background non-blocking
+    if (!allBatches.length && !isClientDemoMode() && product.id) {
+      getBatchesAction(product.id)
+        .then(batchesRes => {
+          if (batchesRes.success && Array.isArray(batchesRes.data) && batchesRes.data.length > 0) {
+            batchesCache.current[product.id] = batchesRes.data;
+          }
+        })
+        .catch(err => {
+          console.warn('Background batch prefetch failed:', err);
+        });
+    }
+  }, [onAddToCart]);
 
   return (
     <section className="rounded-xl border border-border bg-card p-5 md:p-6 shadow-sm space-y-5 text-card-foreground">
@@ -439,3 +466,6 @@ export default function ProductSearch({ onAddToCart }: ProductSearchProps) {
     </section>
   );
 }
+
+const ProductSearch = React.memo(ProductSearchComponent);
+export default ProductSearch;

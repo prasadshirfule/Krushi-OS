@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import ProductSearch from '@/components/billing/product-search';
 import BillingCart from '@/components/billing/billing-cart';
 import BillAdjustments from '@/components/billing/bill-adjustments';
@@ -133,7 +133,7 @@ export default function BillingPage() {
   }, [loadCustomers]);
 
   /* ─── Derived ─── */
-  const totals = calculateBillTotal(cart, adjustments);
+  const totals = useMemo(() => calculateBillTotal(cart, adjustments), [cart, adjustments]);
   const now = new Date();
   const dateStr = now.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
   const timeStr = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
@@ -255,7 +255,7 @@ export default function BillingPage() {
     setCustomerSearch('');
   };
 
-  const handleAddToCart = (newItem: any) => {
+  const handleAddToCart = useCallback((newItem: any) => {
     setCart(prev => {
       const matchIndex = prev.findIndex(item => {
         if (item.product_id !== newItem.product_id) return false;
@@ -282,7 +282,7 @@ export default function BillingPage() {
 
       return [...prev, { ...newItem, id: generateId() }];
     });
-  };
+  }, []);
 
   /* ─── Keyboard shortcuts ─── */
   useEffect(() => {

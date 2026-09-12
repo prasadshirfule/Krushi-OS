@@ -148,6 +148,31 @@ export default function NewPurchasePage() {
     }
   };
 
+  // Dynamic live search on server when typing
+  useEffect(() => {
+    const trimmed = productSearchQuery.trim();
+    if (trimmed.length < 1) return;
+
+    const timer = setTimeout(async () => {
+      if (isClientDemoMode()) return;
+      try {
+        const res = await searchProductsAction(trimmed);
+        if (res.success && Array.isArray(res.data) && res.data.length > 0) {
+          setCatalogProducts(prev => {
+            const existingIds = new Set(prev.map(p => p.id));
+            const newItems = res.data.filter((p: any) => !existingIds.has(p.id));
+            if (newItems.length === 0) return prev;
+            return [...prev, ...newItems];
+          });
+        }
+      } catch (err) {
+        console.warn('Live product search failed:', err);
+      }
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [productSearchQuery]);
+
   // Select an existing product for a row
   const handleSelectProduct = async (rowId: string, product: any) => {
     let batches: any[] = product.batches || [];
@@ -172,7 +197,7 @@ export default function NewPurchasePage() {
       return {
         ...item,
         productId: product.id,
-        productName: product.name,
+        productName: (product.name || '').toUpperCase(),
         sku: product.sku || '',
         unit: product.unit || 'Piece',
         batchId: firstBatch ? firstBatch.id : undefined,
@@ -448,9 +473,11 @@ export default function NewPurchasePage() {
                       </span>
                       {item.productId ? (
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-bold text-foreground text-sm sm:text-base">{item.productName}</span>
+                          <span className="font-bold text-foreground text-sm sm:text-base uppercase">
+                            {item.productName ? item.productName.toUpperCase() : ''}
+                          </span>
                           {item.sku && (
-                            <Badge variant="outline" className="font-mono text-[10px]">{item.sku}</Badge>
+                            <Badge variant="outline" className="font-mono text-[10px] uppercase">{item.sku.toUpperCase()}</Badge>
                           )}
                           <Button
                             type="button"
@@ -497,32 +524,48 @@ export default function NewPurchasePage() {
                         />
                       </div>
                       <div className="max-h-48 overflow-y-auto divide-y divide-border/40 text-sm">
-                        {catalogProducts
-                          .filter(p => {
-                            if (!productSearchQuery.trim()) return true;
-                            const q = productSearchQuery.toLowerCase();
+                        {productSearchQuery.trim().length < 1 ? (
+                          <div className="py-6 text-center text-xs text-muted-foreground">
+                            Type at least 1-2 characters to search products...
+                          </div>
+                        ) : (() => {
+                          const q = productSearchQuery.trim().toLowerCase();
+                          const matches = catalogProducts
+                            .filter(p => {
+                              const name = (p.name || '').toLowerCase();
+                              const sku = (p.sku || '').toLowerCase();
+                              const barcode = (p.barcode || '').toLowerCase();
+                              return name.includes(q) || sku.includes(q) || barcode.includes(q);
+                            })
+                            .slice(0, 15);
+
+                          if (matches.length === 0) {
                             return (
-                              p.name.toLowerCase().includes(q) ||
-                              (p.sku && p.sku.toLowerCase().includes(q)) ||
-                              (p.barcode && p.barcode.includes(q))
+                              <div className="py-6 text-center text-xs text-muted-foreground">
+                                No products found matching &ldquo;{productSearchQuery}&rdquo;
+                              </div>
                             );
-                          })
-                          .slice(0, 10)
-                          .map(prod => (
+                          }
+
+                          return matches.map(prod => (
                             <div
                               key={prod.id}
                               onClick={() => handleSelectProduct(item.rowId, prod)}
                               className="py-2 px-2.5 hover:bg-primary/10 cursor-pointer flex items-center justify-between rounded-md transition-colors"
                             >
                               <div>
-                                <p className="font-semibold text-foreground">{prod.name}</p>
+                                <p className="font-semibold text-foreground uppercase">
+                                  {(prod.name || '').toUpperCase()}
+                                </p>
                                 <p className="text-xs text-muted-foreground">
+                                  {prod.sku && <span className="font-mono mr-2 uppercase">SKU: {prod.sku.toUpperCase()}</span>}
                                   Unit: {prod.unit || 'Piece'} • Stock: {prod.current_stock ?? prod.stock_quantity ?? 0} • Latest Rate: {formatCurrency(prod.purchase_price || 0)}
                                 </p>
                               </div>
                               <Badge variant="secondary" className="text-xs">Select</Badge>
                             </div>
-                          ))}
+                          ));
+                        })()}
                       </div>
                     </div>
                   )}
