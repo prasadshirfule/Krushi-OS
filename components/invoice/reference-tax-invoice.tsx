@@ -1492,10 +1492,12 @@ export async function downloadInvoiceAsPDF(
   if (!element) return;
 
   const captureTarget = (
-    element.closest('.invoice-page') ||
-    element.querySelector('.invoice-page') ||
     element.querySelector('.invoice') ||
     element.querySelector('#printable-tax-invoice') ||
+    (element.classList?.contains('invoice') ? element : null) ||
+    element.closest('.invoice') ||
+    element.querySelector('.invoice-page') ||
+    element.closest('.invoice-page') ||
     element
   ) as HTMLElement;
 
@@ -1512,11 +1514,7 @@ export async function downloadInvoiceAsPDF(
     container.style.top = '0px';
     container.style.left = '-10000px';
     container.style.width = `${targetWidthMm}mm`;
-    container.style.minWidth = `${targetWidthMm}mm`;
-    container.style.maxWidth = `${targetWidthMm}mm`;
     container.style.height = `${targetHeightMm}mm`;
-    container.style.minHeight = `${targetHeightMm}mm`;
-    container.style.maxHeight = `${targetHeightMm}mm`;
     container.style.pointerEvents = 'none';
     container.style.backgroundColor = '#ffffff';
     container.style.margin = '0';
@@ -1528,6 +1526,13 @@ export async function downloadInvoiceAsPDF(
     clone.style.margin = '0';
     clone.style.visibility = 'visible';
     clone.style.opacity = '1';
+    clone.style.transform = 'none';
+    if (!isFullPage) {
+      clone.style.display = 'block';
+      clone.style.width = '204mm';
+      clone.style.height = '142mm';
+      clone.style.boxSizing = 'border-box';
+    }
 
     container.appendChild(clone);
     document.body.appendChild(container);
@@ -1537,9 +1542,6 @@ export async function downloadInvoiceAsPDF(
     }
     await new Promise((r) => setTimeout(r, 100));
 
-    const canvasWidth = clone.offsetWidth || clone.clientWidth;
-    const canvasHeight = clone.offsetHeight || clone.clientHeight;
-
     const canvas = await html2canvas(clone, {
       scale: 3,
       useCORS: true,
@@ -1547,10 +1549,6 @@ export async function downloadInvoiceAsPDF(
       backgroundColor: '#ffffff',
       scrollX: 0,
       scrollY: 0,
-      width: canvasWidth,
-      height: canvasHeight,
-      windowWidth: Math.max(1200, canvasWidth + 200),
-      windowHeight: Math.max(900, canvasHeight + 200),
     });
 
     if (document.body.contains(container)) {

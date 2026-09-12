@@ -212,25 +212,30 @@ export async function downloadInvoicePDF(
 
     if (format === 'THERMAL_80MM') {
       captureTarget = (
+        element.querySelector('.thermal-receipt') ||
         element.closest('.thermal-receipt-page') ||
         element.querySelector('.thermal-receipt-page') ||
-        element.querySelector('.thermal-receipt') ||
         element
       ) as HTMLElement;
     } else {
       captureTarget = (
-        element.closest('.invoice-page') ||
+        element.querySelector('.invoice') ||
+        element.querySelector('#printable-tax-invoice') ||
+        (element.classList?.contains('invoice') ? element : null) ||
+        element.closest('.invoice') ||
         element.querySelector('.invoice-page') ||
+        element.closest('.invoice-page') ||
         element
       ) as HTMLElement;
     }
 
     // ── Staging container ──
-    // Positioned off-screen via large negative left so the clone is fully rendered
-    // by the browser engine but never appears in the user's viewport.
-    // DO NOT use z-index (unreliable, flashes behind content).
-    // DO NOT use opacity:0 or visibility:hidden (html2canvas may skip).
+    // Positioned off-screen so the clone is rendered by the browser engine.
     const isThermal = format === 'THERMAL_80MM';
+    const isFullPage = captureTarget.classList?.contains('invoice-page');
+    const targetWidthMm = isThermal ? 80 : (isFullPage ? 210 : 204);
+    const targetHeightMm = isThermal ? null : (isFullPage ? 148 : 142);
+
     const container = document.createElement('div');
     container.style.position = 'fixed';
     container.style.top = '0px';
@@ -241,29 +246,24 @@ export async function downloadInvoicePDF(
     container.style.padding = '0';
     container.style.boxSizing = 'border-box';
     container.style.overflow = 'hidden';
-
-    if (!isThermal) {
-      container.style.width = '210mm';
-      container.style.minWidth = '210mm';
-      container.style.maxWidth = '210mm';
-      container.style.height = '148mm';
-      container.style.minHeight = '148mm';
-      container.style.maxHeight = '148mm';
-    } else {
-      container.style.width = '80mm';
-      container.style.minWidth = '80mm';
-      container.style.maxWidth = '80mm';
+    container.style.width = `${targetWidthMm}mm`;
+    if (targetHeightMm) {
+      container.style.height = `${targetHeightMm}mm`;
     }
 
     // ── Clone the capture target ──
-    // Preserve ALL inline styles from the React component (flex, centering, padding,
-    // dimensions, borders, overflow, typography).
-    // Only override margin (prevent auto-centering in staging) and ensure visibility.
-    // DO NOT override display, width, height, overflow, or any internal layout property.
+    // Preserve inline styling and remove outer margin so content starts immediately at (0, 0)
     const clone = captureTarget.cloneNode(true) as HTMLElement;
     clone.style.margin = '0';
     clone.style.visibility = 'visible';
     clone.style.opacity = '1';
+    clone.style.transform = 'none';
+    if (!isThermal && !isFullPage) {
+      clone.style.display = 'block';
+      clone.style.width = '204mm';
+      clone.style.height = '142mm';
+      clone.style.boxSizing = 'border-box';
+    }
 
     container.appendChild(clone);
     document.body.appendChild(container);
@@ -274,9 +274,6 @@ export async function downloadInvoicePDF(
     }
     await new Promise((r) => setTimeout(r, 100));
 
-    const canvasWidth = clone.offsetWidth || clone.clientWidth;
-    const canvasHeight = clone.offsetHeight || clone.clientHeight;
-
     const canvas = await html2canvas(clone, {
       scale: 3, // 300 DPI high-resolution capture
       useCORS: true,
@@ -284,10 +281,6 @@ export async function downloadInvoicePDF(
       backgroundColor: '#ffffff',
       scrollX: 0,
       scrollY: 0,
-      width: canvasWidth,
-      height: canvasHeight,
-      windowWidth: Math.max(1200, canvasWidth + 200),
-      windowHeight: Math.max(900, canvasHeight + 200),
     });
 
     // Remove the staging container immediately after capture
@@ -309,15 +302,17 @@ export async function downloadInvoicePDF(
       pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight, undefined, 'FAST');
       pdf.save(filename);
     } else {
-      // A5 landscape page: 210 × 148 mm — same dimensions as .invoice-page
-      // The captured .invoice-page fills the entire page edge-to-edge.
-      // The 3mm margin and centered .invoice are part of the captured image.
       const pdf = new jsPDF({
         orientation: 'landscape',
         unit: 'mm',
         format: 'a5',
       });
-      pdf.addImage(imgData, 'JPEG', 0, 0, 210, 148, undefined, 'FAST');
+      if (!isFullPage) {
+        // Place the 204mm × 142mm invoice at (3, 3) to center it on the 210mm × 148mm A5 page
+        pdf.addImage(imgData, 'JPEG', 3, 3, 204, 142, undefined, 'FAST');
+      } else {
+        pdf.addImage(imgData, 'JPEG', 0, 0, 210, 148, undefined, 'FAST');
+      }
       pdf.save(filename);
     }
   } catch (err) {
