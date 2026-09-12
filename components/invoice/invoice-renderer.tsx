@@ -234,7 +234,6 @@ export async function downloadInvoicePDF(
     const isThermal = format === 'THERMAL_80MM';
     const isFullPage = captureTarget.classList?.contains('invoice-page');
     const targetWidthMm = isThermal ? 80 : (isFullPage ? 210 : 204);
-    const targetHeightMm = isThermal ? null : (isFullPage ? 148 : 142);
 
     const container = document.createElement('div');
     container.style.position = 'fixed';
@@ -245,11 +244,7 @@ export async function downloadInvoicePDF(
     container.style.margin = '0';
     container.style.padding = '0';
     container.style.boxSizing = 'border-box';
-    container.style.overflow = 'hidden';
     container.style.width = `${targetWidthMm}mm`;
-    if (targetHeightMm) {
-      container.style.height = `${targetHeightMm}mm`;
-    }
 
     // ── Clone the capture target ──
     // Preserve inline styling and remove outer margin so content starts immediately at (0, 0)
@@ -261,7 +256,6 @@ export async function downloadInvoicePDF(
     if (!isThermal && !isFullPage) {
       clone.style.display = 'block';
       clone.style.width = '204mm';
-      clone.style.height = '142mm';
       clone.style.boxSizing = 'border-box';
     }
 
@@ -308,10 +302,15 @@ export async function downloadInvoicePDF(
         format: 'a5',
       });
       if (!isFullPage) {
-        // Place the 204mm × 142mm invoice at (3, 3) to center it on the 210mm × 148mm A5 page
-        pdf.addImage(imgData, 'JPEG', 3, 3, 204, 142, undefined, 'FAST');
+        const renderWidth = 204;
+        const renderHeight = (renderWidth * canvas.height) / canvas.width;
+        // Place near top (around 2-3mm) without clipping, no big empty gap
+        const topY = Math.min(3, Math.max(1, (148 - renderHeight) / 2));
+        pdf.addImage(imgData, 'JPEG', 3, topY, renderWidth, renderHeight, undefined, 'FAST');
       } else {
-        pdf.addImage(imgData, 'JPEG', 0, 0, 210, 148, undefined, 'FAST');
+        const renderWidth = 210;
+        const renderHeight = (renderWidth * canvas.height) / canvas.width;
+        pdf.addImage(imgData, 'JPEG', 0, 0, renderWidth, Math.min(renderHeight, 148), undefined, 'FAST');
       }
       pdf.save(filename);
     }

@@ -502,7 +502,6 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
             alignItems: 'center',
             flex: 1,
             height: '100%',
-            overflow: 'hidden',
             boxSizing: 'border-box',
             paddingRight: mm(2),
           }}>
@@ -549,13 +548,12 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
               textAlign: 'center',
               padding: `0 ${mm(1)}`,
               boxSizing: 'border-box',
-              overflow: 'hidden',
             }}>
               <div style={{
                 fontSize: '15px',
                 fontWeight: 900,
                 textTransform: 'uppercase',
-                lineHeight: 1.15,
+                lineHeight: 1.2,
                 margin: 0,
                 letterSpacing: '0.2px',
               }}>
@@ -565,11 +563,8 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
                 <div style={{
                   fontSize: '8.8px',
                   fontWeight: 600,
-                  lineHeight: 1.15,
-                  marginTop: mm(0.2),
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
+                  lineHeight: 1.25,
+                  marginTop: mm(0.3),
                   maxWidth: '100%',
                 }}>
                   {dynamicShopAddress}
@@ -578,11 +573,11 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
               <div style={{
                 fontSize: '8.8px',
                 fontWeight: 'bold',
-                marginTop: mm(0.2),
+                marginTop: mm(0.3),
                 display: 'flex',
                 gap: mm(6),
                 justifyContent: 'center',
-                lineHeight: 1.15,
+                lineHeight: 1.25,
               }}>
                 {shop.ownerName && <span>Pro: {shop.ownerName}</span>}
                 {shop.contact1 && <span>Mob: {shop.contact1}</span>}
@@ -617,9 +612,7 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
                     borderBottom: BORDER_INNER,
                     padding: `0 ${mm(1.2)}`,
                     verticalAlign: 'middle',
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
+                    lineHeight: 1.25,
                   }}>
                     <span style={{ fontWeight: 'bold', display: 'inline-block', width: mm(13) }}>GSTIN:</span>
                     <span style={{ fontWeight: 'bold', fontFamily: 'monospace', fontSize: '9px' }}>{shop.gstNumber || '-'}</span>
@@ -631,9 +624,7 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
                     borderBottom: BORDER_INNER,
                     padding: `0 ${mm(1.2)}`,
                     verticalAlign: 'middle',
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
+                    lineHeight: 1.25,
                   }}>
                     <span style={{ fontWeight: 'bold', display: 'inline-block', width: mm(13) }}>LIC NO:</span>
                     <span style={{ fontWeight: 'bold', fontFamily: 'monospace', fontSize: '9px' }}>{shop.licenseNumber || '-'}</span>
@@ -644,9 +635,7 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
                   <td style={{
                     padding: `0 ${mm(1.2)}`,
                     verticalAlign: 'middle',
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
+                    lineHeight: 1.25,
                   }}>
                     <span style={{ fontWeight: 'bold', display: 'inline-block', width: mm(13) }}>REG NO:</span>
                     <span style={{ fontWeight: 'bold', fontFamily: 'monospace', fontSize: '9px' }}>{shop.registrationNumber || '-'}</span>
@@ -658,47 +647,45 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
         </div>
 
       {/* ════════════════════════════════════════════════════════
-          2. CUSTOMER + BILL INFO – 14 mm (Optimized height, zero empty waste)
+          2. CUSTOMER + BILL INFO – 14 mm
           ════════════════════════════════════════════════════════ */}
       <div style={{
         height: mm(H_CUSTOMER),
         borderBottom: BORDER_MAJOR,
         display: 'flex',
         boxSizing: 'border-box',
-        overflow: 'hidden',
       }}>
         {/* 2A – Customer (60%) */}
         <div style={{
           width: '60%',
           borderRight: BORDER_MAJOR,
-          padding: `${mm(0.4)} ${mm(1.8)}`,
+          padding: `${mm(0.5)} ${mm(1.8)}`,
           boxSizing: 'border-box',
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'center',
-          overflow: 'hidden',
         }}>
           <table style={{
             width: '100%',
             fontSize: '9.2px',
-            lineHeight: 1.15,
+            lineHeight: 1.25,
             borderCollapse: 'collapse',
           }}>
             <tbody>
               <tr>
-                <td style={{ width: mm(15), fontWeight: 'bold', verticalAlign: 'middle', padding: '0.1px 0' }}>Name</td>
-                <td style={{ width: mm(3), fontWeight: 'bold', verticalAlign: 'middle', padding: '0.1px 0' }}>:</td>
-                <td style={{ fontWeight: 'bold', verticalAlign: 'middle', padding: '0.1px 0', fontSize: '10.5px', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{customerName}</td>
+                <td style={{ width: mm(15), fontWeight: 'bold', verticalAlign: 'middle', padding: '0.2px 0' }}>Name</td>
+                <td style={{ width: mm(3), fontWeight: 'bold', verticalAlign: 'middle', padding: '0.2px 0' }}>:</td>
+                <td style={{ fontWeight: 'bold', verticalAlign: 'middle', padding: '0.2px 0', fontSize: '10.5px', textTransform: 'uppercase', lineHeight: 1.25 }}>{customerName}</td>
               </tr>
               <tr>
-                <td style={{ width: mm(15), fontWeight: 'bold', verticalAlign: 'middle', padding: '0.1px 0' }}>Address</td>
-                <td style={{ width: mm(3), fontWeight: 'bold', verticalAlign: 'middle', padding: '0.1px 0' }}>:</td>
-                <td style={{ fontWeight: '600', verticalAlign: 'middle', padding: '0.1px 0', fontSize: '9px', lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{customerAddress || '-'}</td>
+                <td style={{ width: mm(15), fontWeight: 'bold', verticalAlign: 'middle', padding: '0.2px 0' }}>Address</td>
+                <td style={{ width: mm(3), fontWeight: 'bold', verticalAlign: 'middle', padding: '0.2px 0' }}>:</td>
+                <td style={{ fontWeight: '600', verticalAlign: 'middle', padding: '0.2px 0', fontSize: '9px', lineHeight: 1.2 }}>{customerAddress || '-'}</td>
               </tr>
               <tr>
-                <td style={{ width: mm(15), fontWeight: 'bold', verticalAlign: 'middle', padding: '0.1px 0' }}>Mob</td>
-                <td style={{ width: mm(3), fontWeight: 'bold', verticalAlign: 'middle', padding: '0.1px 0' }}>:</td>
-                <td style={{ fontWeight: 'bold', fontFamily: 'monospace', verticalAlign: 'middle', padding: '0.1px 0', fontSize: '10px' }}>{customerPhone || '-'}</td>
+                <td style={{ width: mm(15), fontWeight: 'bold', verticalAlign: 'middle', padding: '0.2px 0' }}>Mob</td>
+                <td style={{ width: mm(3), fontWeight: 'bold', verticalAlign: 'middle', padding: '0.2px 0' }}>:</td>
+                <td style={{ fontWeight: 'bold', fontFamily: 'monospace', verticalAlign: 'middle', padding: '0.2px 0', fontSize: '10px', lineHeight: 1.25 }}>{customerPhone || '-'}</td>
               </tr>
             </tbody>
           </table>
@@ -707,57 +694,55 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
         {/* 2B – Bill info (40%) */}
         <div style={{
           width: '40%',
-          padding: `${mm(0.4)} ${mm(1.8)}`,
+          padding: `${mm(0.5)} ${mm(1.8)}`,
           boxSizing: 'border-box',
           position: 'relative',
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'center',
-          overflow: 'hidden',
         }}>
           {/* Cash/Credit badge */}
           <div style={{
             position: 'absolute',
-            top: mm(0.6),
+            top: mm(0.8),
             right: mm(1.8),
             border: BORDER_INNER,
-            padding: `${mm(0.2)} ${mm(1.8)}`,
+            padding: `${mm(0.3)} ${mm(1.8)}`,
             fontSize: '8.8px',
             fontWeight: 'bold',
             backgroundColor: '#fff',
-            lineHeight: 1,
+            lineHeight: 1.2,
           }}>
             {paymentBadge}
           </div>
           <table style={{
             width: '100%',
             fontSize: '9.2px',
-            lineHeight: 1.15,
+            lineHeight: 1.25,
             borderCollapse: 'collapse',
-            marginTop: mm(0.2),
           }}>
             <tbody>
               <tr>
-                <td style={{ width: mm(15), fontWeight: 'bold', verticalAlign: 'middle', padding: '0.1px 0' }}>{isReturnDoc ? 'Return No' : 'Bill No'}</td>
-                <td style={{ width: mm(3), fontWeight: 'bold', verticalAlign: 'middle', padding: '0.1px 0' }}>:</td>
-                <td style={{ fontWeight: 'bold', fontFamily: 'monospace', verticalAlign: 'middle', padding: '0.1px 0', fontSize: '10px' }}>{invoiceNo}</td>
+                <td style={{ width: mm(15), fontWeight: 'bold', verticalAlign: 'middle', padding: '0.2px 0' }}>{isReturnDoc ? 'Return No' : 'Bill No'}</td>
+                <td style={{ width: mm(3), fontWeight: 'bold', verticalAlign: 'middle', padding: '0.2px 0' }}>:</td>
+                <td style={{ fontWeight: 'bold', fontFamily: 'monospace', verticalAlign: 'middle', padding: '0.2px 0', fontSize: '10px', lineHeight: 1.25 }}>{invoiceNo}</td>
               </tr>
               {isReturnDoc && (
                 <tr>
-                  <td style={{ width: mm(15), fontWeight: 'bold', verticalAlign: 'middle', padding: '0.1px 0' }}>Orig Bill</td>
-                  <td style={{ width: mm(3), fontWeight: 'bold', verticalAlign: 'middle', padding: '0.1px 0' }}>:</td>
-                  <td style={{ fontWeight: 'bold', fontFamily: 'monospace', verticalAlign: 'middle', padding: '0.1px 0', fontSize: '9.5px', color: '#111' }}>{origInvoiceNo}</td>
+                  <td style={{ width: mm(15), fontWeight: 'bold', verticalAlign: 'middle', padding: '0.2px 0' }}>Orig Bill</td>
+                  <td style={{ width: mm(3), fontWeight: 'bold', verticalAlign: 'middle', padding: '0.2px 0' }}>:</td>
+                  <td style={{ fontWeight: 'bold', fontFamily: 'monospace', verticalAlign: 'middle', padding: '0.2px 0', fontSize: '9.5px', color: '#111', lineHeight: 1.25 }}>{origInvoiceNo}</td>
                 </tr>
               )}
               <tr>
-                <td style={{ width: mm(15), fontWeight: 'bold', verticalAlign: 'middle', padding: '0.1px 0' }}>Date</td>
-                <td style={{ width: mm(3), fontWeight: 'bold', verticalAlign: 'middle', padding: '0.1px 0' }}>:</td>
-                <td style={{ fontWeight: '600', verticalAlign: 'middle', padding: '0.1px 0', fontSize: '9px' }}>{formattedDate} ({formattedTime})</td>
+                <td style={{ width: mm(15), fontWeight: 'bold', verticalAlign: 'middle', padding: '0.2px 0' }}>Date</td>
+                <td style={{ width: mm(3), fontWeight: 'bold', verticalAlign: 'middle', padding: '0.2px 0' }}>:</td>
+                <td style={{ fontWeight: '600', verticalAlign: 'middle', padding: '0.2px 0', fontSize: '9px', lineHeight: 1.25 }}>{formattedDate} ({formattedTime})</td>
               </tr>
               <tr>
-                <td style={{ width: mm(15), fontWeight: 'bold', verticalAlign: 'middle', padding: '0.1px 0' }}>{isReturnDoc ? 'Refund' : 'Payment'}</td>
-                <td style={{ width: mm(3), fontWeight: 'bold', verticalAlign: 'middle', padding: '0.1px 0' }}>:</td>
-                <td style={{ fontWeight: 'bold', textTransform: 'uppercase', verticalAlign: 'middle', padding: '0.1px 0', fontSize: '9.5px' }}>
+                <td style={{ width: mm(15), fontWeight: 'bold', verticalAlign: 'middle', padding: '0.2px 0' }}>{isReturnDoc ? 'Refund' : 'Payment'}</td>
+                <td style={{ width: mm(3), fontWeight: 'bold', verticalAlign: 'middle', padding: '0.2px 0' }}>:</td>
+                <td style={{ fontWeight: 'bold', textTransform: 'uppercase', verticalAlign: 'middle', padding: '0.2px 0', fontSize: '9.5px', lineHeight: 1.25 }}>
                   {paymentMode}
                   {isUpi && shop.upiId ? (
                     <span style={{ fontSize: '8.5px', fontWeight: 'bold', fontFamily: 'monospace', textTransform: 'none', marginLeft: mm(1), color: '#111' }}>
@@ -765,7 +750,7 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
                     </span>
                   ) : null}
                   {isPartial && (
-                    <div style={{ fontSize: '8px', fontWeight: 'bold', textTransform: 'none', color: '#111', marginTop: '0.1px', lineHeight: 1.1 }}>
+                    <div style={{ fontSize: '8px', fontWeight: 'bold', textTransform: 'none', color: '#111', marginTop: '0.2px', lineHeight: 1.2 }}>
                       {[
                         partialCash > 0 ? `Cash: ₹${partialCash.toFixed(2)}` : null,
                         partialUpi > 0 ? `UPI: ₹${partialUpi.toFixed(2)}` : null,
@@ -812,10 +797,10 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
               <th style={{ width: COL.batch, borderRight: BORDER_INNER, textAlign: 'center', verticalAlign: 'middle', padding: `${mm(0.2)} ${mm(0.4)}` }}>BATCH</th>
               <th style={{ width: COL.expiry, borderRight: BORDER_INNER, textAlign: 'center', verticalAlign: 'middle', padding: `${mm(0.2)} ${mm(0.4)}` }}>EXPIRY</th>
               <th style={{ width: COL.qty, borderRight: BORDER_INNER, textAlign: 'center', verticalAlign: 'middle', padding: `${mm(0.2)} ${mm(0.4)}` }}>Qty</th>
-              <th style={{ width: COL.rate, borderRight: BORDER_INNER, textAlign: 'center', verticalAlign: 'middle', padding: `${mm(0.2)} ${mm(0.4)}` }}>Rate</th>
-              <th style={{ width: COL.gst, borderRight: BORDER_INNER, textAlign: 'center', verticalAlign: 'middle', padding: `${mm(0.2)} ${mm(0.4)}` }}>GST %</th>
-              <th style={{ width: COL.rateGst, borderRight: BORDER_INNER, textAlign: 'center', verticalAlign: 'middle', padding: `${mm(0.2)} ${mm(0.4)}`, lineHeight: 1.1 }}>Rate<br/>(With GST)</th>
-              <th style={{ width: COL.total, textAlign: 'center', verticalAlign: 'middle', padding: `${mm(0.2)} ${mm(0.4)}` }}>Total</th>
+              <th style={{ width: COL.rate, borderRight: BORDER_INNER, textAlign: 'center', verticalAlign: 'middle', padding: `${mm(0.3)} ${mm(0.4)}` }}>Rate</th>
+              <th style={{ width: COL.gst, borderRight: BORDER_INNER, textAlign: 'center', verticalAlign: 'middle', padding: `${mm(0.3)} ${mm(0.4)}` }}>GST %</th>
+              <th style={{ width: COL.rateGst, borderRight: BORDER_INNER, textAlign: 'center', verticalAlign: 'middle', padding: `${mm(0.3)} ${mm(0.4)}`, lineHeight: 1.15 }}>Rate<br/>(With GST)</th>
+              <th style={{ width: COL.total, textAlign: 'center', verticalAlign: 'middle', padding: `${mm(0.3)} ${mm(0.4)}` }}>Total</th>
             </tr>
           </thead>
         </table>
@@ -849,31 +834,31 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
           <tbody>
             {displayItems.map((item, idx) => (
               <tr key={item.id || idx} style={{ height: mm(rowHeightMm), borderBottom: BORDER_INNER }}>
-                <td style={{ borderRight: BORDER_INNER, textAlign: 'center', fontWeight: 'bold', padding: `${mm(0.2)} ${mm(0.4)}`, verticalAlign: 'middle', fontSize: '9px', lineHeight: 1.15 }}>
+                <td style={{ borderRight: BORDER_INNER, textAlign: 'center', fontWeight: 'bold', padding: `${mm(0.3)} ${mm(0.4)}`, verticalAlign: 'middle', fontSize: '9px', lineHeight: 1.25 }}>
                   {idx + 1}
                 </td>
                 <td style={{
                   borderRight: BORDER_INNER,
                   textAlign: 'left',
-                  padding: `${mm(0.2)} ${mm(0.8)}`,
+                  padding: `${mm(0.3)} ${mm(0.8)}`,
                   verticalAlign: 'middle',
                 }}>
-                  <div style={{ fontWeight: 'bold', textTransform: 'uppercase', fontSize: '9.2px', lineHeight: 1.15, wordBreak: 'break-word' }}>
+                  <div style={{ fontWeight: 'bold', textTransform: 'uppercase', fontSize: '9.2px', lineHeight: 1.25, wordBreak: 'break-word' }}>
                     {item.name}
                   </div>
                 </td>
-                <td style={{ borderRight: BORDER_INNER, textAlign: 'center', fontWeight: 'bold', textTransform: 'uppercase', padding: `${mm(0.2)} ${mm(0.6)}`, verticalAlign: 'middle', fontSize: '8.8px', lineHeight: 1.15, wordBreak: 'break-word' }}>
+                <td style={{ borderRight: BORDER_INNER, textAlign: 'center', fontWeight: 'bold', textTransform: 'uppercase', padding: `${mm(0.3)} ${mm(0.6)}`, verticalAlign: 'middle', fontSize: '8.8px', lineHeight: 1.25, wordBreak: 'break-word' }}>
                   {item.manufacturer || '-'}
                 </td>
-                <td style={{ borderRight: BORDER_INNER, textAlign: 'center', fontFamily: 'monospace', fontWeight: 'bold', padding: `${mm(0.2)} ${mm(0.4)}`, verticalAlign: 'middle', fontSize: '9px', lineHeight: 1.15 }}>{item.batch}</td>
-                <td style={{ borderRight: BORDER_INNER, textAlign: 'center', fontFamily: 'monospace', fontWeight: 600, padding: `${mm(0.2)} ${mm(0.4)}`, verticalAlign: 'middle', fontSize: '8.8px', lineHeight: 1.15 }}>{item.expiry}</td>
-                <td style={{ borderRight: BORDER_INNER, textAlign: 'center', fontWeight: 'bold', fontFamily: 'monospace', padding: `${mm(0.2)} ${mm(0.4)}`, verticalAlign: 'middle', fontSize: '9.5px', lineHeight: 1.15 }}>
+                <td style={{ borderRight: BORDER_INNER, textAlign: 'center', fontFamily: 'monospace', fontWeight: 'bold', padding: `${mm(0.3)} ${mm(0.4)}`, verticalAlign: 'middle', fontSize: '9px', lineHeight: 1.25 }}>{item.batch}</td>
+                <td style={{ borderRight: BORDER_INNER, textAlign: 'center', fontFamily: 'monospace', fontWeight: 600, padding: `${mm(0.3)} ${mm(0.4)}`, verticalAlign: 'middle', fontSize: '8.8px', lineHeight: 1.25 }}>{item.expiry}</td>
+                <td style={{ borderRight: BORDER_INNER, textAlign: 'center', fontWeight: 'bold', fontFamily: 'monospace', padding: `${mm(0.3)} ${mm(0.4)}`, verticalAlign: 'middle', fontSize: '9.5px', lineHeight: 1.25 }}>
                   {typeof item.quantity === 'number' ? (Number.isInteger(item.quantity) ? item.quantity : item.quantity.toFixed(1)) : item.quantity}
                 </td>
-                <td style={{ borderRight: BORDER_INNER, textAlign: 'right', fontFamily: 'monospace', padding: `${mm(0.2)} ${mm(0.6)}`, verticalAlign: 'middle', fontSize: '9.2px', lineHeight: 1.15 }}>{item.rate.toFixed(2)}</td>
-                <td style={{ borderRight: BORDER_INNER, textAlign: 'center', fontFamily: 'monospace', fontWeight: 'bold', padding: `${mm(0.2)} ${mm(0.4)}`, verticalAlign: 'middle', fontSize: '9.2px', lineHeight: 1.15 }}>{item.gstRate.toFixed(2)}</td>
-                <td style={{ borderRight: BORDER_INNER, textAlign: 'right', fontFamily: 'monospace', padding: `${mm(0.2)} ${mm(0.6)}`, verticalAlign: 'middle', fontSize: '9.2px', lineHeight: 1.15 }}>{item.rateWithGst.toFixed(2)}</td>
-                <td style={{ textAlign: 'right', fontWeight: 'bold', fontFamily: 'monospace', padding: `${mm(0.2)} ${mm(0.6)}`, verticalAlign: 'middle', fontSize: '10px', lineHeight: 1.15 }}>{item.total.toFixed(2)}</td>
+                <td style={{ borderRight: BORDER_INNER, textAlign: 'right', fontFamily: 'monospace', padding: `${mm(0.3)} ${mm(0.6)}`, verticalAlign: 'middle', fontSize: '9.2px', lineHeight: 1.25 }}>{item.rate.toFixed(2)}</td>
+                <td style={{ borderRight: BORDER_INNER, textAlign: 'center', fontFamily: 'monospace', fontWeight: 'bold', padding: `${mm(0.3)} ${mm(0.4)}`, verticalAlign: 'middle', fontSize: '9.2px', lineHeight: 1.25 }}>{item.gstRate.toFixed(2)}</td>
+                <td style={{ borderRight: BORDER_INNER, textAlign: 'right', fontFamily: 'monospace', padding: `${mm(0.3)} ${mm(0.6)}`, verticalAlign: 'middle', fontSize: '9.2px', lineHeight: 1.25 }}>{item.rateWithGst.toFixed(2)}</td>
+                <td style={{ textAlign: 'right', fontWeight: 'bold', fontFamily: 'monospace', padding: `${mm(0.3)} ${mm(0.6)}`, verticalAlign: 'middle', fontSize: '10px', lineHeight: 1.25 }}>{item.total.toFixed(2)}</td>
               </tr>
             ))}
             {/* Empty rows to fill remaining space */}
@@ -905,7 +890,6 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
           borderBottom: BORDER_MAJOR,
           display: 'flex',
           boxSizing: 'border-box',
-          overflow: 'hidden',
         }}>
           {/* Left side: Tax Breakdown & Adjustments (61%) */}
           <div style={{
@@ -914,7 +898,6 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
             display: 'flex',
             flexDirection: 'column',
             boxSizing: 'border-box',
-            overflow: 'hidden',
           }}>
             {/* Sub-row 1: Taxable + CGST + SGST (height: 5.5mm) */}
             <div style={{
@@ -922,7 +905,6 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
               borderBottom: BORDER_INNER,
               display: 'flex',
               boxSizing: 'border-box',
-              overflow: 'hidden',
             }}>
               <div style={{
                 width: '33.33%',
@@ -933,8 +915,8 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
                 padding: `0 ${mm(1.2)}`,
                 boxSizing: 'border-box',
               }}>
-                <span style={{ fontSize: '8.2px', fontWeight: 'bold', textTransform: 'uppercase', lineHeight: 1 }}>Taxable</span>
-                <span style={{ fontWeight: 'bold', fontFamily: 'monospace', fontSize: '9.2px', lineHeight: 1 }}>₹ {taxableTotal.toFixed(2)}</span>
+                <span style={{ fontSize: '8.5px', fontWeight: 'bold', textTransform: 'uppercase', lineHeight: 1.2 }}>Taxable</span>
+                <span style={{ fontWeight: 'bold', fontFamily: 'monospace', fontSize: '9.5px', lineHeight: 1.2 }}>₹ {taxableTotal.toFixed(2)}</span>
               </div>
               <div style={{
                 width: '33.33%',
@@ -945,8 +927,8 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
                 padding: `0 ${mm(1.2)}`,
                 boxSizing: 'border-box',
               }}>
-                <span style={{ fontSize: '8.2px', fontWeight: 'bold', textTransform: 'uppercase', lineHeight: 1 }}>CGST</span>
-                <span style={{ fontWeight: 'bold', fontFamily: 'monospace', fontSize: '9.2px', lineHeight: 1 }}>₹ {cgstTotal.toFixed(2)}</span>
+                <span style={{ fontSize: '8.5px', fontWeight: 'bold', textTransform: 'uppercase', lineHeight: 1.2 }}>CGST</span>
+                <span style={{ fontWeight: 'bold', fontFamily: 'monospace', fontSize: '9.5px', lineHeight: 1.2 }}>₹ {cgstTotal.toFixed(2)}</span>
               </div>
               <div style={{
                 width: '33.34%',
@@ -956,8 +938,8 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
                 padding: `0 ${mm(1.2)}`,
                 boxSizing: 'border-box',
               }}>
-                <span style={{ fontSize: '8.2px', fontWeight: 'bold', textTransform: 'uppercase', lineHeight: 1 }}>SGST</span>
-                <span style={{ fontWeight: 'bold', fontFamily: 'monospace', fontSize: '9.2px', lineHeight: 1 }}>₹ {sgstTotal.toFixed(2)}</span>
+                <span style={{ fontSize: '8.5px', fontWeight: 'bold', textTransform: 'uppercase', lineHeight: 1.2 }}>SGST</span>
+                <span style={{ fontWeight: 'bold', fontFamily: 'monospace', fontSize: '9.5px', lineHeight: 1.2 }}>₹ {sgstTotal.toFixed(2)}</span>
               </div>
             </div>
 
@@ -968,15 +950,14 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
               alignItems: 'center',
               padding: `0 ${mm(1.2)}`,
               gap: mm(1.5),
-              overflow: 'hidden',
               boxSizing: 'border-box',
               fontSize: '8.8px',
-              lineHeight: 1.1,
+              lineHeight: 1.2,
             }}>
               <span style={{ fontWeight: 'bold', textTransform: 'uppercase', fontSize: '8px', color: '#222', whiteSpace: 'nowrap' }}>
                 Adjustments:
               </span>
-              <div style={{ display: 'flex', gap: mm(1.5), flexWrap: 'nowrap', overflow: 'hidden', alignItems: 'center' }}>
+              <div style={{ display: 'flex', gap: mm(1.5), flexWrap: 'nowrap', alignItems: 'center' }}>
                 {adjustments.map((adj, i) => {
                   const isAdd = adj.type === 'ADD';
                   const sign = isAdd ? '+' : '-';
@@ -1013,13 +994,12 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
             justifyContent: 'space-between',
             padding: `0 ${mm(2.5)}`,
             boxSizing: 'border-box',
-            overflow: 'hidden',
           }}>
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <span style={{ fontWeight: 900, fontSize: '11.5px', textTransform: 'uppercase', lineHeight: 1.1 }}>Net total</span>
-              <span style={{ fontSize: '7.8px', color: '#555', fontWeight: 'bold', lineHeight: 1 }}>(Incl. Adjustments)</span>
+              <span style={{ fontWeight: 900, fontSize: '11.5px', textTransform: 'uppercase', lineHeight: 1.2 }}>Net total</span>
+              <span style={{ fontSize: '8px', color: '#555', fontWeight: 'bold', lineHeight: 1.2 }}>(Incl. Adjustments)</span>
             </div>
-            <span style={{ fontWeight: 900, fontFamily: 'monospace', fontSize: '14px', lineHeight: 1 }}>₹ {netTotal.toFixed(2)}</span>
+            <span style={{ fontWeight: 900, fontFamily: 'monospace', fontSize: '14px', lineHeight: 1.2 }}>₹ {netTotal.toFixed(2)}</span>
           </div>
         </div>
       ) : (
@@ -1029,7 +1009,6 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
           borderBottom: BORDER_MAJOR,
           display: 'flex',
           boxSizing: 'border-box',
-          overflow: 'hidden',
         }}>
           {/* Taxable (20%) */}
           <div style={{
@@ -1038,12 +1017,11 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            padding: `0 ${mm(1.2)}`,
+            padding: `0 ${mm(1.5)}`,
             boxSizing: 'border-box',
-            overflow: 'hidden',
           }}>
-            <span style={{ fontSize: '8.8px', fontWeight: 'bold', textTransform: 'uppercase', lineHeight: 1 }}>Taxable</span>
-            <span style={{ fontWeight: 'bold', fontFamily: 'monospace', fontSize: '10px', lineHeight: 1 }}>₹ {taxableTotal.toFixed(2)}</span>
+            <span style={{ fontSize: '8.8px', fontWeight: 'bold', textTransform: 'uppercase', lineHeight: 1.2 }}>Taxable</span>
+            <span style={{ fontWeight: 'bold', fontFamily: 'monospace', fontSize: '10px', lineHeight: 1.2 }}>₹ {taxableTotal.toFixed(2)}</span>
           </div>
           {/* CGST (14%) */}
           <div style={{
@@ -1054,10 +1032,9 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
             justifyContent: 'space-between',
             padding: `0 ${mm(1.2)}`,
             boxSizing: 'border-box',
-            overflow: 'hidden',
           }}>
-            <span style={{ fontSize: '8.8px', fontWeight: 'bold', textTransform: 'uppercase', lineHeight: 1 }}>CGST</span>
-            <span style={{ fontWeight: 'bold', fontFamily: 'monospace', fontSize: '10px', lineHeight: 1 }}>₹ {cgstTotal.toFixed(2)}</span>
+            <span style={{ fontSize: '8.8px', fontWeight: 'bold', textTransform: 'uppercase', lineHeight: 1.2 }}>CGST</span>
+            <span style={{ fontWeight: 'bold', fontFamily: 'monospace', fontSize: '10px', lineHeight: 1.2 }}>₹ {cgstTotal.toFixed(2)}</span>
           </div>
           {/* SGST (27%) */}
           <div style={{
@@ -1068,10 +1045,9 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
             justifyContent: 'space-between',
             padding: `0 ${mm(1.2)}`,
             boxSizing: 'border-box',
-            overflow: 'hidden',
           }}>
-            <span style={{ fontSize: '8.8px', fontWeight: 'bold', textTransform: 'uppercase', lineHeight: 1 }}>SGST</span>
-            <span style={{ fontWeight: 'bold', fontFamily: 'monospace', fontSize: '10px', lineHeight: 1 }}>₹ {sgstTotal.toFixed(2)}</span>
+            <span style={{ fontSize: '8.8px', fontWeight: 'bold', textTransform: 'uppercase', lineHeight: 1.2 }}>SGST</span>
+            <span style={{ fontWeight: 'bold', fontFamily: 'monospace', fontSize: '10px', lineHeight: 1.2 }}>₹ {sgstTotal.toFixed(2)}</span>
           </div>
           {/* Net Total (39%) */}
           <div style={{
@@ -1081,10 +1057,9 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
             justifyContent: 'space-between',
             padding: `0 ${mm(2.5)}`,
             boxSizing: 'border-box',
-            overflow: 'hidden',
           }}>
-            <span style={{ fontWeight: 900, fontSize: '11.5px', textTransform: 'uppercase', lineHeight: 1 }}>Net total</span>
-            <span style={{ fontWeight: 900, fontFamily: 'monospace', fontSize: '14px', lineHeight: 1 }}>₹ {netTotal.toFixed(2)}</span>
+            <span style={{ fontWeight: 900, fontSize: '11.5px', textTransform: 'uppercase', lineHeight: 1.2 }}>Net total</span>
+            <span style={{ fontWeight: 900, fontFamily: 'monospace', fontSize: '14px', lineHeight: 1.2 }}>₹ {netTotal.toFixed(2)}</span>
           </div>
         </div>
       )}
@@ -1097,7 +1072,6 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
         display: 'flex',
         boxSizing: 'border-box',
         borderBottom: BORDER_MAJOR,
-        overflow: 'hidden',
       }}>
         {/* 5A – Bank Details (33%) */}
         <div style={{
@@ -1108,35 +1082,34 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'center',
-          overflow: 'hidden',
         }}>
-          <div style={{ fontWeight: 'bold', fontSize: '9.8px', marginBottom: mm(0.3), lineHeight: 1 }}>Bank details</div>
+          <div style={{ fontWeight: 'bold', fontSize: '9.8px', marginBottom: mm(0.3), lineHeight: 1.2 }}>Bank details</div>
           <table style={{ width: '100%', fontSize: '8.8px', lineHeight: 1.25, borderCollapse: 'collapse' }}>
             <tbody>
               <tr>
                 <td style={{ width: mm(18), fontWeight: 'bold', padding: '0.1px 0', verticalAlign: 'middle' }}>Bank Name</td>
                 <td style={{ width: mm(2), fontWeight: 'bold', padding: '0.1px 0', verticalAlign: 'middle' }}>:</td>
-                <td style={{ fontWeight: 'bold', padding: '0.1px 0', verticalAlign: 'middle', fontSize: '9.2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{shop.bankName || '-'}</td>
+                <td style={{ fontWeight: 'bold', padding: '0.1px 0', verticalAlign: 'middle', fontSize: '9px', lineHeight: 1.25 }}>{shop.bankName || '-'}</td>
               </tr>
               <tr>
                 <td style={{ fontWeight: 'bold', padding: '0.1px 0', verticalAlign: 'middle' }}>A/C No</td>
                 <td style={{ fontWeight: 'bold', padding: '0.1px 0', verticalAlign: 'middle' }}>:</td>
-                <td style={{ fontWeight: 'bold', fontFamily: 'monospace', padding: '0.1px 0', verticalAlign: 'middle', fontSize: '9.8px' }}>{shop.accountNumber || '-'}</td>
+                <td style={{ fontWeight: 'bold', fontFamily: 'monospace', padding: '0.1px 0', verticalAlign: 'middle', fontSize: '9.8px', lineHeight: 1.25 }}>{shop.accountNumber || '-'}</td>
               </tr>
               <tr>
                 <td style={{ fontWeight: 'bold', padding: '0.1px 0', verticalAlign: 'middle' }}>IFSC Code</td>
                 <td style={{ fontWeight: 'bold', padding: '0.1px 0', verticalAlign: 'middle' }}>:</td>
-                <td style={{ fontWeight: 'bold', fontFamily: 'monospace', padding: '0.1px 0', verticalAlign: 'middle', fontSize: '9.5px' }}>{shop.ifsc || '-'}</td>
+                <td style={{ fontWeight: 'bold', fontFamily: 'monospace', padding: '0.1px 0', verticalAlign: 'middle', fontSize: '9.5px', lineHeight: 1.25 }}>{shop.ifsc || '-'}</td>
               </tr>
               <tr>
                 <td style={{ fontWeight: 'bold', padding: '0.1px 0', verticalAlign: 'middle' }}>Branch</td>
-                <td style={{ fontWeight: 'bold', padding: '0.1px 0', verticalAlign: 'middle' }}>:</td>
-                <td style={{ fontWeight: 600, padding: '0.1px 0', verticalAlign: 'middle', fontSize: '8.8px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{shop.branch || '-'}</td>
+                <td style={{ width: mm(2), fontWeight: 'bold', padding: '0.1px 0', verticalAlign: 'middle' }}>:</td>
+                <td style={{ fontWeight: 600, padding: '0.1px 0', verticalAlign: 'middle', fontSize: '8.8px', lineHeight: 1.25 }}>{shop.branch || '-'}</td>
               </tr>
               <tr>
                 <td style={{ fontWeight: 'bold', padding: '0.1px 0', verticalAlign: 'middle' }}>A/C Type</td>
-                <td style={{ fontWeight: 'bold', padding: '0.1px 0', verticalAlign: 'middle' }}>:</td>
-                <td style={{ fontWeight: 600, padding: '0.1px 0', verticalAlign: 'middle', fontSize: '8.8px' }}>{shop.accountType || '-'}</td>
+                <td style={{ width: mm(2), fontWeight: 'bold', padding: '0.1px 0', verticalAlign: 'middle' }}>:</td>
+                <td style={{ fontWeight: 600, padding: '0.1px 0', verticalAlign: 'middle', fontSize: '8.8px', lineHeight: 1.25 }}>{shop.accountType || '-'}</td>
               </tr>
             </tbody>
           </table>
@@ -1149,7 +1122,6 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
           display: 'flex',
           flexDirection: 'column',
           boxSizing: 'border-box',
-          overflow: 'hidden',
         }}>
           {/* Amount in words */}
           <div style={{
@@ -1160,16 +1132,14 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'center',
-            overflow: 'hidden',
           }}>
-            <div style={{ fontWeight: 'bold', fontSize: '8.8px', marginBottom: '0.1mm', lineHeight: 1 }}>Amount in words</div>
+            <div style={{ fontWeight: 'bold', fontSize: '8.8px', marginBottom: '0.2mm', lineHeight: 1.2 }}>Amount in words</div>
             <div style={{
               fontWeight: 'bold',
               fontSize: '8.5px',
               fontStyle: 'italic',
               textTransform: 'capitalize',
-              lineHeight: 1.15,
-              overflow: 'hidden',
+              lineHeight: 1.25,
               wordBreak: 'break-word',
             }}>
               {cleanWords}
@@ -1183,24 +1153,23 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'center',
-            overflow: 'hidden',
           }}>
-            <table style={{ width: '100%', fontSize: '8.5px', lineHeight: 1.2, borderCollapse: 'collapse' }}>
+            <table style={{ width: '100%', fontSize: '8.5px', lineHeight: 1.25, borderCollapse: 'collapse' }}>
               <tbody>
                 <tr>
                   <td style={{ fontWeight: 'bold', padding: '0.1px 0' }}>Opening Bal</td>
                   <td style={{ width: mm(2), fontWeight: 'bold', padding: '0.1px 0' }}>:</td>
-                  <td style={{ fontWeight: 'bold', fontFamily: 'monospace', textAlign: 'right', padding: '0.1px 0', fontSize: '9px' }}>₹ {openingBal.toFixed(2)}</td>
+                  <td style={{ fontWeight: 'bold', fontFamily: 'monospace', textAlign: 'right', padding: '0.1px 0', fontSize: '9px', lineHeight: 1.25 }}>₹ {openingBal.toFixed(2)}</td>
                 </tr>
                 <tr>
                   <td style={{ fontWeight: 'bold', padding: '0.1px 0' }}>Dr invoice</td>
                   <td style={{ width: mm(2), fontWeight: 'bold', padding: '0.1px 0' }}>:</td>
-                  <td style={{ fontWeight: 'bold', fontFamily: 'monospace', textAlign: 'right', padding: '0.1px 0', fontSize: '9px' }}>₹ {drInvoice.toFixed(2)}</td>
+                  <td style={{ fontWeight: 'bold', fontFamily: 'monospace', textAlign: 'right', padding: '0.1px 0', fontSize: '9px', lineHeight: 1.25 }}>₹ {drInvoice.toFixed(2)}</td>
                 </tr>
                 <tr>
                   <td style={{ fontWeight: 'bold', padding: '0.1px 0' }}>Closing balance</td>
                   <td style={{ width: mm(2), fontWeight: 'bold', padding: '0.1px 0' }}>:</td>
-                  <td style={{ fontWeight: 'bold', fontFamily: 'monospace', textAlign: 'right', padding: '0.1px 0', fontSize: '9px' }}>₹ {closingBalance.toFixed(2)}</td>
+                  <td style={{ fontWeight: 'bold', fontFamily: 'monospace', textAlign: 'right', padding: '0.1px 0', fontSize: '9px', lineHeight: 1.25 }}>₹ {closingBalance.toFixed(2)}</td>
                 </tr>
               </tbody>
             </table>
@@ -1216,7 +1185,6 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
           padding: `${mm(0.8)} ${mm(1.8)}`,
           position: 'relative',
           gap: mm(1.2),
-          overflow: 'hidden',
         }}>
           {upiQrAmount > 0 && shop.upiId ? (
             <>
@@ -1228,7 +1196,6 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
                 justifyContent: 'center',
                 width: mm(24),
                 flexShrink: 0,
-                overflow: 'hidden',
               }}>
                 {qrDataUrl ? (
                   <img
@@ -1241,14 +1208,14 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
                     UPI QR
                   </div>
                 )}
-                <span style={{ fontSize: '6.8px', fontWeight: 'bold', textTransform: 'uppercase', marginTop: '0.3px', whiteSpace: 'nowrap', maxWidth: mm(24), overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1 }} title={shop.upiId}>
+                <span style={{ fontSize: '6.8px', fontWeight: 'bold', textTransform: 'uppercase', marginTop: '0.3px', whiteSpace: 'nowrap', maxWidth: mm(24), overflow: 'hidden', lineHeight: 1.2 }} title={shop.upiId}>
                   UPI: {shop.upiId}
                 </span>
-                <span style={{ fontSize: '7.2px', fontWeight: 900, whiteSpace: 'nowrap', fontFamily: 'monospace', lineHeight: 1 }}>
+                <span style={{ fontSize: '7.2px', fontWeight: 900, whiteSpace: 'nowrap', fontFamily: 'monospace', lineHeight: 1.2 }}>
                   ₹ {upiQrAmount.toFixed(2)}
                 </span>
                 {isPartial && (
-                  <span style={{ fontSize: '5.8px', fontWeight: 'bold', color: '#555', textTransform: 'uppercase', lineHeight: 1 }}>
+                  <span style={{ fontSize: '5.8px', fontWeight: 'bold', color: '#555', textTransform: 'uppercase', lineHeight: 1.2 }}>
                     (UPI Portion)
                   </span>
                 )}
@@ -1261,15 +1228,14 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
                 flexDirection: 'column',
                 justifyContent: 'space-between',
                 paddingLeft: mm(1),
-                overflow: 'hidden',
               }}>
-                <div style={{ textAlign: 'right', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <div style={{ textAlign: 'right' }}>
                   <span style={{
                     fontWeight: 900,
                     fontSize: '9.8px',
                     textTransform: 'uppercase',
                     letterSpacing: '0.2px',
-                    lineHeight: 1.1,
+                    lineHeight: 1.2,
                   }}>
                     {shop.authorizedSignatory || shop.shopName || ''}
                   </span>
@@ -1279,10 +1245,10 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'flex-end',
-                  paddingBottom: mm(0.3),
+                  paddingBottom: mm(0.5),
                 }}>
-                  <span style={{ fontWeight: 'bold', fontSize: '8.5px', lineHeight: 1 }}>Customer sign</span>
-                  <span style={{ fontWeight: 'bold', fontSize: '8.5px', lineHeight: 1 }}>Authorized Sign</span>
+                  <span style={{ fontWeight: 'bold', fontSize: '8.8px', lineHeight: 1.2 }}>Customer sign</span>
+                  <span style={{ fontWeight: 'bold', fontSize: '8.8px', lineHeight: 1.2 }}>Authorized Sign</span>
                 </div>
               </div>
             </>
@@ -1294,7 +1260,6 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
               boxSizing: 'border-box',
               position: 'relative',
               justifyContent: 'space-between',
-              overflow: 'hidden',
             }}>
               {/* Shop name top-right */}
               <div style={{
@@ -1306,7 +1271,7 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
                   fontSize: '11px',
                   textTransform: 'uppercase',
                   letterSpacing: '0.2px',
-                  lineHeight: 1.1,
+                  lineHeight: 1.2,
                 }}>
                   {shop.authorizedSignatory || shop.shopName || ''}
                 </span>
@@ -1318,10 +1283,10 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
                 justifyContent: 'space-between',
                 alignItems: 'flex-end',
                 flex: 1,
-                paddingBottom: mm(0.3),
+                paddingBottom: mm(0.5),
               }}>
-                <span style={{ fontWeight: 'bold', fontSize: '9px', lineHeight: 1 }}>Customer sign</span>
-                <span style={{ fontWeight: 'bold', fontSize: '9px', paddingRight: mm(1.5), lineHeight: 1 }}>Authorized Sign</span>
+                <span style={{ fontWeight: 'bold', fontSize: '9px', lineHeight: 1.2 }}>Customer sign</span>
+                <span style={{ fontWeight: 'bold', fontSize: '9px', paddingRight: mm(1.5), lineHeight: 1.2 }}>Authorized Sign</span>
               </div>
             </div>
           )}
@@ -1335,19 +1300,18 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
         <div style={{
           height: mm(H_TERMS),
           borderBottom: BORDER_MAJOR,
-          padding: `${mm(0.3)} ${mm(1.8)}`,
+          padding: `${mm(0.4)} ${mm(1.8)}`,
           boxSizing: 'border-box',
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'center',
-          fontSize: '7.6px',
-          lineHeight: 1.15,
-          overflow: 'hidden',
+          fontSize: '7.8px',
+          lineHeight: 1.25,
         }}>
-          <div style={{ fontWeight: 'bold', textTransform: 'uppercase', fontSize: '8px', marginBottom: '0.1mm', letterSpacing: '0.2px', lineHeight: 1 }}>
+          <div style={{ fontWeight: 'bold', textTransform: 'uppercase', fontSize: '8px', marginBottom: mm(0.2), letterSpacing: '0.2px', lineHeight: 1.2 }}>
             TERMS & CONDITIONS:
           </div>
-          <div style={{ whiteSpace: 'pre-line', overflow: 'hidden', color: '#111', lineHeight: 1.15 }}>
+          <div style={{ whiteSpace: 'pre-line', color: '#111', lineHeight: 1.25 }}>
             {cleanTerms}
           </div>
         </div>
@@ -1365,8 +1329,7 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
         fontSize: '7.8px',
         fontWeight: 'bold',
         boxSizing: 'border-box',
-        lineHeight: 1.1,
-        overflow: 'hidden',
+        lineHeight: 1.25,
       }}>
         <span>THIS IS COMPUTER GENERATED {isReturnDoc ? 'SALES RETURN / CREDIT NOTE' : 'TAX INVOICE'}</span>
         <span>SUBJECT TO {shop.district ? shop.district.toUpperCase() : (shop.state ? shop.state.toUpperCase() : 'LOCAL')} JURISDICTION</span>
@@ -1507,20 +1470,17 @@ export async function downloadInvoiceAsPDF(
 
     const isFullPage = captureTarget.classList.contains('invoice-page');
     const targetWidthMm = isFullPage ? 210 : 204;
-    const targetHeightMm = isFullPage ? 148 : 142;
 
     const container = document.createElement('div');
     container.style.position = 'fixed';
     container.style.top = '0px';
     container.style.left = '-10000px';
     container.style.width = `${targetWidthMm}mm`;
-    container.style.height = `${targetHeightMm}mm`;
     container.style.pointerEvents = 'none';
     container.style.backgroundColor = '#ffffff';
     container.style.margin = '0';
     container.style.padding = '0';
     container.style.boxSizing = 'border-box';
-    container.style.overflow = 'hidden';
 
     const clone = captureTarget.cloneNode(true) as HTMLElement;
     clone.style.margin = '0';
@@ -1530,7 +1490,6 @@ export async function downloadInvoiceAsPDF(
     if (!isFullPage) {
       clone.style.display = 'block';
       clone.style.width = '204mm';
-      clone.style.height = '142mm';
       clone.style.boxSizing = 'border-box';
     }
 
@@ -1564,9 +1523,15 @@ export async function downloadInvoiceAsPDF(
     });
 
     if (isFullPage) {
-      pdf.addImage(imgData, 'JPEG', 0, 0, 210, 148, undefined, 'FAST');
+      const renderWidth = 210;
+      const renderHeight = (renderWidth * canvas.height) / canvas.width;
+      pdf.addImage(imgData, 'JPEG', 0, 0, renderWidth, Math.min(renderHeight, 148), undefined, 'FAST');
     } else {
-      pdf.addImage(imgData, 'JPEG', 3, 3, 204, 142, undefined, 'FAST');
+      const renderWidth = 204;
+      const renderHeight = (renderWidth * canvas.height) / canvas.width;
+      // Position near top (around 2-3mm), no big empty gap, with full content visible
+      const topY = Math.min(3, Math.max(1, (148 - renderHeight) / 2));
+      pdf.addImage(imgData, 'JPEG', 3, topY, renderWidth, renderHeight, undefined, 'FAST');
     }
     pdf.save(filename);
   } catch (err) {
