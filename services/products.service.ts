@@ -232,7 +232,7 @@ export async function createProduct(shopId: string, data: CreateProductInput, us
       mrp: Number(data.selling_price || 0),
       current_stock: Number(data.opening_stock || 0),
       stock_quantity: Number(data.opening_stock || 0),
-      min_stock: Number(data.min_stock || 5),
+      min_stock: Number(data.min_stock !== undefined && data.min_stock !== null ? data.min_stock : 5),
       is_active: true,
       batch_number: batchNumber,
       expiry_date: dbExpiry,
@@ -271,7 +271,7 @@ export async function createProduct(shopId: string, data: CreateProductInput, us
     p_wholesale_price: Number(data.wholesale_price || 0),
     p_gst_rate: Number(data.gst_rate || 0),
     p_hsn_code: data.hsn_code || null,
-    p_min_stock: Number(data.min_stock || 0),
+    p_min_stock: Number(data.min_stock !== undefined && data.min_stock !== null ? data.min_stock : 5),
     p_opening_stock: Number(data.opening_stock || 0),
     p_batch_tracking: hasBatch,
     p_expiry_tracking: hasExpiry,
@@ -614,8 +614,8 @@ export async function createCategory(shopId: string, data: { name: string; descr
     return newCategory;
   }
 
-  const supabase = await createServerSupabaseClient();
-  const { data: category, error } = await supabase
+    const supabase = await createServerSupabaseClient();
+    const { data: category, error } = await supabase
     .from('categories')
     .insert({ ...data, name: normName, shop_id: shopId })
     .select()
@@ -626,6 +626,32 @@ export async function createCategory(shopId: string, data: { name: string; descr
     throw new Error(error.message || 'Failed to create category');
   }
   return category;
+}
+
+export async function getCategoryById(shopId: string, id: string) {
+  if (isPlaceholderMode()) {
+    const all = [...MOCK_CATEGORIES, ...demoCategories];
+    return all.find(c => String(c.id) === String(id)) || null;
+  }
+
+  try {
+    const supabase = await createServerSupabaseClient();
+    const { data, error } = await supabase
+      .from('categories')
+      .select('*')
+      .eq('shop_id', shopId)
+      .eq('id', id)
+      .maybeSingle();
+
+    if (error) {
+      console.error("Error fetching category by id:", error);
+      return null;
+    }
+    return data;
+  } catch (err) {
+    console.error("Failed to load category:", err);
+    return null;
+  }
 }
 
 export async function updateCategory(shopId: string, id: string, data: { name: string; description?: string | null }) {

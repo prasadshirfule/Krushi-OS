@@ -109,8 +109,8 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
     ? ('' as any)
     : (initialData?.current_stock ?? initialData?.stock_quantity ?? initialData?.opening_stock ?? initialBatch?.quantity_available ?? 0);
   const initialMinStock = mode === 'create'
-    ? ('' as any)
-    : (initialData?.min_stock ?? 5);
+    ? 5
+    : (initialData?.min_stock !== undefined && initialData?.min_stock !== null ? Number(initialData.min_stock) : 5);
 
   // Form Setup
   const form = useForm<ProductInput>({

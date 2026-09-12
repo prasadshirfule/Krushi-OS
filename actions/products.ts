@@ -92,6 +92,16 @@ export async function getCategoriesAction(): Promise<ActionResult<any>> {
   }
 }
 
+export async function getCategoryAction(id: string): Promise<ActionResult<any>> {
+  try {
+    const userData = await getAuthAndPermissions('products.view');
+    const result = await productsService.getCategoryById(userData.shop_id, id);
+    return { success: true, data: result };
+  } catch (error: any) {
+    return { success: false, error: error.message || 'An unexpected error occurred' };
+  }
+}
+
 export async function createCategoryAction(data: { name: string, description?: string }): Promise<ActionResult<any>> {
   try {
     const userData = await getAuthAndPermissions('products.create');

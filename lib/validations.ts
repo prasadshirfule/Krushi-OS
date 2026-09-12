@@ -322,8 +322,8 @@ export const productSchema = z.object({
   product_size_unit: z.string().optional().nullable(),
   pack_size: z.string().optional().nullable(),
   min_stock: z.preprocess(
-    (val) => (val === '' || val === null || val === undefined ? undefined : val),
-    z.coerce.number({ invalid_type_error: 'Minimum stock alert level is required' }).min(0, 'Minimum stock cannot be negative')
+    (val) => (val === '' || val === null || val === undefined ? 5 : val),
+    z.coerce.number({ invalid_type_error: 'Minimum stock alert level must be a valid number' }).min(0, 'Minimum stock cannot be negative').default(5)
   ),
   max_stock: z.coerce.number().min(0).optional().nullable(),
   opening_stock: z.preprocess(

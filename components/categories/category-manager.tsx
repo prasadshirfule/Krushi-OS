@@ -162,8 +162,7 @@ export function CategoryManager({ categories: initialCategories }: { categories:
                 <button
                   type="button"
                   onClick={() => {
-                    setSelectedCategoryForReport(row.original);
-                    setIsReportOpen(true);
+                    router.push(`/categories/${row.original.id}`);
                   }}
                   className="text-left font-bold text-foreground hover:text-primary hover:underline transition-colors flex items-center gap-1.5 group cursor-pointer"
                 >
@@ -187,18 +186,31 @@ export function CategoryManager({ categories: initialCategories }: { categories:
               id: 'actions',
               header: t('common.actions', 'Actions'),
               cell: ({ row }: any) => (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 gap-1 text-xs font-semibold hover:bg-primary/10 hover:text-primary hover:border-primary/40 cursor-pointer"
-                  onClick={() => {
-                    setSelectedCategoryForReport(row.original);
-                    setIsReportOpen(true);
-                  }}
-                >
-                  <FileText className="h-3.5 w-3.5 text-primary" />
-                  <span>{t('categories.viewProducts', 'View Report')}</span>
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 gap-1 text-xs font-semibold hover:bg-primary/10 hover:text-primary hover:border-primary/40 cursor-pointer"
+                    onClick={() => {
+                      router.push(`/categories/${row.original.id}`);
+                    }}
+                  >
+                    <FileText className="h-3.5 w-3.5 text-primary" />
+                    <span>View Products</span>
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 text-xs text-muted-foreground hover:text-foreground cursor-pointer"
+                    onClick={() => {
+                      setSelectedCategoryForReport(row.original);
+                      setIsReportOpen(true);
+                    }}
+                    title="Quick Print / PDF Modal"
+                  >
+                    Report
+                  </Button>
+                </div>
               ),
             },
           ]}

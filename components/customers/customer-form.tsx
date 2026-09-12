@@ -176,9 +176,24 @@ export function CustomerForm({ initialData, onSuccess, onCancel }: CustomerFormP
     }
   }
 
+  const onInvalid = (errors: any) => {
+    toast.error("Please fill all mandatory (*) fields.");
+    const fieldOrder = ['name', 'mobile'];
+    const firstInvalidKey = fieldOrder.find(key => errors[key]) || Object.keys(errors)[0];
+    if (firstInvalidKey) {
+      setTimeout(() => {
+        const el = document.getElementById(firstInvalidKey) || document.querySelector(`[name="${firstInvalidKey}"]`) as HTMLElement;
+        if (el) {
+          el.focus();
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 50);
+    }
+  };
+
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+      <form onSubmit={form.handleSubmit(onSubmit, onInvalid)} className="space-y-4">
         {/* Required Fields */}
         <FormField
           control={form.control}
@@ -188,6 +203,7 @@ export function CustomerForm({ initialData, onSuccess, onCancel }: CustomerFormP
               <FormLabel>Farmer / Customer Name <span className="text-destructive">*</span></FormLabel>
               <FormControl>
                 <Input 
+                  id="name"
                   placeholder="e.g. RAMESH PATEL" 
                   className="uppercase font-semibold"
                   {...field}
@@ -208,6 +224,7 @@ export function CustomerForm({ initialData, onSuccess, onCancel }: CustomerFormP
                 <FormLabel>Mobile Number <span className="text-destructive">*</span></FormLabel>
                 <FormControl>
                   <Input 
+                    id="mobile"
                     placeholder="e.g. 9876543210" 
                     maxLength={10}
                     inputMode="numeric"

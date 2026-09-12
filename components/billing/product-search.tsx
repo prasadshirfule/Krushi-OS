@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/button';
 import { Search, Plus, Package, AlertTriangle, Barcode, X, Sparkles, Check } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { formatProductPackDisplay, formatProductNameWithSize } from '@/lib/validations';
-import { useDebounce } from '@/hooks/use-debounce';
 import { MOCK_PRODUCTS, MOCK_CATEGORIES } from '@/lib/mock-data';
 import { 
   isClientDemoMode, 
@@ -40,8 +39,6 @@ function ProductSearchComponent({ onAddToCart }: ProductSearchProps) {
   useEffect(() => {
     queryRef.current = query;
   }, [query]);
-
-  const debouncedQuery = useDebounce(query, 300);
 
   // Keyboard shortcut F4 to focus search
   useEffect(() => {
@@ -137,69 +134,41 @@ function ProductSearchComponent({ onAddToCart }: ProductSearchProps) {
     };
   }, [loadProducts, loadCategories]);
 
-  // Fetch search results when debounced query changes
-  useEffect(() => {
-    let isCurrent = true;
-    const fetchProducts = async () => {
-      const trimmed = debouncedQuery.trim();
-      if (!trimmed) {
-        setSearchResults(null);
-        return;
-      }
-
-      setLoading(true);
-      try {
-        if (isClientDemoMode()) {
-          const results = searchDemoProductsClient(trimmed);
-          if (isCurrent) {
-            setSearchResults(results);
-            cacheBatches(results);
-          }
-          return;
-        }
-
-        const res = await searchProductsAction(trimmed);
-        if (isCurrent) {
-          if (res.success && Array.isArray(res.data)) {
-            setSearchResults(res.data);
-            cacheBatches(res.data);
-          } else {
-            setSearchResults([]);
-          }
-        }
-      } catch (error) {
-        console.warn('Search action failed:', error);
-        if (isCurrent) {
-          setSearchResults([]);
-        }
-      } finally {
-        if (isCurrent) setLoading(false);
-      }
-    };
-
-    fetchProducts();
-    return () => { isCurrent = false; };
-  }, [debouncedQuery]);
-
-  // Filter products by selected category and active search
+  // Immediate in-memory filtered products for near-instant responsive typing
   const displayedProducts = useMemo(() => {
-    const isSearching = Boolean(query.trim());
+    const trimmed = query.trim().toLowerCase();
+    const isSearching = Boolean(trimmed);
     const isCategoryFiltered = selectedCategory !== 'all';
 
-    // When search is empty and on 'All Products', show ONLY 3–4 recent/frequent products directly
+    // 1. When search is empty and on 'All Products', show ONLY 3–4 recent/frequent products directly
     if (!isSearching && !isCategoryFiltered) {
       return (recentProducts.length > 0 ? recentProducts : allProducts).slice(0, 4);
     }
 
-    const baseList = isSearching
-      ? (searchResults !== null ? searchResults : allProducts)
-      : allProducts;
+    // 2. Filter from preloaded in-memory products first (near-instant 0 latency)
+    let list = allProducts;
+    if (isSearching) {
+      list = allProducts.filter(p => {
+        const name = (p.name || '').toLowerCase();
+        const sku = (p.sku || '').toLowerCase();
+        const barcode = (p.barcode || '').toLowerCase();
+        const brand = (p.brand?.name || p.brand?.manufacturer || p.brand_name || p.manufacturer || '').toLowerCase();
+        const catName = (typeof p.category === 'string' ? p.category : p.category?.name || '').toLowerCase();
+        return name.includes(trimmed) || sku.includes(trimmed) || barcode.includes(trimmed) || brand.includes(trimmed) || catName.includes(trimmed);
+      });
 
-    if (!isCategoryFiltered) {
-      return baseList;
+      // If in-memory found no results and server search results are available, blend them in
+      if (list.length === 0 && searchResults && searchResults.length > 0) {
+        list = searchResults;
+      }
     }
 
-    return baseList.filter(p => {
+    // 3. Category filter
+    if (!isCategoryFiltered) {
+      return list;
+    }
+
+    return list.filter(p => {
       const catId = p.category_id || p.category?.id;
       const catName = (typeof p.category === 'string' ? p.category : p.category?.name || '').toLowerCase();
       const targetCat = categories.find(c => c.id === selectedCategory);
@@ -207,7 +176,35 @@ function ProductSearchComponent({ onAddToCart }: ProductSearchProps) {
 
       return catId === selectedCategory || (targetName && catName === targetName);
     });
-  }, [searchResults, allProducts, recentProducts, selectedCategory, categories, query]);
+  }, [allProducts, recentProducts, searchResults, selectedCategory, categories, query]);
+
+  // Background server synchronization for new/uncached items when query has content
+  useEffect(() => {
+    const trimmed = query.trim();
+    if (!trimmed || isClientDemoMode()) {
+      setSearchResults(null);
+      return;
+    }
+
+    // If we have less than 2 items in-memory or user typed a specific barcode, query server in background
+    let isCurrent = true;
+    const timer = setTimeout(async () => {
+      try {
+        const res = await searchProductsAction(trimmed);
+        if (isCurrent && res.success && Array.isArray(res.data)) {
+          setSearchResults(res.data);
+          cacheBatches(res.data);
+        }
+      } catch (err) {
+        console.warn('Background search query error:', err);
+      }
+    }, 150);
+
+    return () => {
+      isCurrent = false;
+      clearTimeout(timer);
+    };
+  }, [query]);
 
   // Handle adding product to cart (INSTANT OPTIMISTIC UI)
   const handleAdd = useCallback((product: any) => {

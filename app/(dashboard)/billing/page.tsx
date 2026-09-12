@@ -7,7 +7,6 @@ import BillAdjustments from '@/components/billing/bill-adjustments';
 import PaymentPanel from '@/components/billing/payment-panel';
 import BillSuccessDialog from '@/components/billing/bill-success-dialog';
 import { CustomerFormDialog } from '@/components/customers/customer-form-dialog';
-import { QuickCustomerDialog } from '@/components/customers/quick-customer-dialog';
 import { BillingCartItem, BillAdjustment } from '@/types/sales';
 import { generateId } from '@/lib/utils';
 import { calculateBillTotal } from '@/lib/calculations';
@@ -50,7 +49,6 @@ export default function BillingPage() {
   const [lastInvoiceNumber, setLastInvoiceNumber] = useState<string | null>(null);
   const [lastSaleTotals, setLastSaleTotals] = useState<any>(null);
   const [showNewCustomerDialog, setShowNewCustomerDialog] = useState(false);
-  const [showQuickCustomerDialog, setShowQuickCustomerDialog] = useState(false);
   const [shopProfile, setShopProfile] = useState<ShopDetails | null>(null);
   const [isProfileLoaded, setIsProfileLoaded] = useState(false);
 
@@ -177,14 +175,6 @@ export default function BillingPage() {
         return next;
       });
     }
-  };
-
-  const handleQuickCustomerApply = (data: { id: string; name: string; phone: string; village: string }) => {
-    setCustomerId(data.id);
-    setCustomerName(data.name.toUpperCase());
-    setCustomerPhone(data.phone);
-    setCustomerVillage(data.village.toUpperCase());
-    setCustomerSearch('');
   };
 
   const handleCustomerCreated = (newCust: any) => {
@@ -348,181 +338,148 @@ export default function BillingPage() {
             </div>
             <div>
               <h2 className="text-lg font-semibold text-foreground">Customer / Farmer</h2>
-              <p className="text-xs text-muted-foreground">Select registered farmer, enter quick customer details, or use walk-in</p>
+              <p className="text-xs text-muted-foreground">Select registered farmer or enter customer details directly below</p>
             </div>
           </div>
-          {!customerName && (
-            <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-muted-foreground border-border hover:bg-muted font-medium"
+              onClick={() => setShowNewCustomerDialog(true)}
+            >
+              <UserPlus className="h-4 w-4 mr-1.5" /> New Registered Farmer
+            </Button>
+            {(customerName || customerPhone || customerVillage) && (
               <Button
-                variant="outline"
+                variant="ghost"
                 size="sm"
-                className="text-primary border-primary/40 hover:bg-primary/10 hover:text-primary font-semibold"
-                onClick={() => setShowQuickCustomerDialog(true)}
+                className="text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                onClick={clearCustomer}
               >
-                <User className="h-4 w-4 mr-1.5" /> + Quick Customer
+                <X className="h-3.5 w-3.5 mr-1" /> Clear Customer
               </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-muted-foreground border-border hover:bg-muted font-medium"
-                onClick={() => setShowNewCustomerDialog(true)}
-              >
-                <UserPlus className="h-4 w-4 mr-1.5" /> New Registered Farmer
-              </Button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
-        {/* Selected customer — prominent display */}
-        {customerName ? (
-          <div className="flex items-center gap-3">
-            <div className="flex-1 bg-primary/10 border-2 border-primary/40 rounded-xl px-5 py-3.5">
-              <div className="flex items-center justify-between flex-wrap gap-2">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <p className="text-2xl md:text-3xl font-bold text-primary tracking-tight">{customerName}</p>
-                  <button
-                    type="button"
-                    onClick={() => setShowQuickCustomerDialog(true)}
-                    className="p-1 rounded text-primary hover:bg-primary/20 transition-colors"
-                    title="Edit Customer Details for this bill"
-                  >
-                    <Edit2 className="h-4 w-4" />
-                  </button>
-                </div>
-                {customerId === 'walk-in' && !customerPhone && !customerVillage && (
-                  <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-muted text-muted-foreground">
-                    Walk-in Customer
-                  </span>
-                )}
-                {customerId?.startsWith('quick-') || (customerId?.startsWith('cust-') && customerId !== 'walk-in') ? (
-                  <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-blue-500/15 text-blue-400 border border-blue-500/30">
-                    Quick Customer
-                  </span>
-                ) : customerId && customerId !== 'walk-in' ? (
-                  <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-                    Registered Farmer
-                  </span>
-                ) : null}
-              </div>
-              <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1 font-medium flex-wrap">
-                {customerPhone ? (
-                  <span className="flex items-center gap-1">
-                    <Phone className="h-3.5 w-3.5 text-primary/70" /> {customerPhone}
-                  </span>
-                ) : null}
-                {customerVillage ? (
-                  <span className="flex items-center gap-1">
-                    <MapPin className="h-3.5 w-3.5 text-primary/70" /> {customerVillage}
-                  </span>
-                ) : null}
-                {!customerPhone && !customerVillage && customerId === 'walk-in' && (
-                  <button
-                    type="button"
-                    onClick={() => setShowQuickCustomerDialog(true)}
-                    className="text-xs text-primary underline hover:text-primary/80 font-semibold"
-                  >
-                    + Add Phone / Village (Optional)
-                  </button>
-                )}
-              </div>
-            </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-10 w-10 rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-              onClick={clearCustomer}
-              title="Clear Customer"
-            >
-              <X className="h-5 w-5" />
-            </Button>
-          </div>
-        ) : (
-          <>
-            {/* Customer search input */}
-            <div className="relative mb-4">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+        {/* Customer Input Fields: Customer Name, Contact No., Village */}
+        <div className="space-y-3.5">
+          {/* 1. Customer Name */}
+          <div className="space-y-1.5">
+            <label htmlFor="billing-customer-name" className="text-xs font-semibold text-foreground flex items-center justify-between">
+              <span>Customer Name</span>
+              {customerId && customerId !== 'walk-in' ? (
+                <span className="text-[11px] font-bold text-emerald-500 flex items-center gap-1">
+                  ✓ Registered Farmer
+                </span>
+              ) : customerName ? (
+                <span className="text-[11px] font-medium text-muted-foreground">
+                  Walk-in Customer
+                </span>
+              ) : null}
+            </label>
+            <div className="relative">
               <Input
-                value={customerSearch}
-                onChange={e => setCustomerSearch(e.target.value)}
+                id="billing-customer-name"
+                value={customerName}
+                onChange={e => {
+                  const val = e.target.value.toUpperCase();
+                  setCustomerName(val);
+                  setCustomerSearch(val);
+                  if (customerId && customerId !== 'walk-in') {
+                    setCustomerId('walk-in');
+                  }
+                }}
                 onKeyDown={handleCustomerSearchKeyDown}
-                placeholder="Search registered farmer by name or phone (e.g. Ramesh, 9876...)"
-                className="text-base py-5 pl-10 bg-background border-border text-foreground placeholder:text-muted-foreground"
+                placeholder="Enter customer name or search registered farmer..."
+                className="text-base py-5 uppercase font-medium bg-background border-border text-foreground placeholder:text-muted-foreground/70"
+              />
+              {customerSearch.trim() && searchResults.length > 0 && (
+                <div className="absolute top-full left-0 right-0 z-30 mt-1 bg-popover border border-border rounded-lg shadow-lg max-h-48 overflow-y-auto p-1.5 space-y-1">
+                  <div className="text-[11px] font-semibold text-muted-foreground px-2 py-1">
+                    Matching Registered Farmers:
+                  </div>
+                  {searchResults.map(c => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      className="w-full text-left px-3 py-2 rounded-md hover:bg-accent hover:text-accent-foreground text-sm flex items-center justify-between transition-colors cursor-pointer"
+                      onClick={() => selectCustomer(c)}
+                    >
+                      <span className="font-semibold text-foreground">{c.name}</span>
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground font-mono">
+                        {c.phone && <span>{c.phone}</span>}
+                        {c.village && <span className="font-sans text-muted-foreground/80">• {c.village}</span>}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* 2. Contact No. & 3. Village directly below Customer Name */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+            <div className="space-y-1.5">
+              <label htmlFor="billing-contact-no" className="text-xs font-semibold text-foreground flex items-center gap-1">
+                <Phone className="h-3 w-3 text-muted-foreground" />
+                <span>Contact No.</span>
+              </label>
+              <Input
+                id="billing-contact-no"
+                type="tel"
+                maxLength={10}
+                value={customerPhone}
+                onChange={e => {
+                  const val = e.target.value.replace(/\D/g, '').slice(0, 10);
+                  setCustomerPhone(val);
+                  if (customerId && customerId !== 'walk-in') {
+                    setCustomerId('walk-in');
+                  }
+                }}
+                placeholder="10-digit mobile number"
+                className="text-sm py-4 bg-background border-border text-foreground placeholder:text-muted-foreground/70 font-mono"
               />
             </div>
 
-            {/* If searching: show live search results */}
-            {customerSearch.trim() ? (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-xs text-muted-foreground px-1">
-                  <span>Matching Customers ({searchResults.length}):</span>
-                  <span>Press Enter to select first match</span>
-                </div>
-                <div className="flex flex-wrap gap-2 items-center">
-                  {!searchResults.some(c => c.name.toLowerCase() === searchTrimmed) && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="rounded-full px-4 py-1.5 h-auto text-sm font-semibold border-primary/50 bg-primary/10 text-primary hover:bg-primary/20 transition-all"
-                      onClick={() =>
-                        selectCustomer({
-                          id: `cust-${Date.now()}`,
-                          name: customerSearch.trim().toUpperCase(),
-                          phone: '',
-                        })
-                      }
-                    >
-                      + Quick Customer &ldquo;{customerSearch.trim().toUpperCase()}&rdquo;
-                    </Button>
-                  )}
-                  {searchResults.map(c => (
-                    <Button
-                      key={c.id}
-                      variant="outline"
-                      size="sm"
-                      className="rounded-full px-4 py-1.5 h-auto text-sm font-medium border-primary/40 bg-primary/5 hover:bg-primary/15 hover:text-primary transition-all text-foreground flex items-center gap-1.5"
-                      onClick={() => selectCustomer(c)}
-                    >
-                      <span className="font-semibold text-primary">{c.name}</span>
-                      {c.phone && <span className="text-xs text-muted-foreground font-normal">({c.phone})</span>}
-                      {c.village && <span className="text-xs text-muted-foreground font-normal">• {c.village}</span>}
-                    </Button>
-                  ))}
-                  {searchResults.length === 0 && (
-                    <span className="text-sm text-muted-foreground italic py-1">
-                      No registered customer matches &ldquo;{customerSearch}&rdquo;. Click above to use as Quick Customer.
-                    </span>
-                  )}
-                </div>
-              </div>
-            ) : (
-              /* If not searching: show Recent & Quick select buttons */
-              <div className="flex flex-wrap gap-2 items-center">
-                <span className="text-sm text-muted-foreground mr-1 font-medium">Recent:</span>
-                {recentCustomers.map(c => (
-                  <Button
-                    key={c.id}
-                    variant="outline"
-                    size="sm"
-                    className="rounded-full px-4 py-1.5 h-auto text-sm font-medium border-border bg-background/50 hover:bg-primary/10 hover:text-primary hover:border-primary/50 transition-all text-foreground"
-                    onClick={() => selectCustomer(c)}
-                  >
-                    {c.name}
-                  </Button>
-                ))}
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="rounded-full px-3 py-1.5 h-auto text-xs font-semibold text-primary hover:bg-primary/10"
-                  onClick={() => setShowQuickCustomerDialog(true)}
-                >
-                  + Enter Other Details
-                </Button>
-              </div>
-            )}
-          </>
-        )}
+            <div className="space-y-1.5">
+              <label htmlFor="billing-village" className="text-xs font-semibold text-foreground flex items-center gap-1">
+                <MapPin className="h-3 w-3 text-muted-foreground" />
+                <span>Village</span>
+              </label>
+              <Input
+                id="billing-village"
+                value={customerVillage}
+                onChange={e => {
+                  setCustomerVillage(e.target.value.toUpperCase());
+                  if (customerId && customerId !== 'walk-in') {
+                    setCustomerId('walk-in');
+                  }
+                }}
+                placeholder="Village / Town name"
+                className="text-sm py-4 uppercase bg-background border-border text-foreground placeholder:text-muted-foreground/70"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Quick select recent customers chips */}
+        <div className="flex flex-wrap gap-2 items-center mt-3 pt-3 border-t border-border/60">
+          <span className="text-xs text-muted-foreground mr-1 font-medium">Recent Farmers:</span>
+          {recentCustomers.map(c => (
+            <Button
+              key={c.id}
+              type="button"
+              variant="outline"
+              size="sm"
+              className="rounded-full px-3 py-1 h-auto text-xs font-medium border-border bg-background/50 hover:bg-primary/10 hover:text-primary hover:border-primary/50 transition-all text-foreground cursor-pointer"
+              onClick={() => selectCustomer(c)}
+            >
+              {c.name}
+            </Button>
+          ))}
+        </div>
       </section>
 
       {/* ════════ SECTION 2: PRODUCT SELECTION ════════ */}
@@ -576,17 +533,6 @@ export default function BillingPage() {
           }}
         />
       )}
-
-      <QuickCustomerDialog
-        open={showQuickCustomerDialog}
-        onOpenChange={setShowQuickCustomerDialog}
-        initialData={{
-          name: customerName !== 'WALK-IN CUSTOMER' ? customerName : '',
-          phone: customerPhone,
-          village: customerVillage,
-        }}
-        onApply={handleQuickCustomerApply}
-      />
 
       <CustomerFormDialog
         open={showNewCustomerDialog}
