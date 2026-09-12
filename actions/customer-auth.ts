@@ -3,6 +3,7 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { createServerAdminClient } from '@/lib/supabase/admin';
 import { normalizeIndianMobile, isValidIndianMobile } from '@/lib/phone-utils';
+import { ensureUserAndShop } from '@/lib/auth-helper';
 
 export interface SyncCustomerAccountResult {
   success: boolean;
@@ -410,15 +411,33 @@ export async function verifyPortalAuthorizationAction(
         };
       }
 
-      // If active staff record exists, verify it is not deactivated
-      const { data: staffUser } = await adminClient
+      // Check if public.users record exists
+      let { data: staffUser } = await adminClient
         .from('users')
         .select('id, shop_id, is_active')
         .eq('id', user.id)
         .maybeSingle();
 
-      if (staffUser && staffUser.is_active === false) {
-        console.warn('[verifyPortalAuthorizationAction] Deactivated staff account:', user.id);
+      // If staff record does not exist, safely provision it for this valid shopkeeper!
+      if (!staffUser) {
+        console.log('[AUTH DEBUG] portal=shopkeeper auth_user_exists=true public_user_exists=false customer_account_exists=false attempting_provisioning');
+        try {
+          const provisioned = await ensureUserAndShop(user);
+          if (provisioned?.shop_id) {
+            staffUser = {
+              id: provisioned.id,
+              shop_id: provisioned.shop_id,
+              is_active: provisioned.is_active ?? true,
+            };
+            console.log('[AUTH DEBUG] portal=shopkeeper provisioning_succeeded shop_id=' + provisioned.shop_id);
+          }
+        } catch (provErr: any) {
+          console.error('[AUTH DEBUG] portal=shopkeeper provisioning_failed:', provErr?.message || provErr);
+        }
+      }
+
+      if (!staffUser || !staffUser.shop_id || staffUser.is_active === false) {
+        console.warn('[AUTH DEBUG] portal=shopkeeper auth_user_exists=true public_user_exists=' + !!staffUser + ' authorized=false reason=missing_or_inactive_staff_record');
         await supabase.auth.signOut();
         return {
           success: false,
@@ -439,6 +458,7 @@ export async function verifyPortalAuthorizationAction(
         }
       }
 
+      console.log('[AUTH DEBUG] portal=shopkeeper auth_user_exists=true public_user_exists=true authorized=true');
       return { success: true, authorized: true, portal: 'shopkeeper' };
     }
   } catch (err: any) {
@@ -449,5 +469,62 @@ export async function verifyPortalAuthorizationAction(
       portal: targetPortal,
       error: GENERIC_LOGIN_ERROR,
     };
+  }
+}
+
+/**
+ * Server Action to immediately provision a newly registered shopkeeper account.
+ */
+export async function provisionShopkeeperAccountAction(input?: {
+  shopName?: string;
+  fullName?: string;
+  phone?: string;
+}): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = await createServerSupabaseClient();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return { success: false, error: 'Authentication required for provisioning.' };
+    }
+
+    // Ensure not a customer account
+    if (user.user_metadata?.role === 'customer') {
+      return { success: false, error: 'Customer accounts cannot be provisioned as shopkeepers.' };
+    }
+
+    const adminClient = createServerAdminClient() || supabase;
+    const { data: customerAccount } = await adminClient
+      .from('customer_accounts')
+      .select('id')
+      .eq('auth_user_id', user.id)
+      .maybeSingle();
+
+    if (customerAccount) {
+      return { success: false, error: 'Customer accounts cannot be provisioned as shopkeepers.' };
+    }
+
+    const authUserWithInput = {
+      ...user,
+      user_metadata: {
+        ...user.user_metadata,
+        shop_name: input?.shopName || user.user_metadata?.shop_name || user.user_metadata?.shopName,
+        full_name: input?.fullName || user.user_metadata?.full_name || user.user_metadata?.name,
+        phone: input?.phone || user.user_metadata?.phone,
+        role: 'shopkeeper',
+      },
+    };
+
+    const provisionedUser = await ensureUserAndShop(authUserWithInput);
+
+    if (!provisionedUser?.shop_id) {
+      return { success: false, error: 'Failed to configure shop profile.' };
+    }
+
+    console.log('[AUTH DEBUG] portal=shopkeeper registration_provisioning_succeeded userId=' + user.id + ' shop_id=' + provisionedUser.shop_id);
+    return { success: true };
+  } catch (err: any) {
+    console.error('[provisionShopkeeperAccountAction] Error:', err);
+    return { success: false, error: err.message || 'Internal provisioning error.' };
   }
 }

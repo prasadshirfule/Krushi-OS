@@ -11,6 +11,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { provisionShopkeeperAccountAction } from '@/actions/customer-auth'
 
 const registerSchema = z.object({
   fullName: z.string().min(2, 'Name is required'),
@@ -70,6 +71,20 @@ export default function RegisterPage() {
     }
 
     if (authData?.session) {
+      // Immediately provision the shopkeeper profile on the server before navigating!
+      const provRes = await provisionShopkeeperAccountAction({
+        shopName: data.shopName.trim(),
+        fullName: data.fullName.trim(),
+        phone: data.phone.trim(),
+      });
+
+      if (!provRes.success) {
+        console.error('Shopkeeper registration provisioning failed:', provRes.error);
+        toast.error('Failed to set up shop profile. Please try signing in or contact support.');
+        setIsLoading(false);
+        return;
+      }
+
       toast.success('Account created successfully! Welcome to KRUSHI OS.');
       window.location.href = '/dashboard';
     } else if (authData?.user) {

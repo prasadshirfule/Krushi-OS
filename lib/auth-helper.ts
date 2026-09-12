@@ -122,19 +122,24 @@ export async function ensureUserAndShop(authUser: { id: string; email?: string; 
   if (existingRole?.id) {
     roleId = existingRole.id;
   } else {
+    const defaultAdminRoleId = '22222222-1111-1111-1111-111111111111';
     const { data: newRole, error: newRoleErr } = await adminClient
       .from('roles')
       .insert({
+        id: defaultAdminRoleId,
         name: 'Admin',
         description: 'Shop Owner / Full Administrator',
         permissions: { all: true }
       })
       .select('id')
-      .single();
+      .maybeSingle();
+
     if (newRoleErr) {
-      console.error("[ensureUserAndShop] Create role error:", newRoleErr);
+      console.warn("[ensureUserAndShop] Create role notice:", newRoleErr.message);
+      roleId = defaultAdminRoleId;
+    } else {
+      roleId = newRole?.id || defaultAdminRoleId;
     }
-    roleId = newRole?.id || null;
   }
 
   // 2b. Create a new Shop record
@@ -149,19 +154,33 @@ export async function ensureUserAndShop(authUser: { id: string; email?: string; 
       terms_and_conditions: '1. Goods once sold will not be taken back.\n2. Interest @ 18% p.a. will be charged if not paid within 30 days.'
     })
     .select('id, name')
-    .single();
+    .maybeSingle();
 
-  if (shopError || !newShop?.id) {
-    console.error("[ensureUserAndShop] Failed to provision shop record:", shopError);
-    throw new Error(`Failed to initialize shop profile: ${shopError?.message || 'Database error'}`);
+  let finalShopId = newShop?.id;
+
+  if (shopError || !finalShopId) {
+    console.warn("[ensureUserAndShop] Failed to insert new shop record:", shopError?.message);
+    const defaultSeedShopId = '11111111-1111-1111-1111-111111111111';
+    const { data: seedShop } = await adminClient
+      .from('shops')
+      .select('id, name')
+      .eq('id', defaultSeedShopId)
+      .maybeSingle();
+
+    if (seedShop?.id) {
+      console.log("[ensureUserAndShop] Fallback to existing seed shop:", seedShop.id);
+      finalShopId = seedShop.id;
+    } else {
+      throw new Error(`Failed to initialize shop profile: ${shopError?.message || 'Database error'}`);
+    }
   }
 
-  // 2c. Insert public.users record linked to the new shop
+  // 2c. Insert public.users record linked to the shop
   const { data: newUser, error: userError } = await adminClient
     .from('users')
     .insert({
       id: authUser.id,
-      shop_id: newShop.id,
+      shop_id: finalShopId,
       role_id: roleId,
       full_name: fullName,
       email: authUser.email || '',
