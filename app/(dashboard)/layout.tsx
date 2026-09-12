@@ -42,13 +42,22 @@ export default async function DashboardLayout({
         ),
       }
     });
+
+    if (errMsg.includes('Customer accounts cannot access') || errMsg.toLowerCase().includes('customer')) {
+      console.log(`[AUTH DEBUG] pathname=/dashboard authenticated=true portal=customer authorized=false redirect=/customer/dashboard`);
+      redirect('/customer/dashboard');
+    }
+
+    console.log(`[AUTH DEBUG] pathname=/dashboard authenticated=false portal=shopkeeper authorized=false redirect=/login`);
     redirect('/login?error=auth_failed');
   }
 
   if (!user) {
-    console.warn("DashboardLayout: user returned from getAuthAndPermissions is null/undefined");
+    console.log(`[AUTH DEBUG] pathname=/dashboard authenticated=false portal=shopkeeper authorized=false redirect=/login`);
     redirect('/login?error=auth_failed');
   }
+
+  console.log(`[AUTH DEBUG] pathname=/dashboard authenticated=true portal=shopkeeper authorized=true redirect=none`);
 
   return (
     <div className='flex min-h-screen w-full bg-muted/40 overflow-x-clip'>

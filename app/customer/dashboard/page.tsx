@@ -88,7 +88,7 @@ export default function CustomerDashboardPage() {
         const supabase = createClient();
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
-          router.push('/login?type=customer');
+          window.location.href = '/customer/login';
           return;
         }
         toast.error(res.error || 'Failed to load customer dashboard.');
@@ -111,8 +111,7 @@ export default function CustomerDashboardPage() {
       const supabase = createClient();
       await supabase.auth.signOut();
       toast.success('Logged out successfully.');
-      router.push('/login?type=customer');
-      router.refresh();
+      window.location.href = '/customer/login';
     } catch (err: any) {
       console.error('Logout error:', err);
       toast.error(err.message || 'Failed to log out.');

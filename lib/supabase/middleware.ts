@@ -35,42 +35,44 @@ export async function updateSession(request: NextRequest) {
     user.user_metadata?.role === 'customer'
   )
 
+  // Helper to construct redirect responses that carry any refreshed Supabase cookies
+  const redirectWithCookies = (targetPath: string) => {
+    const redirectUrl = request.nextUrl.clone()
+    redirectUrl.pathname = targetPath
+    redirectUrl.search = ''
+    const res = NextResponse.redirect(redirectUrl)
+    supabaseResponse.cookies.getAll().forEach((cookie) => {
+      res.cookies.set(cookie.name, cookie.value, cookie)
+    })
+    return res
+  }
+
   // 1. Redirect /shop-details to /settings
   if (pathname === '/shop-details' || pathname.startsWith('/shop-details/')) {
-    const redirectUrl = request.nextUrl.clone()
-    redirectUrl.pathname = '/settings'
-    return NextResponse.redirect(redirectUrl)
+    console.log(`[AUTH DEBUG] pathname=${pathname} authenticated=${!!user} portal=${isCustomerUser ? 'customer' : 'shopkeeper'} authorized=true redirect=/settings`)
+    return redirectWithCookies('/settings')
   }
 
-  // 2. Root route redirection
-  if (pathname === '/') {
-    const redirectUrl = request.nextUrl.clone()
-    if (!user) {
-      redirectUrl.pathname = '/login'
-    } else if (isCustomerUser) {
-      redirectUrl.pathname = '/customer/dashboard'
-    } else {
-      redirectUrl.pathname = '/dashboard'
-    }
-    return NextResponse.redirect(redirectUrl)
-  }
-
-  // 3. Auth pages: redirect authenticated users to their corresponding dashboard
-  // Public auth pages: /login, /customer/login, /register, /forgot-password
-  // Exception: /reset-password must remain accessible during password recovery sessions
-  // Do NOT redirect Server Action requests or non-GET requests (e.g. verifyPortalAuthorizationAction)
-  const isAuthPage =
+  // 2. Public auth pages MUST render directly without redirects (prevents circular loops)
+  // /login, /login?error=auth_failed, /customer/login, /customer/login?error=auth_failed,
+  // /register, /register/customer, /forgot-password, /reset-password
+  const isPublicAuthPage =
     pathname === '/login' ||
     pathname === '/customer/login' ||
     pathname.startsWith('/register') ||
-    pathname.startsWith('/forgot-password')
-  const isResetPasswordPage = pathname.startsWith('/reset-password')
-  const isServerAction = request.headers.has('next-action') || request.headers.get('accept')?.includes('text/x-component') || request.method !== 'GET'
-  if (isAuthPage && !isResetPasswordPage && user && !isServerAction) {
-    const redirectUrl = request.nextUrl.clone()
-    redirectUrl.pathname = isCustomerUser ? '/customer/dashboard' : '/dashboard'
-    redirectUrl.search = ''
-    return NextResponse.redirect(redirectUrl)
+    pathname.startsWith('/forgot-password') ||
+    pathname.startsWith('/reset-password')
+
+  if (isPublicAuthPage) {
+    console.log(`[AUTH DEBUG] pathname=${pathname} authenticated=${!!user} portal=${isCustomerUser ? 'customer' : 'shopkeeper'} authorized=true redirect=none`)
+    return supabaseResponse
+  }
+
+  // 3. Root route redirection
+  if (pathname === '/') {
+    const target = !user ? '/login' : isCustomerUser ? '/customer/dashboard' : '/dashboard'
+    console.log(`[AUTH DEBUG] pathname=${pathname} authenticated=${!!user} portal=${isCustomerUser ? 'customer' : 'shopkeeper'} authorized=true redirect=${target}`)
+    return redirectWithCookies(target)
   }
 
   // 4. Customer protected routes
@@ -81,19 +83,16 @@ export async function updateSession(request: NextRequest) {
 
   if (isCustomerPath) {
     if (!user) {
-      const redirectUrl = request.nextUrl.clone()
-      redirectUrl.pathname = '/customer/login'
-      redirectUrl.search = ''
-      return NextResponse.redirect(redirectUrl)
+      console.log(`[AUTH DEBUG] pathname=${pathname} authenticated=false portal=customer authorized=false redirect=/customer/login`)
+      return redirectWithCookies('/customer/login')
     }
     if (!isCustomerUser) {
       // Authenticated shopkeeper attempting customer routes:
       // Redirect safely to shopkeeper portal without role leakage
-      const redirectUrl = request.nextUrl.clone()
-      redirectUrl.pathname = '/dashboard'
-      redirectUrl.search = ''
-      return NextResponse.redirect(redirectUrl)
+      console.log(`[AUTH DEBUG] pathname=${pathname} authenticated=true portal=shopkeeper authorized=false redirect=/dashboard`)
+      return redirectWithCookies('/dashboard')
     }
+    console.log(`[AUTH DEBUG] pathname=${pathname} authenticated=true portal=customer authorized=true redirect=none`)
     return supabaseResponse
   }
 
@@ -119,19 +118,17 @@ export async function updateSession(request: NextRequest) {
 
   if (isShopkeeperPath) {
     if (!user) {
-      const redirectUrl = request.nextUrl.clone()
-      redirectUrl.pathname = '/login'
-      redirectUrl.search = ''
-      return NextResponse.redirect(redirectUrl)
+      console.log(`[AUTH DEBUG] pathname=${pathname} authenticated=false portal=shopkeeper authorized=false redirect=/login`)
+      return redirectWithCookies('/login')
     }
     if (isCustomerUser) {
       // Authenticated customer attempting shopkeeper routes:
       // Redirect safely to customer portal without role leakage
-      const redirectUrl = request.nextUrl.clone()
-      redirectUrl.pathname = '/customer/dashboard'
-      redirectUrl.search = ''
-      return NextResponse.redirect(redirectUrl)
+      console.log(`[AUTH DEBUG] pathname=${pathname} authenticated=true portal=customer authorized=false redirect=/customer/dashboard`)
+      return redirectWithCookies('/customer/dashboard')
     }
+    console.log(`[AUTH DEBUG] pathname=${pathname} authenticated=true portal=shopkeeper authorized=true redirect=none`)
+    return supabaseResponse
   }
 
   return supabaseResponse

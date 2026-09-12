@@ -49,6 +49,10 @@ function LoginFormContent() {
 
     const err = searchParams.get('error');
     if (err) {
+      try {
+        const supabase = createClient();
+        supabase.auth.signOut().catch(() => {});
+      } catch {}
       toast.error('Invalid email or password.', {
         id: 'auth-error-toast',
       });
