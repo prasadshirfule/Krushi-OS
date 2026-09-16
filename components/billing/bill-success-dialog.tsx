@@ -146,6 +146,7 @@ export default function BillSuccessDialog({ saleId, invoiceNumber, totals, onClo
   const rawPayment = saleData?.payment_method || saleData?.payment_mode || totals?.payment_method || saleData?.payments?.[0]?.method || 'Cash';
   const isPartial = String(rawPayment).toUpperCase().includes('PARTIAL') || (Array.isArray(saleData?.payments) && saleData.payments.length > 1) || Boolean(totals?.partial_payment || saleData?.partial_payment);
   const displayPayment = isPartial ? 'PARTIAL' : (String(rawPayment).toUpperCase() === 'UPI' ? 'UPI' : String(rawPayment).toUpperCase());
+  const customerPhone = saleData?.customer_phone || saleData?.customer?.phone || totals?.customer_phone || totals?.customerPhone;
 
   // Partial breakdown
   const pp = totals?.partial_payment || totals?.partialPayment || saleData?.partial_payment || saleData?.partialPayment;

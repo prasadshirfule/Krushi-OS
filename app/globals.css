@@ -274,3 +274,31 @@
   padding: 2px 0;
   text-align: left;
 }
+
+/* ═══════════════════════════════════════════════════════════
+   KRUSHI OS GLASS TOAST STYLING (SONNER)
+   ═══════════════════════════════════════════════════════════ */
+[data-sonner-toaster] {
+  font-family: inherit !important;
+}
+
+[data-sonner-toast] {
+  backdrop-filter: blur(14px) !important;
+  -webkit-backdrop-filter: blur(14px) !important;
+}
+
+.dark [data-sonner-toast] {
+  background-color: rgba(18, 24, 38, 0.92) !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  color: #f4f4f5 !important;
+}
+
+[data-sonner-toast] [data-title] {
+  font-weight: 600 !important;
+  letter-spacing: -0.01em !important;
+}
+
+[data-sonner-toast] [data-description] {
+  opacity: 0.85 !important;
+}
+

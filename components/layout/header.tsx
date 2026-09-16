@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { MobileNav } from '@/components/layout/mobile-nav'
 import { CommandMenu } from '@/components/layout/command-menu'
 import { LanguageSwitcher } from '@/components/layout/language-switcher'
+import { ThemeToggle } from '@/components/layout/theme-toggle'
 import { useLanguage } from '@/lib/i18n'
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
@@ -67,6 +68,8 @@ export function Header({ user }: { user: any }) {
         <CommandMenu open={openCommand} onOpenChange={setOpenCommand} />
 
         <LanguageSwitcher />
+
+        <ThemeToggle />
 
         <div className="relative inline-flex items-center">
           <Button 

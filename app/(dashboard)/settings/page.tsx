@@ -9,8 +9,9 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Store, Receipt, Printer, Percent, ShieldCheck, Save, LogOut, Upload, Building2, CreditCard, Loader2 } from "lucide-react";
+import { Store, Receipt, Printer, Percent, ShieldCheck, Save, LogOut, Upload, Building2, CreditCard, Loader2, Moon, Sun, Laptop, Palette } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useTheme } from "next-themes";
 import { getShopProfileAction, updateShopProfileAction } from "@/actions/settings";
 import { ShopDetails, DEFAULT_SHOP_DETAILS } from "@/lib/shop-details";
 import { isValidUpiId, normalizeUpiId } from "@/lib/validations";
@@ -84,6 +85,7 @@ export default function SettingsPage() {
   const searchParams = useSearchParams();
   const initialTab = searchParams.get('tab') || 'shop';
   const { t, language, setLanguage } = useLanguage();
+  const { theme, setTheme } = useTheme();
 
   const [activeTab, setActiveTab] = useState(initialTab);
   const [isSaving, setIsSaving] = useState(false);
@@ -916,6 +918,42 @@ export default function SettingsPage() {
                   <SelectItem value="en">English</SelectItem>
                   <SelectItem value="mr">मराठी (Marathi)</SelectItem>
                   <SelectItem value="hi">हिन्दी (Hindi)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Theme Preference */}
+            <div className="space-y-2 p-3.5 rounded-lg border bg-muted/30">
+              <Label className="text-sm font-semibold flex items-center gap-2">
+                <Palette className="h-4 w-4 text-primary" /> {t('settings.theme', 'Theme / थीम')}
+              </Label>
+              <p className="text-xs text-muted-foreground">Select your interface color theme preference</p>
+              <Select
+                value={theme || 'system'}
+                onValueChange={(val) => setTheme(val)}
+              >
+                <SelectTrigger className="h-10 font-medium">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="system">
+                    <div className="flex items-center gap-2">
+                      <Laptop className="h-4 w-4 text-muted-foreground" />
+                      <span>Default</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="light">
+                    <div className="flex items-center gap-2">
+                      <Sun className="h-4 w-4 text-amber-500" />
+                      <span>Light</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="dark">
+                    <div className="flex items-center gap-2">
+                      <Moon className="h-4 w-4 text-blue-400" />
+                      <span>Dark</span>
+                    </div>
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>

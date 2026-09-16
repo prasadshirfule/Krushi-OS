@@ -13,6 +13,7 @@ import { CheckCircle2, Loader2, CreditCard, Banknote, QrCode, Building2, BookOpe
 import { toast } from 'sonner';
 import { ShopDetails, getSavedShopDetails } from '@/lib/shop-details';
 import { buildUpiUri, generateQrDataUrl } from '@/lib/upi';
+import { normalizeWhatsAppPhone } from '@/lib/phone-utils';
 
 import { 
   isClientDemoMode, 
@@ -27,6 +28,7 @@ interface PaymentPanelProps {
   customerName?: string;
   customerPhone?: string;
   customerVillage?: string;
+  customerOutstanding?: number;
   onComplete: (saleId: string, invoiceNumber?: string, completedTotals?: any) => void;
 }
 
@@ -46,7 +48,7 @@ const METHOD_TO_ENUM: Record<string, 'CASH' | 'UPI' | 'PARTIAL' | 'BANK_TRANSFER
   Credit: 'CREDIT',
 };
 
-export default function PaymentPanel({ cart, adjustments = [], totals, customerId, customerName, customerPhone, customerVillage, onComplete }: PaymentPanelProps) {
+export default function PaymentPanel({ cart, adjustments = [], totals, customerId, customerName, customerPhone, customerVillage, customerOutstanding, onComplete }: PaymentPanelProps) {
   const router = useRouter();
   const [paymentMethod, setPaymentMethod] = useState<string>(PAYMENT_METHODS[0]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -303,11 +305,15 @@ export default function PaymentPanel({ cart, adjustments = [], totals, customerI
         customer_name: customerDisplayName,
         customer_phone: customerPhone || '',
         customer_village: cleanVillage,
+        previous_outstanding: customerOutstanding ?? 0,
         customer: {
           id: customerId || (hasCustomer ? `cust-${Date.now()}` : 'walk-in'),
           name: customerDisplayName,
           phone: customerPhone || '',
           village: cleanVillage,
+          previous_outstanding: customerOutstanding ?? 0,
+          opening_balance: customerOutstanding ?? 0,
+          outstanding: customerOutstanding ?? 0,
         },
         items: formattedItems,
         adjustments: formattedAdjustments,
@@ -331,6 +337,13 @@ export default function PaymentPanel({ cart, adjustments = [], totals, customerI
         } catch {}
 
         toast.success('Bill completed successfully!');
+        if (normalizeWhatsAppPhone(customerPhone)) {
+          const invNo = savedSale.invoice_number || savedSale.invoiceNumber || (savedSale.id?.startsWith('KOS-') ? savedSale.id : `KOS-${(savedSale.id || '').substring(0, 8).toUpperCase()}`);
+          toast.success('Bill sent on WhatsApp', {
+            description: `Invoice ${invNo} sent`,
+            duration: 4000,
+          });
+        }
         if (typeof window !== 'undefined') {
           window.dispatchEvent(new CustomEvent('krushi-sales-updated'));
           window.dispatchEvent(new CustomEvent('krushi-products-updated'));
@@ -339,21 +352,41 @@ export default function PaymentPanel({ cart, adjustments = [], totals, customerI
         router.refresh();
         const saleId = savedSale.id || `sale-${Date.now()}`;
         const invNo = savedSale.invoice_number || savedSale.invoiceNumber;
-        onComplete(saleId, invNo, { ...totals, partial_payment: partialPaymentObj, payment_method: isPartial ? 'PARTIAL' : paymentMethod });
+        onComplete(saleId, invNo, {
+          ...totals,
+          partial_payment: partialPaymentObj,
+          payment_method: isPartial ? 'PARTIAL' : paymentMethod,
+          customer_name: customerDisplayName,
+          customer_phone: customerPhone,
+          customer_village: cleanVillage,
+        });
       } else {
         const result = await completeSaleAction(saleData);
 
         if (result.success) {
           toast.success('Bill completed successfully!');
+          const saleId = result.data?.sale_id || result.data?.id || result.data?.saleId;
+          const invNo = result.data?.invoice_number || result.data?.invoiceNumber || (saleId?.startsWith('KOS-') ? saleId : `KOS-${(saleId || '').substring(0, 8).toUpperCase()}`);
+          if (normalizeWhatsAppPhone(customerPhone)) {
+            toast.success('Bill sent on WhatsApp', {
+              description: `Invoice ${invNo} sent`,
+              duration: 4000,
+            });
+          }
           if (typeof window !== 'undefined') {
             window.dispatchEvent(new CustomEvent('krushi-sales-updated', { detail: result.data }));
             window.dispatchEvent(new CustomEvent('krushi-products-updated'));
             window.dispatchEvent(new CustomEvent('krushi-customers-updated'));
           }
           router.refresh();
-          const saleId = result.data?.sale_id || result.data?.id || result.data?.saleId;
-          const invNo = result.data?.invoice_number || result.data?.invoiceNumber;
-          onComplete(saleId, invNo, { ...totals, partial_payment: partialPaymentObj, payment_method: isPartial ? 'PARTIAL' : paymentMethod });
+          onComplete(saleId, invNo, {
+            ...totals,
+            partial_payment: partialPaymentObj,
+            payment_method: isPartial ? 'PARTIAL' : paymentMethod,
+            customer_name: customerDisplayName,
+            customer_phone: customerPhone,
+            customer_village: cleanVillage,
+          });
         } else {
           toast.error(result.error || 'Unable to complete bill. Please try again.');
         }

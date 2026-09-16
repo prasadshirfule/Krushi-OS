@@ -73,6 +73,19 @@ export function calculateItemGst(totalAmt: number, qty: number, gstRate: number)
   return { taxable, totalTax, cgst, sgst, taxableUnitRate, unitWithGst };
 }
 
+export function formatGstPercent(rate?: number | null): string {
+  if (rate === undefined || rate === null || isNaN(Number(rate))) {
+    return '0%';
+  }
+  let num = Number(rate);
+  // If decimal fraction representation like 0.05 or 0.18 is passed
+  if (num > 0 && num < 1) {
+    num = Math.round(num * 10000) / 100;
+  }
+  const formatted = Number.isInteger(num) ? String(num) : num.toFixed(2).replace(/\.?0+$/, '');
+  return `${formatted}%`;
+}
+
 /* ================================================================
    mm-to-CSS helper – keeps JSX readable
    ================================================================ */
@@ -368,9 +381,36 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
   const amountPaid = isPartial 
     ? partialPaidTotal 
     : (s.paid_amount !== undefined ? Number(s.paid_amount) : (isCredit ? 0 : netTotal));
-  const openingBal = s.customer?.opening_balance ? Number(s.customer.opening_balance) : 0;
-  const drInvoice = netTotal;
-  const closingBalance = openingBal + drInvoice - amountPaid;
+  
+  // Current Credit/Outstanding portion of THIS invoice
+  const crInvoice = Math.max(0, netTotal - amountPaid);
+
+  // Opening Balance: Customer's outstanding balance BEFORE this invoice
+  let openingBal = 0;
+  if (s.customer?.previous_outstanding !== undefined && s.customer?.previous_outstanding !== null) {
+    openingBal = Number(s.customer.previous_outstanding);
+  } else if (s.customer?.previous_balance !== undefined && s.customer?.previous_balance !== null) {
+    openingBal = Number(s.customer.previous_balance);
+  } else if (s.customer?.opening_balance !== undefined && s.customer?.opening_balance !== null) {
+    openingBal = Number(s.customer.opening_balance);
+  } else if (s.customer?.previous_udhari !== undefined && s.customer?.previous_udhari !== null) {
+    openingBal = Number(s.customer.previous_udhari);
+  } else if (s.previous_outstanding !== undefined && s.previous_outstanding !== null) {
+    openingBal = Number(s.previous_outstanding);
+  } else if (s.previous_balance !== undefined && s.previous_balance !== null) {
+    openingBal = Number(s.previous_balance);
+  } else if (s.opening_balance !== undefined && s.opening_balance !== null) {
+    openingBal = Number(s.opening_balance);
+  } else if (s.customer?.outstanding !== undefined && s.customer?.outstanding !== null) {
+    const rawOutstanding = Number(s.customer.outstanding || 0);
+    openingBal = rawOutstanding >= crInvoice ? (rawOutstanding - crInvoice) : rawOutstanding;
+  } else if (s.customer?.outstanding_balance !== undefined && s.customer?.outstanding_balance !== null) {
+    const rawOutstanding = Number(s.customer.outstanding_balance || 0);
+    openingBal = rawOutstanding >= crInvoice ? (rawOutstanding - crInvoice) : rawOutstanding;
+  }
+
+  // Closing Balance = Opening Balance + Current Credit Amount
+  const closingBalance = openingBal + crInvoice;
 
   /* ---------- dynamic heights for A5 single-page fit ---------- */
   const cleanTerms = (shop.invoiceTerms || '').trim();
@@ -856,7 +896,7 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
                   {typeof item.quantity === 'number' ? (Number.isInteger(item.quantity) ? item.quantity : item.quantity.toFixed(1)) : item.quantity}
                 </td>
                 <td style={{ borderRight: BORDER_INNER, textAlign: 'right', fontFamily: 'monospace', padding: `${mm(0.3)} ${mm(0.6)}`, verticalAlign: 'middle', fontSize: '9.2px', lineHeight: 1.25 }}>{item.rate.toFixed(2)}</td>
-                <td style={{ borderRight: BORDER_INNER, textAlign: 'center', fontFamily: 'monospace', fontWeight: 'bold', padding: `${mm(0.3)} ${mm(0.4)}`, verticalAlign: 'middle', fontSize: '9.2px', lineHeight: 1.25 }}>{item.gstRate.toFixed(2)}</td>
+                <td style={{ borderRight: BORDER_INNER, textAlign: 'center', fontFamily: 'monospace', fontWeight: 'bold', padding: `${mm(0.3)} ${mm(0.4)}`, verticalAlign: 'middle', fontSize: '9.2px', lineHeight: 1.25 }}>{formatGstPercent(item.gstRate)}</td>
                 <td style={{ borderRight: BORDER_INNER, textAlign: 'right', fontFamily: 'monospace', padding: `${mm(0.3)} ${mm(0.6)}`, verticalAlign: 'middle', fontSize: '9.2px', lineHeight: 1.25 }}>{item.rateWithGst.toFixed(2)}</td>
                 <td style={{ textAlign: 'right', fontWeight: 'bold', fontFamily: 'monospace', padding: `${mm(0.3)} ${mm(0.6)}`, verticalAlign: 'middle', fontSize: '10px', lineHeight: 1.25 }}>{item.total.toFixed(2)}</td>
               </tr>
@@ -1162,9 +1202,9 @@ export function ReferenceTaxInvoice({ sale, shopDetails: customShopDetails, cust
                   <td style={{ fontWeight: 'bold', fontFamily: 'monospace', textAlign: 'right', padding: '0.1px 0', fontSize: '9px', lineHeight: 1.22 }}>₹ {openingBal.toFixed(2)}</td>
                 </tr>
                 <tr>
-                  <td style={{ fontWeight: 'bold', padding: '0.1px 0' }}>Dr invoice</td>
+                  <td style={{ fontWeight: 'bold', padding: '0.1px 0' }}>Cr Invoice</td>
                   <td style={{ width: mm(2), fontWeight: 'bold', padding: '0.1px 0' }}>:</td>
-                  <td style={{ fontWeight: 'bold', fontFamily: 'monospace', textAlign: 'right', padding: '0.1px 0', fontSize: '9px', lineHeight: 1.22 }}>₹ {drInvoice.toFixed(2)}</td>
+                  <td style={{ fontWeight: 'bold', fontFamily: 'monospace', textAlign: 'right', padding: '0.1px 0', fontSize: '9px', lineHeight: 1.22 }}>₹ {crInvoice.toFixed(2)}</td>
                 </tr>
                 <tr>
                   <td style={{ fontWeight: 'bold', padding: '0.1px 0' }}>Closing balance</td>

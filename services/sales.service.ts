@@ -256,10 +256,10 @@ export async function completeSale(shopId: string, data: any, userId: string) {
       const demoCusts = getDemoCustomers();
       const found = demoCusts.find(c => c.id === customerId) || MOCK_CUSTOMERS.find(c => c.id === customerId);
       customerObj = found
-        ? { id: found.id, name: (found.name || 'CUSTOMER').toUpperCase(), phone: found.phone || found.mobile || '' }
-        : { id: customerId, name: (data.customer_name || 'CUSTOMER').trim().toUpperCase(), phone: '' };
+        ? { id: found.id, name: (found.name || 'CUSTOMER').toUpperCase(), phone: found.phone || found.mobile || '', previous_outstanding: Number(found.outstanding ?? found.outstanding_balance ?? 0) }
+        : { id: customerId, name: (data.customer_name || 'CUSTOMER').trim().toUpperCase(), phone: '', previous_outstanding: 0 };
     } else {
-      customerObj = { id: 'walk-in', name: 'WALK-IN CUSTOMER', phone: '' };
+      customerObj = { id: 'walk-in', name: 'WALK-IN CUSTOMER', phone: '', previous_outstanding: 0 };
     }
 
     const items = (data.items || []).map((it: any, idx: number) => {
@@ -527,13 +527,62 @@ export async function completeSale(shopId: string, data: any, userId: string) {
     }
   }
 
-  return {
+  // Resolve customer object for consistent return shape
+  let customerObj: any = null;
+  if (data.customer) {
+    customerObj = {
+      ...data.customer,
+      name: (data.customer.name || data.customer_name || 'WALK-IN CUSTOMER').toUpperCase().trim(),
+      phone: (data.customer.phone || data.customer.mobile || data.customer_phone || '').trim(),
+      mobile: (data.customer.phone || data.customer.mobile || data.customer_phone || '').trim(),
+      village: (data.customer.village || data.customer.address || data.customer_village || data.customer_address || '').trim(),
+      address: (data.customer.address || data.customer.village || data.customer_address || data.customer_village || '').trim(),
+    };
+  } else if (data.customer_name || data.customer_phone) {
+    customerObj = {
+      id: realCustomerId || 'walk-in',
+      name: (data.customer_name || 'WALK-IN CUSTOMER').trim().toUpperCase(),
+      phone: (data.customer_phone || '').trim(),
+      mobile: (data.customer_phone || '').trim(),
+      village: (data.customer_village || data.customer_address || '').trim(),
+      address: (data.customer_address || data.customer_village || '').trim(),
+    };
+  } else if (realCustomerId) {
+    try {
+      const { data: dbCust } = await supabase
+        .from('customers')
+        .select('*')
+        .eq('id', realCustomerId)
+        .maybeSingle();
+      if (dbCust) {
+        customerObj = {
+          ...dbCust,
+          name: (dbCust.name || 'CUSTOMER').toUpperCase().trim(),
+          phone: (dbCust.phone || dbCust.mobile || '').trim(),
+          mobile: (dbCust.phone || dbCust.mobile || '').trim(),
+          village: (dbCust.village || dbCust.address || '').trim(),
+          address: (dbCust.address || dbCust.village || '').trim(),
+        };
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  const rawReturnedSale = {
     ...saleRes,
     id: realSaleId,
     sale_id: realSaleId,
     saleId: realSaleId,
     invoice_number: invoiceNum,
     invoiceNumber: invoiceNum,
+    shop_id: shopId,
+    customer_id: realCustomerId,
+    customer: customerObj,
+    customer_name: customerObj?.name || data.customer_name || 'WALK-IN CUSTOMER',
+    customer_phone: customerObj?.phone || data.customer_phone || '',
+    customer_village: customerObj?.village || data.customer_village || '',
+    customer_address: customerObj?.address || data.customer_address || '',
     items: data.items || cleanItems,
     sale_items: data.items || cleanItems,
     adjustments: rawAdjustments,
@@ -541,7 +590,16 @@ export async function completeSale(shopId: string, data: any, userId: string) {
     grand_total: verifiedGrandTotal,
     payableAmount: verifiedGrandTotal,
     subtotal: verifiedSubtotal,
+    notes: notesPayload,
+    payments: cleanPayments,
+    payment_mode: data.payment_method || data.payments?.[0]?.method || 'Cash',
+    payment_method: data.payment_method || data.payments?.[0]?.method || 'Cash',
+    status: 'COMPLETED',
+    sale_date: new Date().toISOString(),
+    created_at: new Date().toISOString(),
   };
+
+  return normalizeSale(rawReturnedSale);
 }
 
 async function enrichSaleItemsWithMetadata(supabase: any, items: any[]) {

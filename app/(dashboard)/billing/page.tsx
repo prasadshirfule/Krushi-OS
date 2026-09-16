@@ -29,9 +29,10 @@ interface CustomerOption {
   name: string;
   phone: string;
   village?: string;
+  outstanding?: number;
 }
 
-const WALK_IN_CUSTOMER: CustomerOption = { id: 'walk-in', name: 'Walk-in', phone: '' };
+const WALK_IN_CUSTOMER: CustomerOption = { id: 'walk-in', name: 'Walk-in', phone: '', outstanding: 0 };
 
 export default function BillingPage() {
   /* ─── State ─── */
@@ -43,6 +44,7 @@ export default function BillingPage() {
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerVillage, setCustomerVillage] = useState('');
+  const [customerOutstanding, setCustomerOutstanding] = useState<number>(0);
   const [customerSearch, setCustomerSearch] = useState('');
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
   const [lastSaleId, setLastSaleId] = useState<string | null>(null);
@@ -62,6 +64,7 @@ export default function BillingPage() {
           name: c.name,
           phone: c.phone || c.mobile || '',
           village: c.village || '',
+          outstanding: Number(c.outstanding ?? c.outstanding_balance ?? 0),
         }));
         setCustomerList(mapped);
 
@@ -87,6 +90,7 @@ export default function BillingPage() {
           name: c.name,
           phone: c.phone || c.mobile || '',
           village: c.village || '',
+          outstanding: Number(c.outstanding ?? c.outstanding_balance ?? 0),
         }));
         setCustomerList(mapped);
 
@@ -164,6 +168,7 @@ export default function BillingPage() {
     setCustomerName(cleanName);
     setCustomerPhone(cust.phone || '');
     setCustomerVillage((cust.village || '').trim().toUpperCase());
+    setCustomerOutstanding(Number(cust.outstanding || 0));
     setCustomerSearch('');
 
     if (!isWalkIn) {
@@ -184,6 +189,7 @@ export default function BillingPage() {
         name: (newCust.name || '').toUpperCase(),
         phone: newCust.phone || newCust.mobile || '',
         village: (newCust.village || '').toUpperCase(),
+        outstanding: Number(newCust.outstanding ?? newCust.outstanding_balance ?? 0),
       };
       setCustomerList(prev => [item, ...prev.filter(c => c.id !== item.id)]);
       selectCustomer(item);
@@ -206,6 +212,7 @@ export default function BillingPage() {
           id: `cust-${Date.now()}`,
           name: customerSearch.trim().toUpperCase(),
           phone: '',
+          outstanding: 0,
         });
       }
     }
@@ -216,6 +223,7 @@ export default function BillingPage() {
     setCustomerName('');
     setCustomerPhone('');
     setCustomerVillage('');
+    setCustomerOutstanding(0);
     setCustomerSearch('');
   };
 
@@ -227,9 +235,10 @@ export default function BillingPage() {
       setCustomerName('');
       setCustomerPhone('');
       setCustomerVillage('');
+      setCustomerOutstanding(0);
       setCustomerSearch('');
     }
-  }, [cart, adjustments, customerName]);
+  }, [cart.length, adjustments.length, customerName]);
 
   const handleSaleComplete = (saleId: string, invoiceNumber?: string, completedTotals?: any) => {
     setLastSaleId(saleId);
@@ -509,6 +518,7 @@ export default function BillingPage() {
         customerName={customerName || customerSearch.trim().toUpperCase()}
         customerPhone={customerPhone}
         customerVillage={customerVillage}
+        customerOutstanding={customerOutstanding}
         onComplete={handleSaleComplete}
       />
 
