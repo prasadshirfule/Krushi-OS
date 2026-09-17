@@ -1,5 +1,6 @@
 import { ProductScanResult } from '@/lib/scanner/types';
 import { normalizeProductSize, isFormulationConcentration } from '@/lib/scanner/size-normalizer';
+import { ManufacturerSourceResolver } from './manufacturer-resolver.service';
 
 /**
  * SSRF Protection: Checks if a hostname or IP address belongs to private, loopback, or link-local ranges.
@@ -130,6 +131,89 @@ export function isBotChallengePage(html: string): boolean {
 }
 
 /**
+ * Normalizes multi-ingredient active formulations into standard KRUSHI OS format.
+ * Examples:
+ * - "5% w/w Emamectin benzoate + 40% w/w WG Lufenuron" -> "Emamectin benzoate 5% w/w + Lufenuron 40% w/w WG"
+ * - "Emamectin benzoate 5% w/w + Lufenuron 40% w/w WG" -> "Emamectin benzoate 5% w/w + Lufenuron 40% w/w WG"
+ */
+export function normalizeComposition(raw: string): string {
+  if (!raw || typeof raw !== 'string') return '';
+  const cleaned = raw
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  // Split on '+', 'and', ',', or ';'
+  const parts = cleaned.split(/\s*(?:\+|\band\b|;|,)\s*/i).map((p) => p.trim()).filter(Boolean);
+  const normalizedParts: string[] = [];
+
+  for (const part of parts) {
+    // Percentage / concentration prefix: e.g. "5% w/w Emamectin benzoate"
+    const prefixMatch = part.match(
+      /^(\d+(?:\.\d+)?\s*%\s*(?:w\/w|w\/v|v\/v)?(?:\s*(?:WG|WP|EC|SC|SL|SP|FS|CS|GR|SG|OD|EW|ME|ZC|DF|WDG))?)\s+([A-Za-z0-9\s\-]+)$/i
+    );
+    if (prefixMatch) {
+      const conc = prefixMatch[1].trim();
+      const name = prefixMatch[2].trim();
+      normalizedParts.push(`${name} ${conc}`);
+      continue;
+    }
+
+    // Name followed by concentration: e.g. "Emamectin benzoate 5% w/w"
+    const postfixMatch = part.match(
+      /^([A-Za-z0-9\s\-]+)\s+(\d+(?:\.\d+)?\s*%\s*(?:w\/w|w\/v|v\/v)?(?:\s*(?:WG|WP|EC|SC|SL|SP|FS|CS|GR|SG|OD|EW|ME|ZC|DF|WDG))?)$/i
+    );
+    if (postfixMatch) {
+      const name = postfixMatch[1].trim();
+      const conc = postfixMatch[2].trim();
+      normalizedParts.push(`${name} ${conc}`);
+      continue;
+    }
+
+    normalizedParts.push(part);
+  }
+
+  return normalizedParts.length > 0 ? normalizedParts.join(' + ') : cleaned;
+}
+
+/**
+ * Extracts a labeled value from unstructured or CMS/Drupal HTML layouts.
+ */
+export function extractLabeledValue(html: string, labels: string[]): string | undefined {
+  if (!html || typeof html !== 'string') return undefined;
+
+  for (const label of labels) {
+    // 1. Direct label pattern: "Label: Value" or "Label - Value"
+    const directRegex = new RegExp(`${label}\\s*[:–-]\\s*([^<\\n\\r]{2,200})`, 'i');
+    const directMatch = html.match(directRegex);
+    if (directMatch && directMatch[1].trim()) {
+      return directMatch[1].trim();
+    }
+
+    // 2. Tag-separated pattern: <tag>Label</tag>\s*<tag>Value</tag>
+    const tagRegex = new RegExp(`${label}\\s*<\\/[^>]+>\\s*<[^>]+>\\s*([^<\\n\\r]{2,200})`, 'i');
+    const tagMatch = html.match(tagRegex);
+    if (tagMatch && tagMatch[1].trim()) {
+      return tagMatch[1].trim();
+    }
+
+    // 3. Nested/class attribute pattern: class="...label...">Label</div>...class="...item...">Value</div>
+    const classRegex = new RegExp(
+      `${label}[\\s\\S]{0,140}?<[^>]*class=["'][^"']*(?:item|value|content|desc)[^"']*["'][^>]*>\\s*([^<\\n\\r]{2,200})`,
+      'i'
+    );
+    const classMatch = html.match(classRegex);
+    if (classMatch && classMatch[1].trim()) {
+      return classMatch[1].trim();
+    }
+  }
+
+  return undefined;
+}
+
+/**
  * Extracts structured product metadata from manufacturer HTML pages (JSON-LD, Meta Tags, and HTML text).
  */
 export function extractProductMetadataFromHtml(html: string, sourceUrl: string): Partial<ProductScanResult> {
@@ -244,7 +328,7 @@ export function extractProductMetadataFromHtml(html: string, sourceUrl: string):
         }
       }
     } catch {
-      // Ignore invalid JSON in individual ld+json blocks
+      // Ignore invalid JSON in individual blocks
     }
   }
 
@@ -288,13 +372,29 @@ export function extractProductMetadataFromHtml(html: string, sourceUrl: string):
     }
   }
 
-  // 4. Extract Composition / Active Ingredients from Text
+  // 4. Extract Registrant / Manufacturer from Text if not set
+  const mfgText = extractLabeledValue(html, ['Registrant', 'Manufacturer', 'Marketed by', 'Manufactured by', 'Company']);
+  if (mfgText && mfgText.length > 2 && mfgText.length < 100) {
+    result.manufacturer = mfgText;
+    detectedFields.push('manufacturer');
+    confidence['manufacturer'] = 0.95;
+    fieldSources['manufacturer'] = 'manufacturer_url';
+  }
+
+  // 5. Extract Composition / Active Ingredients from Text / Elements
   if (!result.composition) {
-    const compMatch = html.match(/(?:Active\s*Ingredients?|Composition|Technical\s*Name|Contains|Technical\s*Content)\s*[:–-]?\s*<[^>]*>*\s*([^<\n\r]+)/i);
-    if (compMatch) {
-      const compText = compMatch[1].replace(/&amp;/g, '&').replace(/&quot;/g, '"').trim();
-      if (compText && compText.length > 3 && compText.length < 250 && !isBotChallengePage(compText)) {
-        result.composition = compText;
+    const rawComp = extractLabeledValue(html, [
+      'Composition',
+      'Active Ingredient',
+      'Active Ingredients',
+      'Technical Name',
+      'Contains',
+      'Technical Content',
+    ]);
+    if (rawComp) {
+      const normalizedComp = normalizeComposition(rawComp);
+      if (normalizedComp && normalizedComp.length > 3 && normalizedComp.length < 250 && !isBotChallengePage(normalizedComp)) {
+        result.composition = normalizedComp;
         detectedFields.push('composition');
         confidence['composition'] = 0.9;
         fieldSources['composition'] = 'manufacturer_url';
@@ -302,12 +402,16 @@ export function extractProductMetadataFromHtml(html: string, sourceUrl: string):
     }
   }
 
-  // 5. Extract Category from Text
+  // 6. Extract Category from Text / Elements
   if (!result.category) {
-    const catMatch = html.match(/(?:Category|Product\s*Type|Crop\s*Protection|Segment)\s*[:–-]?\s*<[^>]*>*\s*([A-Za-z\s]+)/i);
-    if (catMatch) {
-      const catText = catMatch[1].trim();
-      if (['Insecticide', 'Fungicide', 'Herbicide', 'Fertilizer', 'Seeds', 'Bio-stimulant', 'PGR', 'Plant Growth Regulator', 'Nematicide'].some((c) => catText.toLowerCase().includes(c.toLowerCase()))) {
+    const rawCat = extractLabeledValue(html, ['Category', 'Product Type', 'Crop Protection', 'Segment']);
+    if (rawCat) {
+      const catText = rawCat.trim();
+      if (
+        ['Insecticide', 'Fungicide', 'Herbicide', 'Fertilizer', 'Seeds', 'Bio-stimulant', 'PGR', 'Plant Growth Regulator', 'Nematicide'].some(
+          (c) => catText.toLowerCase().includes(c.toLowerCase())
+        )
+      ) {
         result.category = catText;
         detectedFields.push('category');
         confidence['category'] = 0.85;
@@ -316,13 +420,26 @@ export function extractProductMetadataFromHtml(html: string, sourceUrl: string):
     }
   }
 
-  // 6. Extract Pack Size Normalization (with multi-pack detection rules)
+  // 7. Extract Pack Size Normalization (with multi-pack detection rules)
   if (!result.packSize) {
-    const packMatch = html.match(/(?:Pack\s*Sizes?|Available\s*Packs?|Packing|Net\s*Weight|Net\s*Quantity|Net\s*Qty|Net\s*Volume|Packaging)\s*[:–-]?\s*<[^>]*>*\s*([^<\n\r]+)/i);
-    if (packMatch) {
-      const packText = packMatch[1].trim();
-      // Check if packText contains multiple discrete size options (e.g. "5 g, 24 g, 60 g, 120 g" or "100ml / 250ml / 500ml")
-      const matches = Array.from(packText.matchAll(/\b(\d+(?:\.\d+)?)\s*(kg|g|gm|gram|grams|mg|ml|ltr|litre|liter|l|pcs|tablets?|packs?|bags?|bottles?)\b/gi));
+    const packText = extractLabeledValue(html, [
+      'Pack sizes',
+      'Pack Sizes',
+      'Available Packs',
+      'Packing',
+      'Net Weight',
+      'Net Quantity',
+      'Net Qty',
+      'Net Volume',
+      'Packaging',
+    ]);
+    if (packText) {
+      // Check if packText contains multiple discrete size options
+      const matches = Array.from(
+        packText.matchAll(
+          /\b(\d+(?:\.\d+)?)\s*(kg|kgs|kilograms?|g|gm|gms|grams?|mg|mgs|milligrams?|ml|mls|milliliters?|ltr|ltrs|litres?|liters?|l|pcs|tablets?|packs?|packets?|bags?|bottles?|cans?|drums?|boxes?)\b/gi
+        )
+      );
       const uniqueNormalized = new Set<string>();
       for (const m of matches) {
         const norm = normalizeProductSize(m[0]);
@@ -361,11 +478,11 @@ export function extractProductMetadataFromHtml(html: string, sourceUrl: string):
     }
   }
 
-  // 7. Explicit MRP (only if explicitly stated)
+  // 8. Explicit MRP (only if explicitly stated)
   if (result.mrp === undefined) {
-    const mrpMatch = html.match(/(?:MRP|Maximum\s*Retail\s*Price|Price)\s*[:–-]?\s*(?:₹|Rs\.?|INR)?\s*(\d+(?:\.\d{1,2})?)/i);
-    if (mrpMatch) {
-      const parsedMrp = parseFloat(mrpMatch[1]);
+    const rawMrp = extractLabeledValue(html, ['MRP', 'Maximum Retail Price', 'Price']);
+    if (rawMrp) {
+      const parsedMrp = parseFloat(rawMrp.replace(/[^0-9.]/g, ''));
       if (!isNaN(parsedMrp) && parsedMrp > 0) {
         result.mrp = parsedMrp;
         detectedFields.push('mrp');
@@ -375,19 +492,19 @@ export function extractProductMetadataFromHtml(html: string, sourceUrl: string):
     }
   }
 
-  // 8. Explicit HSN (only if explicitly present)
-  const hsnMatch = html.match(/(?:HSN|HSN\s*Code)\s*[:–-]?\s*(\d{4,8})/i);
-  if (hsnMatch) {
-    result.hsnCode = hsnMatch[1].trim();
+  // 9. Explicit HSN (only if explicitly present)
+  const hsnMatch = extractLabeledValue(html, ['HSN', 'HSN Code']);
+  if (hsnMatch && /^\d{4,8}$/.test(hsnMatch.trim())) {
+    result.hsnCode = hsnMatch.trim();
     detectedFields.push('hsnCode');
     confidence['hsnCode'] = 0.9;
     fieldSources['hsnCode'] = 'manufacturer_url';
   }
 
-  // 9. Explicit GST (only if explicitly present)
-  const gstMatch = html.match(/(?:GST|GST\s*Rate)\s*[:–-]?\s*(\d+(?:\.\d+)?)\s*%/i);
+  // 10. Explicit GST (only if explicitly present)
+  const gstMatch = extractLabeledValue(html, ['GST', 'GST Rate']);
   if (gstMatch) {
-    const parsedGst = parseFloat(gstMatch[1]);
+    const parsedGst = parseFloat(gstMatch.replace(/[^0-9.]/g, ''));
     if (!isNaN(parsedGst) && parsedGst >= 0 && parsedGst <= 28) {
       result.gstRate = parsedGst;
       detectedFields.push('gstRate');
@@ -414,6 +531,7 @@ export class ProductEnrichmentService {
   static async enrichFromUrl(targetUrl: string): Promise<Partial<ProductScanResult> | null> {
     console.log('[KRUSHI ENRICHMENT] START');
     console.log('[KRUSHI ENRICHMENT] URL:', targetUrl);
+    console.log('[KRUSHI ENRICHMENT] DIRECT SOURCE:', targetUrl);
 
     const validation = validateSafePublicUrl(targetUrl);
     console.log('[KRUSHI ENRICHMENT] SSRF CHECK:', validation.isValid ? 'PASSED' : `FAILED (${validation.error})`);
@@ -478,7 +596,20 @@ export class ProductEnrichmentService {
       console.log(`[KRUSHI ENRICHMENT] HTTP STATUS: ${status} ${response?.statusText || ''}`);
 
       if (!response || !response.ok) {
-        // If live fetch is blocked (403/429/Cloudflare challenge), safely provide verified domain attribution
+        console.log(`[KRUSHI ENRICHMENT] DIRECT SOURCE BLOCKED (Status: ${status})`);
+
+        // SOURCE 2: Fallback to Official Manufacturer Source Discovery on the trusted domain
+        const discovered = await ManufacturerSourceResolver.resolveOfficialSource({
+          sourceUrl: targetUrl,
+        });
+
+        if (discovered && (discovered.productName || discovered.composition)) {
+          console.log('[KRUSHI ENRICHMENT] OFFICIAL SOURCE FOUND via resolver');
+          console.log('[KRUSHI ENRICHMENT] PARSED FIELDS:', discovered.detectedFields || []);
+          return discovered;
+        }
+
+        // Domain-level fallback entity attribution
         console.log('[KRUSHI ENRICHMENT] PARSE: Non-200 response; extracting domain attribution');
         const fallbackResult = extractProductMetadataFromHtml('', targetUrl);
         console.log('[KRUSHI ENRICHMENT] FIELDS FOUND:', fallbackResult.detectedFields || []);
@@ -521,8 +652,23 @@ export class ProductEnrichmentService {
       const htmlContent = decoder.decode(totalBuffer);
 
       console.log(`[KRUSHI ENRICHMENT] BODY RECEIVED: ${receivedBytes} bytes`);
-      console.log('[KRUSHI ENRICHMENT] PARSE: Parsing HTML metadata');
 
+      if (isBotChallengePage(htmlContent)) {
+        console.log('[KRUSHI ENRICHMENT] DIRECT SOURCE BLOCKED (Cloudflare Challenge)');
+        const discovered = await ManufacturerSourceResolver.resolveOfficialSource({
+          sourceUrl: targetUrl,
+        });
+
+        if (discovered && (discovered.productName || discovered.composition)) {
+          console.log('[KRUSHI ENRICHMENT] OFFICIAL SOURCE FOUND via resolver');
+          return discovered;
+        }
+
+        const fallbackResult = extractProductMetadataFromHtml('', targetUrl);
+        return fallbackResult;
+      }
+
+      console.log('[KRUSHI ENRICHMENT] PARSE: Parsing HTML metadata');
       const parsedResult = extractProductMetadataFromHtml(htmlContent, targetUrl);
       console.log('[KRUSHI ENRICHMENT] FIELDS FOUND:', parsedResult.detectedFields || []);
       console.log('[KRUSHI ENRICHMENT] RESULT:', parsedResult);
@@ -530,7 +676,6 @@ export class ProductEnrichmentService {
       return parsedResult;
     } catch (err: any) {
       console.error('[KRUSHI ENRICHMENT] Error during fetch/parse:', err?.message || err);
-      // On network error or timeout, safely attempt domain metadata extraction
       try {
         const fallbackResult = extractProductMetadataFromHtml('', targetUrl);
         console.log('[KRUSHI ENRICHMENT] RESULT (fallback):', fallbackResult);

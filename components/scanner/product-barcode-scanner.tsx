@@ -700,6 +700,17 @@ export function ProductBarcodeScannerModal({
                 </div>
               )}
 
+              {/* Category */}
+              {scanResult.category && (
+                <div className="flex justify-between items-center border-b border-border/50 pb-2">
+                  <span className="text-xs font-semibold text-muted-foreground">Category:</span>
+                  <div className="text-right">
+                    <span className="font-semibold text-foreground">{scanResult.category}</span>
+                    {renderSourceBadge(scanResult.fieldSources?.['category'])}
+                  </div>
+                </div>
+              )}
+
               {/* Composition */}
               {scanResult.composition && (
                 <div className="flex justify-between items-start border-b border-border/50 pb-2">
@@ -715,15 +726,19 @@ export function ProductBarcodeScannerModal({
               )}
 
               {/* Pack Size */}
-              {(scanResult.packSize || scanResult.size) && (
-                <div className="flex justify-between items-center border-b border-border/50 pb-2">
-                  <span className="text-xs font-semibold text-muted-foreground">Pack Size:</span>
-                  <div>
-                    <span className="font-bold text-foreground">{scanResult.packSize || scanResult.size}</span>
-                    {renderSourceBadge(scanResult.fieldSources?.['packSize'])}
-                  </div>
+              <div className="flex justify-between items-center border-b border-border/50 pb-2">
+                <span className="text-xs font-semibold text-muted-foreground">Pack Size:</span>
+                <div>
+                  {scanResult.packSize || scanResult.size ? (
+                    <>
+                      <span className="font-bold text-foreground">{scanResult.packSize || scanResult.size}</span>
+                      {renderSourceBadge(scanResult.fieldSources?.['packSize'])}
+                    </>
+                  ) : (
+                    <span className="text-xs italic text-amber-600 dark:text-amber-400">Not resolved from source</span>
+                  )}
                 </div>
-              )}
+              </div>
 
               {/* Barcode / GTIN */}
               <div className="flex justify-between items-center border-b border-border/50 pb-2">
@@ -780,43 +795,56 @@ export function ProductBarcodeScannerModal({
               )}
 
               {/* Commercial: MRP & Unit Sale Price */}
-              {(scanResult.mrp !== undefined || scanResult.unitSalePrice !== undefined) && (
-                <div className="flex justify-between items-center border-b border-border/50 pb-2">
-                  <span className="text-xs font-semibold text-muted-foreground">MRP / Unit Price:</span>
-                  <div>
-                    {scanResult.mrp !== undefined && (
+              <div className="flex justify-between items-center border-b border-border/50 pb-2">
+                <span className="text-xs font-semibold text-muted-foreground">MRP:</span>
+                <div>
+                  {scanResult.mrp !== undefined ? (
+                    <>
                       <span className="font-bold text-emerald-600 dark:text-emerald-400">₹{scanResult.mrp.toFixed(2)}</span>
-                    )}
-                    {scanResult.unitSalePrice !== undefined && (
-                      <span className="text-xs text-muted-foreground ml-1.5">(₹{scanResult.unitSalePrice}/unit)</span>
-                    )}
-                    {renderSourceBadge(scanResult.fieldSources?.['mrp'])}
-                  </div>
+                      {renderSourceBadge(scanResult.fieldSources?.['mrp'])}
+                    </>
+                  ) : (
+                    <span className="text-xs italic text-amber-600 dark:text-amber-400">Not resolved</span>
+                  )}
                 </div>
-              )}
+              </div>
 
               {/* Regulatory: HSN / GST */}
-              {(scanResult.hsnCode || scanResult.gstRate !== undefined) && (
-                <div className="flex justify-between items-center">
-                  <span className="text-xs font-semibold text-muted-foreground">HSN / GST:</span>
-                  <span className="font-semibold text-foreground">
-                    {scanResult.hsnCode ? `HSN ${scanResult.hsnCode}` : '—'} / {scanResult.gstRate !== undefined ? `${scanResult.gstRate}%` : '—'}
-                  </span>
+              <div className="flex justify-between items-center">
+                <span className="text-xs font-semibold text-muted-foreground">HSN / GST:</span>
+                <div>
+                  {scanResult.hsnCode || scanResult.gstRate !== undefined ? (
+                    <span className="font-semibold text-foreground">
+                      {scanResult.hsnCode ? `HSN ${scanResult.hsnCode}` : '—'} / {scanResult.gstRate !== undefined ? `${scanResult.gstRate}%` : '—'}
+                    </span>
+                  ) : (
+                    <span className="text-xs italic text-muted-foreground">Not resolved</span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Enrichment & Field Resolution Status Notice */}
+            <div className="p-3 bg-muted/60 border border-border rounded-xl space-y-1 text-xs">
+              <div className="font-bold text-foreground flex items-center gap-1.5">
+                <CheckCircle2 className="h-3.5 w-3.5 text-primary" /> GS1 Identifiers Detected
+              </div>
+              {scanResult.manufacturer && (
+                <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
+                  ✓ Official manufacturer data matched ({scanResult.manufacturer})
+                </div>
+              )}
+              {(!scanResult.packSize && !scanResult.size) && (
+                <div className="text-[11px] text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1">
+                  <AlertCircle className="h-3 w-3" /> Pack size requires package / OCR confirmation
+                </div>
+              )}
+              {scanResult.mrp === undefined && (
+                <div className="text-[11px] text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1">
+                  <AlertCircle className="h-3 w-3" /> MRP requires package / OCR confirmation
                 </div>
               )}
             </div>
-
-            {/* Missing Product Details Notice */}
-            {missingImportantFields.length > 0 && (
-              <div className="p-3 bg-amber-500/5 border border-amber-500/20 rounded-xl space-y-1 text-xs">
-                <div className="font-semibold text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
-                  <AlertCircle className="h-3.5 w-3.5" /> Missing Details: {missingImportantFields.join(', ')}
-                </div>
-                <p className="text-[11px] text-muted-foreground">
-                  You can scan the printed label via OCR below or type values directly in the product form.
-                </p>
-              </div>
-            )}
 
             {/* OCR Camera Action Section (Fallback) */}
             <div className="p-3.5 bg-primary/5 border border-primary/20 rounded-xl space-y-2.5">
