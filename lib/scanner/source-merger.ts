@@ -142,8 +142,11 @@ export function mergeProductScanResults(sources: ProductScanResult[]): ProductSc
     validSources.forEach((src) => {
       const val = (src as any)[key];
       if (val !== undefined && val !== null && val !== '') {
+        const itemSource: ScannerSource = (src.fieldSources && (src.fieldSources as any)[key])
+          ? (src.fieldSources as any)[key]
+          : src.source;
         candidates.push({
-          source: src.source,
+          source: itemSource,
           value: val,
           confidence: src.confidence?.[key],
         });

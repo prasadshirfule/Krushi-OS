@@ -1,5 +1,5 @@
 import { ProductScanResult } from '@/lib/scanner/types';
-import { normalizeProductSize } from '@/lib/scanner/size-normalizer';
+import { normalizeProductSize, isFormulationConcentration } from '@/lib/scanner/size-normalizer';
 
 /**
  * SSRF Protection: Checks if a hostname or IP address belongs to private, loopback, or link-local ranges.
@@ -96,23 +96,38 @@ export function validateSafePublicUrl(rawUrl: string): { isValid: boolean; parse
 }
 
 /**
- * Known agricultural manufacturer domains for reliable fallback entity attribution.
+ * Known agricultural manufacturer domains for reliable entity attribution.
  */
-const KNOWN_MANUFACTURER_DOMAINS: Array<{ pattern: RegExp; manufacturer: string; brand: string }> = [
-  { pattern: /syngenta\.(?:co\.in|com|in)/i, manufacturer: 'Syngenta India Ltd', brand: 'Syngenta' },
-  { pattern: /bayer\.(?:co\.in|com|in)/i, manufacturer: 'Bayer CropScience Ltd', brand: 'Bayer' },
-  { pattern: /upl-ltd\.com|uplonline\.com/i, manufacturer: 'UPL Limited', brand: 'UPL' },
-  { pattern: /dhanuka\.com/i, manufacturer: 'Dhanuka Agritech Ltd', brand: 'Dhanuka' },
-  { pattern: /coromandel\.biz|coromandelinternational\.com/i, manufacturer: 'Coromandel International Ltd', brand: 'Gromor' },
-  { pattern: /rallis\.(?:co\.in|com)/i, manufacturer: 'Rallis India Ltd (Tata Enterprise)', brand: 'Rallis' },
-  { pattern: /indofil\.com/i, manufacturer: 'Indofil Industries Ltd', brand: 'Indofil' },
-  { pattern: /iffco\.(?:in|coop)/i, manufacturer: 'IFFCO', brand: 'IFFCO' },
-  { pattern: /adama\.com/i, manufacturer: 'ADAMA India Pvt Ltd', brand: 'ADAMA' },
-  { pattern: /sumitomo-chem\.co\.in/i, manufacturer: 'Sumitomo Chemical India Ltd', brand: 'Sumitomo' },
-  { pattern: /fmc\.(?:com|in)/i, manufacturer: 'FMC India Pvt Ltd', brand: 'FMC' },
-  { pattern: /basf\.(?:com|in)/i, manufacturer: 'BASF India Ltd', brand: 'BASF' },
-  { pattern: /corteva\.(?:com|in)/i, manufacturer: 'Corteva Agriscience', brand: 'Corteva' },
+export const KNOWN_MANUFACTURER_DOMAINS: Array<{ pattern: RegExp; manufacturer: string; brand: string }> = [
+  { pattern: /(?:www\.)?syngenta\.(?:co\.in|com|in)/i, manufacturer: 'Syngenta India Ltd', brand: 'Syngenta' },
+  { pattern: /(?:www\.)?bayer\.(?:co\.in|com|in)/i, manufacturer: 'Bayer CropScience Ltd', brand: 'Bayer' },
+  { pattern: /(?:www\.)?upl-ltd\.com|(?:www\.)?uplonline\.com/i, manufacturer: 'UPL Limited', brand: 'UPL' },
+  { pattern: /(?:www\.)?dhanuka\.com/i, manufacturer: 'Dhanuka Agritech Ltd', brand: 'Dhanuka' },
+  { pattern: /(?:www\.)?coromandel\.biz|(?:www\.)?coromandelinternational\.com/i, manufacturer: 'Coromandel International Ltd', brand: 'Gromor' },
+  { pattern: /(?:www\.)?rallis\.(?:co\.in|com)/i, manufacturer: 'Rallis India Ltd (Tata Enterprise)', brand: 'Rallis' },
+  { pattern: /(?:www\.)?indofil\.com/i, manufacturer: 'Indofil Industries Ltd', brand: 'Indofil' },
+  { pattern: /(?:www\.)?iffco\.(?:in|coop)/i, manufacturer: 'IFFCO', brand: 'IFFCO' },
+  { pattern: /(?:www\.)?adama\.com/i, manufacturer: 'ADAMA India Pvt Ltd', brand: 'ADAMA' },
+  { pattern: /(?:www\.)?sumitomo-chem\.co\.in/i, manufacturer: 'Sumitomo Chemical India Ltd', brand: 'Sumitomo' },
+  { pattern: /(?:www\.)?fmc\.(?:com|in)/i, manufacturer: 'FMC India Pvt Ltd', brand: 'FMC' },
+  { pattern: /(?:www\.)?basf\.(?:com|in)/i, manufacturer: 'BASF India Ltd', brand: 'BASF' },
+  { pattern: /(?:www\.)?corteva\.(?:com|in)/i, manufacturer: 'Corteva Agriscience', brand: 'Corteva' },
 ];
+
+/**
+ * Checks if raw HTML is a Cloudflare or Bot Challenge page rather than actual product content.
+ */
+export function isBotChallengePage(html: string): boolean {
+  if (!html || typeof html !== 'string') return false;
+  const lower = html.toLowerCase();
+  return (
+    lower.includes('just a moment...') ||
+    lower.includes('cf-mitigated') ||
+    lower.includes('attention required! | cloudflare') ||
+    lower.includes('challenges.cloudflare.com') ||
+    lower.includes('enable javascript and cookies to continue')
+  );
+}
 
 /**
  * Extracts structured product metadata from manufacturer HTML pages (JSON-LD, Meta Tags, and HTML text).
@@ -130,9 +145,7 @@ export function extractProductMetadataFromHtml(html: string, sourceUrl: string):
   const confidence: Record<string, number> = {};
   const fieldSources: Record<string, 'manufacturer_url'> = {};
 
-  if (!html || typeof html !== 'string') return result;
-
-  // 1. Check known manufacturer domain for default entity identification
+  // 1. Always evaluate known manufacturer domain for default entity identification
   try {
     const parsedUrl = new URL(sourceUrl);
     const domainMatch = KNOWN_MANUFACTURER_DOMAINS.find((d) => d.pattern.test(parsedUrl.hostname));
@@ -146,6 +159,14 @@ export function extractProductMetadataFromHtml(html: string, sourceUrl: string):
       fieldSources['brand'] = 'manufacturer_url';
     }
   } catch {}
+
+  // If no HTML or bot challenge page, return domain-level identification safely
+  if (!html || typeof html !== 'string' || isBotChallengePage(html)) {
+    result.detectedFields = Array.from(new Set(detectedFields));
+    result.confidence = confidence;
+    result.fieldSources = fieldSources;
+    return result;
+  }
 
   // 2. Extract JSON-LD (<script type="application/ld+json">...</script>)
   const jsonLdRegex = /<script\s+[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
@@ -229,10 +250,10 @@ export function extractProductMetadataFromHtml(html: string, sourceUrl: string):
 
   // 3. OpenGraph and Standard Meta Tags
   if (!result.productName) {
-    const ogTitleMatch = html.match(/<meta\s+(?:property|name)=["']og:title["']\s+content=["']([^"']+)["']/i);
+    const ogTitleMatch = html.match(/<meta\s+(?:property|name)=["'](?:og:title|twitter:title)["']\s+content=["']([^"']+)["']/i);
     if (ogTitleMatch) {
       const cleanTitle = ogTitleMatch[1].replace(/\|.*$/g, '').replace(/–.*$/g, '').trim();
-      if (cleanTitle && cleanTitle.length < 100) {
+      if (cleanTitle && cleanTitle.length < 120 && !isBotChallengePage(cleanTitle)) {
         result.productName = cleanTitle;
         detectedFields.push('productName');
         confidence['productName'] = 0.85;
@@ -245,7 +266,7 @@ export function extractProductMetadataFromHtml(html: string, sourceUrl: string):
     const titleTagMatch = html.match(/<title>([^<]+)<\/title>/i);
     if (titleTagMatch) {
       const cleanTitle = titleTagMatch[1].replace(/\|.*$/g, '').replace(/–.*$/g, '').replace(/-.*$/g, '').trim();
-      if (cleanTitle && cleanTitle.length < 100 && !cleanTitle.toLowerCase().includes('just a moment')) {
+      if (cleanTitle && cleanTitle.length < 120 && !isBotChallengePage(cleanTitle)) {
         result.productName = cleanTitle;
         detectedFields.push('productName');
         confidence['productName'] = 0.75;
@@ -258,7 +279,7 @@ export function extractProductMetadataFromHtml(html: string, sourceUrl: string):
     const ogBrandMatch = html.match(/<meta\s+(?:property|name)=["'](?:product:brand|og:site_name)["']\s+content=["']([^"']+)["']/i);
     if (ogBrandMatch) {
       const brandVal = ogBrandMatch[1].trim();
-      if (brandVal && brandVal.length < 50) {
+      if (brandVal && brandVal.length < 60) {
         result.brand = brandVal;
         detectedFields.push('brand');
         confidence['brand'] = 0.8;
@@ -269,10 +290,10 @@ export function extractProductMetadataFromHtml(html: string, sourceUrl: string):
 
   // 4. Extract Composition / Active Ingredients from Text
   if (!result.composition) {
-    const compMatch = html.match(/(?:Active\s*Ingredients?|Composition|Technical\s*Name|Contains)\s*[:–-]?\s*<[^>]*>*\s*([^<\n\r]+)/i);
+    const compMatch = html.match(/(?:Active\s*Ingredients?|Composition|Technical\s*Name|Contains|Technical\s*Content)\s*[:–-]?\s*<[^>]*>*\s*([^<\n\r]+)/i);
     if (compMatch) {
       const compText = compMatch[1].replace(/&amp;/g, '&').replace(/&quot;/g, '"').trim();
-      if (compText && compText.length > 3 && compText.length < 200) {
+      if (compText && compText.length > 3 && compText.length < 250 && !isBotChallengePage(compText)) {
         result.composition = compText;
         detectedFields.push('composition');
         confidence['composition'] = 0.9;
@@ -281,12 +302,12 @@ export function extractProductMetadataFromHtml(html: string, sourceUrl: string):
     }
   }
 
-  // 5. Extract Category from Text if not found
+  // 5. Extract Category from Text
   if (!result.category) {
-    const catMatch = html.match(/(?:Category|Product\s*Type|Crop\s*Protection)\s*[:–-]?\s*<[^>]*>*\s*([A-Za-z\s]+)/i);
+    const catMatch = html.match(/(?:Category|Product\s*Type|Crop\s*Protection|Segment)\s*[:–-]?\s*<[^>]*>*\s*([A-Za-z\s]+)/i);
     if (catMatch) {
       const catText = catMatch[1].trim();
-      if (['Insecticide', 'Fungicide', 'Herbicide', 'Fertilizer', 'Seeds', 'Bio-stimulant', 'PGR', 'Nematicide'].some(c => catText.toLowerCase().includes(c.toLowerCase()))) {
+      if (['Insecticide', 'Fungicide', 'Herbicide', 'Fertilizer', 'Seeds', 'Bio-stimulant', 'PGR', 'Plant Growth Regulator', 'Nematicide'].some((c) => catText.toLowerCase().includes(c.toLowerCase()))) {
         result.category = catText;
         detectedFields.push('category');
         confidence['category'] = 0.85;
@@ -295,19 +316,83 @@ export function extractProductMetadataFromHtml(html: string, sourceUrl: string):
     }
   }
 
-  // 6. Extract Pack Size Normalization
+  // 6. Extract Pack Size Normalization (with multi-pack detection rules)
   if (!result.packSize) {
-    const packMatch = html.match(/(?:Pack\s*Sizes?|Available\s*Packs?|Packing|Net\s*Weight|Net\s*Quantity|Volume)\s*[:–-]?\s*<[^>]*>*\s*([^<\n\r]+)/i);
-    const textToScan = packMatch ? packMatch[1] : `${result.productName || ''} ${result.productDescription || ''}`;
-    const parsedSize = normalizeProductSize(textToScan);
-    if (parsedSize) {
-      result.sizeValue = parsedSize.sizeValue;
-      result.sizeUnit = parsedSize.sizeUnit;
-      result.packSize = parsedSize.packSize;
-      result.size = parsedSize.packSize;
-      detectedFields.push('sizeValue', 'sizeUnit', 'packSize');
-      confidence['packSize'] = 0.85;
-      fieldSources['packSize'] = 'manufacturer_url';
+    const packMatch = html.match(/(?:Pack\s*Sizes?|Available\s*Packs?|Packing|Net\s*Weight|Net\s*Quantity|Net\s*Qty|Net\s*Volume|Packaging)\s*[:–-]?\s*<[^>]*>*\s*([^<\n\r]+)/i);
+    if (packMatch) {
+      const packText = packMatch[1].trim();
+      // Check if packText contains multiple discrete size options (e.g. "5 g, 24 g, 60 g, 120 g" or "100ml / 250ml / 500ml")
+      const matches = Array.from(packText.matchAll(/\b(\d+(?:\.\d+)?)\s*(kg|g|gm|gram|grams|mg|ml|ltr|litre|liter|l|pcs|tablets?|packs?|bags?|bottles?)\b/gi));
+      const uniqueNormalized = new Set<string>();
+      for (const m of matches) {
+        const norm = normalizeProductSize(m[0]);
+        if (norm && !isFormulationConcentration(m[0])) {
+          uniqueNormalized.add(norm.packSize);
+        }
+      }
+
+      // If exactly 1 pack size is listed, use it deterministically
+      if (uniqueNormalized.size === 1) {
+        const singleSize = Array.from(uniqueNormalized)[0];
+        const parsedSize = normalizeProductSize(singleSize);
+        if (parsedSize) {
+          result.sizeValue = parsedSize.sizeValue;
+          result.sizeUnit = parsedSize.sizeUnit;
+          result.packSize = parsedSize.packSize;
+          result.size = parsedSize.packSize;
+          detectedFields.push('sizeValue', 'sizeUnit', 'packSize');
+          confidence['packSize'] = 0.85;
+          fieldSources['packSize'] = 'manufacturer_url';
+        }
+      }
+      // If multiple distinct sizes are listed without GTIN association, leave packSize unresolved for manual/OCR verification
+    } else {
+      // Fallback scan of product title or description if only a single size is explicitly in title
+      const titleScan = normalizeProductSize(result.productName || '');
+      if (titleScan) {
+        result.sizeValue = titleScan.sizeValue;
+        result.sizeUnit = titleScan.sizeUnit;
+        result.packSize = titleScan.packSize;
+        result.size = titleScan.packSize;
+        detectedFields.push('sizeValue', 'sizeUnit', 'packSize');
+        confidence['packSize'] = 0.8;
+        fieldSources['packSize'] = 'manufacturer_url';
+      }
+    }
+  }
+
+  // 7. Explicit MRP (only if explicitly stated)
+  if (result.mrp === undefined) {
+    const mrpMatch = html.match(/(?:MRP|Maximum\s*Retail\s*Price|Price)\s*[:–-]?\s*(?:₹|Rs\.?|INR)?\s*(\d+(?:\.\d{1,2})?)/i);
+    if (mrpMatch) {
+      const parsedMrp = parseFloat(mrpMatch[1]);
+      if (!isNaN(parsedMrp) && parsedMrp > 0) {
+        result.mrp = parsedMrp;
+        detectedFields.push('mrp');
+        confidence['mrp'] = 0.85;
+        fieldSources['mrp'] = 'manufacturer_url';
+      }
+    }
+  }
+
+  // 8. Explicit HSN (only if explicitly present)
+  const hsnMatch = html.match(/(?:HSN|HSN\s*Code)\s*[:–-]?\s*(\d{4,8})/i);
+  if (hsnMatch) {
+    result.hsnCode = hsnMatch[1].trim();
+    detectedFields.push('hsnCode');
+    confidence['hsnCode'] = 0.9;
+    fieldSources['hsnCode'] = 'manufacturer_url';
+  }
+
+  // 9. Explicit GST (only if explicitly present)
+  const gstMatch = html.match(/(?:GST|GST\s*Rate)\s*[:–-]?\s*(\d+(?:\.\d+)?)\s*%/i);
+  if (gstMatch) {
+    const parsedGst = parseFloat(gstMatch[1]);
+    if (!isNaN(parsedGst) && parsedGst >= 0 && parsedGst <= 28) {
+      result.gstRate = parsedGst;
+      detectedFields.push('gstRate');
+      confidence['gstRate'] = 0.9;
+      fieldSources['gstRate'] = 'manufacturer_url';
     }
   }
 
@@ -327,7 +412,12 @@ export class ProductEnrichmentService {
    * Enforces strict timeout, size limits, redirect checks, and SSRF restrictions.
    */
   static async enrichFromUrl(targetUrl: string): Promise<Partial<ProductScanResult> | null> {
+    console.log('[KRUSHI ENRICHMENT] START');
+    console.log('[KRUSHI ENRICHMENT] URL:', targetUrl);
+
     const validation = validateSafePublicUrl(targetUrl);
+    console.log('[KRUSHI ENRICHMENT] SSRF CHECK:', validation.isValid ? 'PASSED' : `FAILED (${validation.error})`);
+
     if (!validation.isValid || !validation.parsedUrl) {
       return null;
     }
@@ -340,14 +430,23 @@ export class ProductEnrichmentService {
       let redirectCount = 0;
       let response: Response | null = null;
 
+      console.log('[KRUSHI ENRICHMENT] FETCH: Initiating HTTP request');
+
       // Handle up to 3 redirects manually to validate each target URL against SSRF
       while (redirectCount <= 3) {
         response = await fetch(currentUrl, {
           method: 'GET',
           headers: {
-            'User-Agent': 'Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36',
-            Accept: 'text/html,application/xhtml+xml,application/ld+json;q=0.9,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.9',
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+            Accept:
+              'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,application/ld+json;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'en-IN,en-GB;q=0.9,en-US;q=0.8,en;q=0.7',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1',
+            'Upgrade-Insecure-Requests': '1',
           },
           signal: controller.signal,
           redirect: 'manual',
@@ -361,7 +460,8 @@ export class ProductEnrichmentService {
           const redirectValidation = validateSafePublicUrl(resolvedRedirect);
           if (!redirectValidation.isValid) {
             clearTimeout(timeoutId);
-            return null; // Reject unsafe redirect target
+            console.log('[KRUSHI ENRICHMENT] SSRF CHECK: Redirect target rejected');
+            return null;
           }
 
           currentUrl = resolvedRedirect;
@@ -374,16 +474,23 @@ export class ProductEnrichmentService {
 
       clearTimeout(timeoutId);
 
+      const status = response?.status || 0;
+      console.log(`[KRUSHI ENRICHMENT] HTTP STATUS: ${status} ${response?.statusText || ''}`);
+
       if (!response || !response.ok) {
-        // Even if live fetch is blocked (e.g. 403 challenge or offline), extract domain-level manufacturer attribution safely
+        // If live fetch is blocked (403/429/Cloudflare challenge), safely provide verified domain attribution
+        console.log('[KRUSHI ENRICHMENT] PARSE: Non-200 response; extracting domain attribution');
         const fallbackResult = extractProductMetadataFromHtml('', targetUrl);
-        return Object.keys(fallbackResult.fieldSources || {}).length > 0 ? fallbackResult : null;
+        console.log('[KRUSHI ENRICHMENT] FIELDS FOUND:', fallbackResult.detectedFields || []);
+        console.log('[KRUSHI ENRICHMENT] RESULT:', fallbackResult);
+        return fallbackResult;
       }
 
       // Limit response size to 512 KB
       const reader = response.body?.getReader();
       if (!reader) {
-        return extractProductMetadataFromHtml('', targetUrl);
+        const fallbackResult = extractProductMetadataFromHtml('', targetUrl);
+        return fallbackResult;
       }
 
       let receivedBytes = 0;
@@ -413,11 +520,21 @@ export class ProductEnrichmentService {
       const decoder = new TextDecoder('utf-8');
       const htmlContent = decoder.decode(totalBuffer);
 
-      return extractProductMetadataFromHtml(htmlContent, targetUrl);
-    } catch {
+      console.log(`[KRUSHI ENRICHMENT] BODY RECEIVED: ${receivedBytes} bytes`);
+      console.log('[KRUSHI ENRICHMENT] PARSE: Parsing HTML metadata');
+
+      const parsedResult = extractProductMetadataFromHtml(htmlContent, targetUrl);
+      console.log('[KRUSHI ENRICHMENT] FIELDS FOUND:', parsedResult.detectedFields || []);
+      console.log('[KRUSHI ENRICHMENT] RESULT:', parsedResult);
+
+      return parsedResult;
+    } catch (err: any) {
+      console.error('[KRUSHI ENRICHMENT] Error during fetch/parse:', err?.message || err);
       // On network error or timeout, safely attempt domain metadata extraction
       try {
-        return extractProductMetadataFromHtml('', targetUrl);
+        const fallbackResult = extractProductMetadataFromHtml('', targetUrl);
+        console.log('[KRUSHI ENRICHMENT] RESULT (fallback):', fallbackResult);
+        return fallbackResult;
       } catch {
         return null;
       }
