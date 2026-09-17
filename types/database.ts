@@ -73,6 +73,16 @@ export interface Product extends BaseEntity {
   stock_quantity?: number;
   min_stock_alert?: number;
   is_active: boolean;
+  identifiers?: ProductIdentifier[];
+}
+
+export interface ProductIdentifier extends BaseEntity {
+  shop_id: ID;
+  product_id: ID;
+  identifier_type: 'barcode' | 'gtin' | 'qr' | 'other' | string;
+  raw_value: string;
+  normalized_value?: string | null;
+  is_primary?: boolean;
 }
 
 export interface ProductBatch extends BaseEntity {

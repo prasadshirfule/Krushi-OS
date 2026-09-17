@@ -42,11 +42,12 @@ import {
   Grid3X3,
   Scan,
   CheckCircle2,
-  AlertTriangle,
-  RotateCcw
+  Trash2,
+  QrCode,
+  Barcode,
+  Link2
 } from 'lucide-react';
-import { ProductBarcodeScannerModal } from '@/components/scanner/product-barcode-scanner';
-import { ProductScanResult, FieldConflict } from '@/lib/scanner/types';
+import { LinkProductBarcodeModal } from '@/components/scanner/link-product-barcode-modal';
 
 import { 
   isClientDemoMode, 
@@ -65,6 +66,14 @@ interface ProductFormProps {
   initialData?: any;
   categories: any[];
   brands: any[];
+}
+
+export interface LinkedIdentifierItem {
+  id?: string;
+  identifier_type: 'barcode' | 'gtin' | 'qr' | 'other';
+  raw_value: string;
+  normalized_value?: string | null;
+  is_primary: boolean;
 }
 
 export function ProductForm({ mode, initialData, categories, brands }: ProductFormProps) {
@@ -98,211 +107,73 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
   const [newBrandCompany, setNewBrandCompany] = useState('');
   const [isSavingBrand, setIsSavingBrand] = useState(false);
 
-  // Scanner state & autofill tracking
+  // Linked QR / Barcode Identifiers State
   const [isScannerOpen, setIsScannerOpen] = useState(false);
-  const [autofilledFields, setAutofilledFields] = useState<Set<string>>(new Set());
-  const [conflicts, setConflicts] = useState<FieldConflict[]>([]);
-  const [isConflictDialogOpen, setIsConflictDialogOpen] = useState(false);
+  const [linkedIdentifiers, setLinkedIdentifiers] = useState<LinkedIdentifierItem[]>(() => {
+    if (initialData?.identifiers && Array.isArray(initialData.identifiers) && initialData.identifiers.length > 0) {
+      return initialData.identifiers.map((item: any) => ({
+        id: item.id,
+        identifier_type: item.identifier_type || 'barcode',
+        raw_value: item.raw_value,
+        normalized_value: item.normalized_value || null,
+        is_primary: Boolean(item.is_primary),
+      }));
+    }
+    if (initialData?.barcode && String(initialData.barcode).trim()) {
+      return [{
+        identifier_type: 'barcode',
+        raw_value: String(initialData.barcode).trim(),
+        normalized_value: String(initialData.barcode).trim(),
+        is_primary: true,
+      }];
+    }
+    return [];
+  });
 
-  // Handle auto-filling product form with conflict detection
-  const handleApplyScanResult = (result: ProductScanResult) => {
-    const newAutofilled = new Set(autofilledFields);
-    const newConflicts: FieldConflict[] = [];
-
-    const checkAndFill = (
-      fieldName: keyof ProductInput,
-      label: string,
-      detectedVal: any
-    ) => {
-      if (detectedVal === undefined || detectedVal === null || detectedVal === '') return;
-      
-      const currentVal = form.getValues(fieldName);
-      const isCurrentEmpty = 
-        currentVal === undefined || 
-        currentVal === null || 
-        currentVal === '' || 
-        currentVal === '__none__' ||
-        (fieldName === 'purchase_price' && Number(currentVal) === 0 && mode === 'create') ||
-        (fieldName === 'selling_price' && Number(currentVal) === 0 && mode === 'create');
-
-      if (isCurrentEmpty) {
-        form.setValue(fieldName, detectedVal, { shouldValidate: true });
-        newAutofilled.add(fieldName);
-      } else {
-        const normalizedCurrent = String(currentVal).trim().toUpperCase();
-        const normalizedDetected = String(detectedVal).trim().toUpperCase();
-
-        if (normalizedCurrent !== normalizedDetected) {
-          newConflicts.push({
-            fieldName: fieldName as any,
-            label,
-            currentValue: currentVal,
-            detectedValue: detectedVal,
-          });
-        }
+  // Link identifier handler (no autofill, pure registration)
+  const handleLinkIdentifier = (ident: {
+    raw_value: string;
+    normalized_value?: string | null;
+    identifier_type: 'barcode' | 'gtin' | 'qr' | 'other';
+    is_primary?: boolean;
+  }) => {
+    const rawTrimmed = ident.raw_value.trim();
+    setLinkedIdentifiers((prev) => {
+      const exists = prev.some((item) => item.raw_value.trim() === rawTrimmed);
+      if (exists) {
+        toast.info('This QR/Barcode is already linked to this product');
+        return prev;
       }
-    };
+      const isFirst = prev.length === 0;
+      const next: LinkedIdentifierItem[] = [
+        ...prev,
+        {
+          identifier_type: ident.identifier_type,
+          raw_value: rawTrimmed,
+          normalized_value: ident.normalized_value?.trim() || null,
+          is_primary: isFirst,
+        },
+      ];
 
-    // 1. Barcode / GTIN
-    if (result.barcode || result.gtin) {
-      checkAndFill('barcode', 'Barcode / GTIN', result.barcode || result.gtin);
-    }
-
-    // 2. SKU
-    if (result.sku) {
-      checkAndFill('sku', 'SKU', result.sku);
-    }
-
-    // 3. Product Name
-    if (result.productName) {
-      checkAndFill('name', 'Product Name', result.productName.toUpperCase());
-    }
-
-    // 4. Category
-    if (result.categoryId) {
-      const matchCat = categoriesList.find(c => c.id === result.categoryId);
-      if (matchCat) {
-        checkAndFill('category_id', 'Category', matchCat.id);
+      // Also set primary barcode field if currently blank for backward compatibility
+      if (!form.getValues('barcode')) {
+        form.setValue('barcode', ident.normalized_value || rawTrimmed);
       }
-    } else if (result.category) {
-      const matchCat = categoriesList.find(c => 
-        c.name.toLowerCase() === result.category?.toLowerCase() ||
-        result.category?.toLowerCase().includes(c.name.toLowerCase())
-      );
-      if (matchCat) {
-        checkAndFill('category_id', 'Category', matchCat.id);
-      }
-    }
 
-    // 5. Manufacturer / Brand
-    if (result.manufacturer || result.brand) {
-      const brandSearch = result.brand || result.manufacturer;
-      const matchBrand = brandsList.find(b => 
-        (b.name && b.name.toLowerCase() === brandSearch?.toLowerCase()) ||
-        (b.manufacturer && b.manufacturer.toLowerCase() === brandSearch?.toLowerCase()) ||
-        (result.manufacturer && b.manufacturer && b.manufacturer.toLowerCase() === result.manufacturer.toLowerCase())
-      );
-      if (matchBrand) {
-        checkAndFill('brand_id', 'Manufacturer / Brand', matchBrand.id);
-      }
-    }
-
-    // 6. HSN Code
-    if (result.hsnCode) {
-      checkAndFill('hsn_code', 'HSN Code', result.hsnCode);
-    }
-
-    // 7. GST Rate
-    if (result.gstRate !== undefined) {
-      checkAndFill('gst_rate', 'GST Rate', Number(result.gstRate));
-    }
-
-    // 8. Product Size
-    if (result.sizeValue !== undefined && result.sizeValue !== null && Number(result.sizeValue) > 0) {
-      checkAndFill('product_size_value', 'Product Size Value', Number(result.sizeValue));
-      if (result.sizeUnit) {
-        form.setValue('product_size_unit', result.sizeUnit);
-        newAutofilled.add('product_size_unit');
-      }
-      const unit = result.sizeUnit || form.getValues('product_size_unit') || 'KG';
-      form.setValue('pack_size', `${result.sizeValue} ${unit}`, { shouldValidate: true });
-    } else if (result.packSize) {
-      form.setValue('pack_size', result.packSize, { shouldValidate: true });
-      newAutofilled.add('pack_size');
-    }
-
-    // 9. Batch Number
-    if (result.batchNumber) {
-      checkAndFill('batch_number', 'Batch No', result.batchNumber);
-    }
-
-    // 10. Manufacturing Date
-    if (result.manufacturingDate) {
-      checkAndFill('mfd_date', 'Mfg Date', result.manufacturingDate);
-    }
-
-    // 11. Expiry Date
-    if (result.expiryDate) {
-      checkAndFill('expiry_date', 'Expiry Date', result.expiryDate);
-    }
-
-    // 12. Active Ingredients & Composition
-    if (result.activeIngredients && result.activeIngredients.length > 0) {
-      checkAndFill('active_ingredient', 'Active Ingredient', result.activeIngredients.join(', '));
-    } else if (result.composition) {
-      checkAndFill('active_ingredient', 'Composition', result.composition);
-    }
-
-    // 13. Formulation
-    if (result.formulation) {
-      checkAndFill('formulation', 'Formulation', result.formulation);
-    }
-
-    // 14. Licence / Registration Number
-    if (result.manufacturingLicenceNumber || result.registrationNumber) {
-      checkAndFill('licence_number', 'Licence / Reg No', result.manufacturingLicenceNumber || result.registrationNumber);
-    }
-
-    // 15. Description
-    if (result.productDescription) {
-      checkAndFill('description', 'Description', result.productDescription);
-    }
-
-    // 16. Pricing & Stock (only if explicitly encoded in recognized structured data)
-    if (result.purchasePrice !== undefined && Number(result.purchasePrice) > 0) {
-      checkAndFill('purchase_price', 'Purchase Price', Number(result.purchasePrice));
-    }
-    if (result.sellingPrice !== undefined && Number(result.sellingPrice) > 0) {
-      checkAndFill('selling_price', 'Selling Price', Number(result.sellingPrice));
-    }
-    if (result.quantity !== undefined && Number(result.quantity) > 0) {
-      checkAndFill('opening_stock', 'Quantity in Stock', Number(result.quantity));
-    }
-
-    setAutofilledFields(newAutofilled);
-
-    if (newConflicts.length > 0) {
-      setConflicts(newConflicts);
-      setIsConflictDialogOpen(true);
-      toast.info(`${newConflicts.length} field conflict(s) detected. Please review.`);
-    } else {
-      toast.success('Product fields auto-filled from scanner. Please review before saving.');
-    }
+      return next;
+    });
+    toast.success('QR / Barcode linked ✓');
   };
 
-  const handleResolveConflict = (conflictField: string, useDetected: boolean) => {
-    const conflict = conflicts.find(c => c.fieldName === conflictField);
-    if (!conflict) return;
-
-    if (useDetected) {
-      form.setValue(conflict.fieldName as any, conflict.detectedValue, { shouldValidate: true });
-      setAutofilledFields(prev => new Set(prev).add(conflict.fieldName));
-      toast.success(`Applied detected ${conflict.label}`);
-    } else {
-      toast.info(`Kept current ${conflict.label}`);
-    }
-
-    const remaining = conflicts.filter(c => c.fieldName !== conflictField);
-    setConflicts(remaining);
-    if (remaining.length === 0) {
-      setIsConflictDialogOpen(false);
-    }
-  };
-
-  const handleResolveAllConflicts = (useAllDetected: boolean) => {
-    if (useAllDetected) {
-      const nextAutofill = new Set(autofilledFields);
-      conflicts.forEach(c => {
-        form.setValue(c.fieldName as any, c.detectedValue, { shouldValidate: true });
-        nextAutofill.add(c.fieldName);
-      });
-      setAutofilledFields(nextAutofill);
-      toast.success('Applied all detected values');
-    } else {
-      toast.info('Kept all current values');
-    }
-    setConflicts([]);
-    setIsConflictDialogOpen(false);
+  const handleRemoveIdentifier = (indexToRemove: number) => {
+    setLinkedIdentifiers((prev) => {
+      const next = prev.filter((_, idx) => idx !== indexToRemove);
+      if (next.length > 0 && !next.some((i) => i.is_primary)) {
+        next[0].is_primary = true;
+      }
+      return next;
+    });
+    toast.info('Identifier unlinked');
   };
 
   // Parse existing product size safely
@@ -325,7 +196,7 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
     ? 5
     : (initialData?.min_stock !== undefined && initialData?.min_stock !== null ? Number(initialData.min_stock) : 5);
 
-  // Form Setup
+  // Form Setup: Empty default category for safety
   const form = useForm<ProductInput>({
     resolver: zodResolver(productSchema),
     defaultValues: {
@@ -355,6 +226,7 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
       crop: initialData?.crop || '',
       target_pest: initialData?.target_pest || '',
       licence_number: initialData?.licence_number || '',
+      identifiers: [],
     },
   });
 
@@ -470,7 +342,7 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
         return [...prev, createdCat].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
       });
 
-      form.setValue('category_id', createdCat.id, { shouldValidate: true });
+      form.setValue('category_id', createdCat.id);
       toast.success(`Category "${trimmed}" added and selected`);
       setNewCategoryName('');
       setNewCategoryDescription('');
@@ -495,17 +367,16 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
     setIsSavingBrand(true);
     try {
       let createdBrand: any = null;
-      const mfgName = newBrandCompany.trim().toUpperCase() || trimmed;
 
       if (isClientDemoMode()) {
         createdBrand = saveDemoBrandClient({
           name: trimmed,
-          manufacturer: mfgName,
+          manufacturer: newBrandCompany.trim().toUpperCase() || trimmed,
         });
         try {
           await createBrandAction({
             name: trimmed,
-            manufacturer: mfgName,
+            manufacturer: newBrandCompany.trim().toUpperCase() || trimmed,
           });
         } catch (err) {
           console.warn('Server brand fallback in demo mode:', err);
@@ -513,7 +384,7 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
       } else {
         const res = await createBrandAction({
           name: trimmed,
-          manufacturer: mfgName,
+          manufacturer: newBrandCompany.trim().toUpperCase() || trimmed,
         });
         if (res.success && res.data) {
           createdBrand = res.data;
@@ -566,6 +437,8 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
       const packSize = sizeVal ? `${sizeVal} ${sizeUnit}` : (data.pack_size || '');
       const normalizedName = (data.name || '').trim().toUpperCase();
 
+      const primaryBarcode = data.barcode || (linkedIdentifiers.length > 0 ? (linkedIdentifiers[0].normalized_value || linkedIdentifiers[0].raw_value) : '');
+
       const formattedData: ProductInput = {
         ...data,
         name: normalizedName,
@@ -578,9 +451,10 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
         pack_size: packSize,
         unit: data.unit || initialData?.unit || 'Piece',
         sku: data.sku || `SKU-${Date.now().toString().slice(-4)}`,
-        barcode: data.barcode || '',
+        barcode: primaryBarcode,
         description: data.description || '',
         hsn_code: data.hsn_code || '',
+        identifiers: linkedIdentifiers,
       };
 
       if (isClientDemoMode()) {
@@ -647,7 +521,7 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
                 {mode === 'create' ? 'Add New Product' : `Edit Product: ${initialData?.name}`}
               </h1>
               <p className="text-sm text-muted-foreground mt-0.5">
-                Simple shopkeeper form: Product → Price → Batch → Expiry → Quantity (Pieces) & Product Size
+                Manual product entry + QR/Barcode identifier linking for instant billing lookup
               </p>
             </div>
           </div>
@@ -693,7 +567,7 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
                 className="h-9 px-4 rounded-lg border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary font-bold gap-2 text-xs shadow-sm self-start sm:self-auto shrink-0 transition-all active:scale-95"
               >
                 <Scan className="h-4 w-4 stroke-[2.5]" />
-                <span>Scan Barcode / QR</span>
+                <span>Link QR / Barcode</span>
               </Button>
             </div>
           </CardHeader>
@@ -702,15 +576,10 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
             <div className="space-y-2">
               <Label htmlFor="name" className="text-sm font-semibold text-foreground flex items-center">
                 {t('products.productName', 'Product Name')} <span className="text-destructive font-bold ml-0.5">*</span>
-                {autofilledFields.has('name') && (
-                  <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded ml-2">
-                    <Check className="h-3 w-3 stroke-[3]" /> Detected
-                  </span>
-                )}
               </Label>
               <Input
                 id="name"
-                placeholder="e.g. UREA, DAP, CONFIDOR, COTTON SEEDS, LIQUID FERTILIZER"
+                placeholder="e.g. UREA, DAP, CONFIDOR, COTTON SEEDS, EVICENT"
                 className="h-11 text-base rounded-lg border-border bg-background uppercase font-bold"
                 {...form.register('name')}
                 onChange={(e) => {
@@ -722,50 +591,6 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
               )}
             </div>
 
-            {/* Barcode & SKU Row */}
-            <div className="grid gap-5 grid-cols-1 sm:grid-cols-2 items-start pt-1">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="barcode" className="text-sm font-semibold text-foreground flex items-center">
-                    Barcode / GTIN
-                    {autofilledFields.has('barcode') && (
-                      <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded ml-2">
-                        <Check className="h-3 w-3 stroke-[3]" /> Detected
-                      </span>
-                    )}
-                  </Label>
-                </div>
-                <div className="flex gap-2">
-                  <Input
-                    id="barcode"
-                    placeholder="e.g. 8901234567890"
-                    className="h-11 text-sm rounded-lg border-border bg-background font-mono flex-1"
-                    {...form.register('barcode')}
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setIsScannerOpen(true)}
-                    className="h-11 px-3 border-border hover:bg-muted shrink-0 text-xs font-semibold gap-1"
-                  >
-                    <Scan className="h-3.5 w-3.5 text-primary" /> Scan
-                  </Button>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="sku" className="text-sm font-semibold text-foreground">
-                  SKU (Item Code)
-                </Label>
-                <Input
-                  id="sku"
-                  placeholder="e.g. SKU-1029 (auto-generated if blank)"
-                  className="h-11 text-sm rounded-lg border-border bg-background font-mono"
-                  {...form.register('sku')}
-                />
-              </div>
-            </div>
-
             {/* 2. Category, Manufacturer, HSN Code */}
             <div className="grid gap-5 grid-cols-1 md:grid-cols-3 items-start">
               {/* Category with Quick Add */}
@@ -773,11 +598,6 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
                 <div className="flex items-center justify-between">
                   <Label htmlFor="category_id" className="text-sm font-semibold text-foreground flex items-center">
                     {t('products.category', 'Category')} <span className="text-destructive font-bold ml-0.5">*</span>
-                    {autofilledFields.has('category_id') && (
-                      <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded ml-2">
-                        <Check className="h-3 w-3 stroke-[3]" /> Detected
-                      </span>
-                    )}
                   </Label>
                   <button
                     type="button"
@@ -800,28 +620,18 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
                   <SelectTrigger id="category_id" className="h-11 rounded-lg border-border bg-background text-foreground">
                     <SelectValue placeholder={t('products.selectCategory', 'Select Category')} />
                   </SelectTrigger>
-                  <SelectContent className="max-h-72">
-                    {categoriesList.length === 0 ? (
-                      <div className="px-3 py-3 text-center text-xs text-muted-foreground">
-                        {t('products.noCategories', 'No categories found for your shop yet.')}
-                      </div>
-                    ) : (
-                      categoriesList.map((c) => (
-                        <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                      ))
-                    )}
-                    <div className="px-2 py-1.5 border-t border-border mt-1 bg-muted/20">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setIsAddCategoryOpen(true);
-                        }}
-                        className="w-full text-left text-xs font-bold text-primary hover:underline flex items-center gap-1.5 py-1 cursor-pointer"
-                      >
-                        <Plus className="h-3.5 w-3.5 stroke-[3]" /> {t('products.addNewCategory', '+ Add New Category')}
-                      </button>
-                    </div>
+                  <SelectContent>
+                    <SelectItem value="__none__" disabled className="text-muted-foreground font-semibold">
+                      {t('products.selectCategory', 'Select Category')}
+                    </SelectItem>
+                    {categoriesList.map((cat) => (
+                      <SelectItem key={cat.id} value={cat.id} className="font-medium">
+                        {cat.name}
+                      </SelectItem>
+                    ))}
+                    <SelectItem value="__add_new__" className="text-primary font-bold border-t border-border mt-1">
+                      + Add New Category
+                    </SelectItem>
                   </SelectContent>
                 </Select>
                 {form.formState.errors.category_id && (
@@ -833,57 +643,43 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="brand_id" className="text-sm font-semibold text-foreground flex items-center">
-                    {t('products.manufacturer', 'Manufacturer')}
-                    {autofilledFields.has('brand_id') && (
-                      <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded ml-2">
-                        <Check className="h-3 w-3 stroke-[3]" /> Detected
-                      </span>
-                    )}
+                    {t('products.brand', 'Manufacturer')}
                   </Label>
                   <button
                     type="button"
                     onClick={() => setIsAddBrandOpen(true)}
                     className="text-xs text-primary font-bold hover:underline flex items-center gap-1 cursor-pointer"
                   >
-                    <Plus className="h-3.5 w-3.5 stroke-[3]" /> {t('products.addNewManufacturer', '+ Add New Manufacturer')}
+                    <Plus className="h-3.5 w-3.5 stroke-[3]" /> + Add New
                   </button>
                 </div>
                 <Select
-                  value={form.watch('brand_id') || '__none__'}
+                  value={form.watch('brand_id') || ''}
                   onValueChange={(val) => {
                     if (val === '__add_new__') {
                       setIsAddBrandOpen(true);
                     } else if (val === '__none__') {
-                      form.setValue('brand_id', null);
+                      form.setValue('brand_id', null as any);
                     } else {
                       form.setValue('brand_id', val);
                     }
                   }}
                 >
                   <SelectTrigger id="brand_id" className="h-11 rounded-lg border-border bg-background text-foreground">
-                    <SelectValue placeholder={t('products.selectManufacturer', 'Select Manufacturer')} />
+                    <SelectValue placeholder="Select Manufacturer (Optional)" />
                   </SelectTrigger>
-                  <SelectContent className="max-h-72">
-                    <SelectItem value="__none__" className="text-muted-foreground font-normal">
-                      {t('products.genericBrand', '-- No Manufacturer / Generic --')}
+                  <SelectContent>
+                    <SelectItem value="__none__" className="text-muted-foreground">
+                      None / Not Specified
                     </SelectItem>
-                    <div className="px-2 py-1.5 border-y border-border my-1 bg-muted/20">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setIsAddBrandOpen(true);
-                        }}
-                        className="w-full text-left text-xs font-bold text-primary hover:underline flex items-center gap-1.5 py-1"
-                      >
-                        <Plus className="h-3.5 w-3.5 stroke-[3]" /> {t('products.addNewManufacturer', '+ Add New Manufacturer')}
-                      </button>
-                    </div>
-                    {brandsList.map((b) => (
-                      <SelectItem key={b.id} value={b.id}>
-                        {b.name}
+                    {brandsList.map((brand) => (
+                      <SelectItem key={brand.id} value={brand.id} className="font-medium">
+                        {brand.name} {brand.manufacturer && brand.manufacturer !== brand.name ? `(${brand.manufacturer})` : ''}
                       </SelectItem>
                     ))}
+                    <SelectItem value="__add_new__" className="text-primary font-bold border-t border-border mt-1">
+                      + Add New Manufacturer
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -892,108 +688,193 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
               <div className="space-y-2">
                 <Label htmlFor="hsn_code" className="text-sm font-semibold text-foreground flex items-center">
                   {t('products.hsnCode', 'HSN Code')}
-                  {autofilledFields.has('hsn_code') && (
-                    <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded ml-2">
-                      <Check className="h-3 w-3 stroke-[3]" /> Detected
-                    </span>
-                  )}
                 </Label>
                 <Input
                   id="hsn_code"
-                  placeholder="e.g. 3105"
-                  className="h-11 text-base rounded-lg border-border bg-background"
+                  placeholder="e.g. 31021000"
+                  className="h-11 text-sm rounded-lg border-border bg-background font-mono"
                   {...form.register('hsn_code')}
                 />
               </div>
             </div>
 
-            {/* 3. Product Size, Batch No, Exp Date (Clean 3-col Grid) */}
-            <div className="grid gap-5 grid-cols-1 md:grid-cols-3 items-start pt-1">
-              {/* Product Size (Mandatory with *) */}
+            {/* 3. Linked Product QR / Barcodes Container */}
+            <div className="p-4 rounded-xl border border-primary/20 bg-primary/5 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <div className="h-7 w-7 rounded-md bg-primary/20 text-primary flex items-center justify-center">
+                    <Link2 className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-foreground">Linked Product QR / Barcodes</h4>
+                    <p className="text-xs text-muted-foreground">
+                      Saved identifiers are used for instant exact product lookup during Billing
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setIsScannerOpen(true)}
+                  className="h-8 text-xs font-bold gap-1.5 border-primary/40 text-primary hover:bg-primary/20 bg-background"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>Add QR / Barcode</span>
+                </Button>
+              </div>
+
+              {linkedIdentifiers.length === 0 ? (
+                <div className="p-3 text-center rounded-lg border border-dashed border-border bg-background/60 text-xs text-muted-foreground">
+                  No QR/Barcode linked yet. Click <strong>&quot;Add QR / Barcode&quot;</strong> to scan and register one or more identifiers.
+                </div>
+              ) : (
+                <div className="space-y-2 pt-1">
+                  {linkedIdentifiers.map((ident, index) => {
+                    const isQr = ident.identifier_type === 'qr' || ident.raw_value.startsWith('http');
+                    const truncatedVal = ident.raw_value.length > 38 
+                      ? `${ident.raw_value.slice(0, 20)}...${ident.raw_value.slice(-14)}` 
+                      : ident.raw_value;
+
+                    return (
+                      <div
+                        key={`${ident.raw_value}-${index}`}
+                        className="flex items-center justify-between p-2.5 rounded-lg border border-border bg-background text-xs shadow-xs"
+                      >
+                        <div className="flex items-center gap-2.5 overflow-hidden">
+                          <span className={`inline-flex items-center gap-1 font-bold text-[10px] px-2 py-0.5 rounded-md uppercase tracking-wider ${
+                            isQr 
+                              ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20' 
+                              : 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20'
+                          }`}>
+                            {isQr ? <QrCode className="h-3 w-3" /> : <Barcode className="h-3 w-3" />}
+                            {ident.identifier_type}
+                          </span>
+                          <span className="font-mono text-foreground break-all truncate font-semibold">
+                            {truncatedVal}
+                          </span>
+                          {ident.is_primary && (
+                            <span className="text-[10px] bg-muted px-1.5 py-0.2 rounded text-muted-foreground font-semibold">
+                              Primary
+                            </span>
+                          )}
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleRemoveIdentifier(index)}
+                          className="h-7 w-7 text-muted-foreground hover:text-destructive shrink-0"
+                          title="Unlink identifier"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* 4. Product Size and Physical Packaging */}
+            <div className="grid gap-5 grid-cols-1 md:grid-cols-2 items-start">
+              {/* Product Size (Numeric Value + Measurement Unit) */}
               <div className="space-y-2">
                 <Label htmlFor="product_size_value" className="text-sm font-semibold text-foreground flex items-center">
-                  {t('products.productSize', 'Product Size')} <span className="text-destructive font-bold ml-0.5">*</span>
-                  {autofilledFields.has('product_size_value') && (
-                    <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded ml-2">
-                      <Check className="h-3 w-3 stroke-[3]" /> Detected
-                    </span>
-                  )}
+                  Product Size <span className="text-destructive font-bold ml-0.5">*</span>
                 </Label>
-                <div className="relative flex items-stretch rounded-lg border border-input bg-background focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary transition-all overflow-hidden h-11">
+                <div className="flex gap-2">
                   <Input
                     id="product_size_value"
                     type="number"
                     step="any"
-                    min="0"
-                    placeholder="e.g. 1"
-                    className="h-full border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 rounded-none text-sm font-semibold text-foreground px-3 flex-1 min-w-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                    value={form.watch('product_size_value') ?? ''}
+                    min="0.001"
+                    placeholder="e.g. 45, 100, 500, 1"
+                    className="h-11 text-base font-bold rounded-lg border-border bg-background flex-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    value={form.watch('product_size_value') !== undefined && form.watch('product_size_value') !== null ? String(form.watch('product_size_value')) : ''}
                     onChange={(e) => {
-                      const val = e.target.value === '' ? null : Number(e.target.value);
-                      form.setValue('product_size_value', val as any, { shouldValidate: true });
-                      const unit = form.getValues('product_size_unit') || 'KG';
-                      form.setValue('pack_size', val ? `${val} ${unit}` : '', { shouldValidate: true });
+                      const val = e.target.value;
+                      form.setValue('product_size_value', val === '' ? ('' as any) : Number(val), { shouldValidate: true });
+                      const currentUnit = form.getValues('product_size_unit') || 'KG';
+                      if (val) {
+                        form.setValue('pack_size', `${val} ${currentUnit}`, { shouldValidate: true });
+                      }
                     }}
                   />
-                  <div className="h-full shrink-0 border-l border-border bg-muted/20 flex items-center">
-                    <Select
-                      value={form.watch('product_size_unit') || 'KG'}
-                      onValueChange={(val) => {
-                        form.setValue('product_size_unit', val);
-                        const currentVal = form.getValues('product_size_value');
-                        if (currentVal) {
-                          form.setValue('pack_size', `${currentVal} ${val}`, { shouldValidate: true });
-                        }
-                      }}
-                    >
-                      <SelectTrigger className="h-full w-[80px] border-0 rounded-none bg-transparent hover:bg-muted/40 focus:ring-0 focus:ring-offset-0 px-2 text-xs font-semibold text-foreground shadow-none justify-between">
-                        <SelectValue placeholder="Unit" />
-                      </SelectTrigger>
-                      <SelectContent className="max-h-64">
-                        {PRODUCT_SIZE_UNITS.map((u) => (
-                          <SelectItem key={u.value} value={u.value} className="text-xs font-medium">
-                            {u.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  <Select
+                    value={form.watch('product_size_unit') || 'KG'}
+                    onValueChange={(val) => {
+                      form.setValue('product_size_unit', val, { shouldValidate: true });
+                      const currentVal = form.getValues('product_size_value');
+                      if (currentVal !== undefined && currentVal !== null && String(currentVal) !== '') {
+                        form.setValue('pack_size', `${currentVal} ${val}`, { shouldValidate: true });
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="w-[140px] h-11 rounded-lg border-border bg-background text-foreground font-bold shrink-0">
+                      <SelectValue placeholder="Unit" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PRODUCT_SIZE_UNITS.map((u) => (
+                        <SelectItem key={u.value} value={u.value} className="font-semibold">
+                          {u.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 {form.formState.errors.product_size_value && (
                   <p className="text-xs text-destructive font-medium">{form.formState.errors.product_size_value.message}</p>
                 )}
+                <p className="text-[11px] text-muted-foreground">e.g. 45 KG, 100 ML, 1 LTR, 500 GM</p>
               </div>
 
-              {/* Batch No */}
+              {/* Physical Packaging Unit */}
+              <div className="space-y-2">
+                <Label htmlFor="unit" className="text-sm font-semibold text-foreground flex items-center">
+                  Packaging Type <span className="text-destructive font-bold ml-0.5">*</span>
+                </Label>
+                <Select
+                  value={form.watch('unit') || 'Piece'}
+                  onValueChange={(val) => form.setValue('unit', val, { shouldValidate: true })}
+                >
+                  <SelectTrigger id="unit" className="h-11 rounded-lg border-border bg-background text-foreground">
+                    <SelectValue placeholder="Select Packaging" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Bag">Bag (पोते / थैला)</SelectItem>
+                    <SelectItem value="Bottle">Bottle (बाटली / बोतल)</SelectItem>
+                    <SelectItem value="Packet">Packet (पॉकेट / पैकेट)</SelectItem>
+                    <SelectItem value="Box">Box (खोका / डिब्बा)</SelectItem>
+                    <SelectItem value="Can">Can (कॅन)</SelectItem>
+                    <SelectItem value="Drum">Drum (ड्रम)</SelectItem>
+                    <SelectItem value="Container">Container (कंटेनर)</SelectItem>
+                    <SelectItem value="Piece">Piece (नग / प्रति वस्तु)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-muted-foreground">Type of packaging container sold</p>
+              </div>
+            </div>
+
+            {/* 5. Batch & Expiry Row */}
+            <div className="grid gap-5 grid-cols-1 sm:grid-cols-2 items-start">
+              {/* Batch Number */}
               <div className="space-y-2">
                 <Label htmlFor="batch_number" className="text-sm font-semibold text-foreground flex items-center">
-                  {t('products.batchNo', 'Batch No')}
-                  {autofilledFields.has('batch_number') && (
-                    <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded ml-2">
-                      <Check className="h-3 w-3 stroke-[3]" /> Detected
-                    </span>
-                  )}
+                  {t('products.batchNumber', 'Batch No')}
                 </Label>
                 <Input
                   id="batch_number"
-                  placeholder="e.g. B-101"
+                  placeholder="e.g. BAT-2025-01 (Auto-assigned if empty)"
                   className="h-11 text-sm rounded-lg border-border bg-background font-mono"
                   {...form.register('batch_number')}
                 />
-                {form.formState.errors.batch_number && (
-                  <p className="text-xs text-destructive font-medium">{form.formState.errors.batch_number.message}</p>
-                )}
               </div>
 
-              {/* Exp Date */}
+              {/* Expiry Date (DD/MM/YYYY) */}
               <div className="space-y-2">
                 <Label htmlFor="expiry_date" className="text-sm font-semibold text-foreground flex items-center">
-                  {t('products.expDate', 'Exp Date')}
-                  {autofilledFields.has('expiry_date') && (
-                    <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded ml-2">
-                      <Check className="h-3 w-3 stroke-[3]" /> Detected
-                    </span>
-                  )}
+                  {t('products.expiryDate', 'Expiry Date')} <span className="text-xs text-muted-foreground font-normal ml-1">(DD/MM/YYYY)</span>
                 </Label>
                 <div className="relative">
                   <Input
@@ -1036,11 +917,6 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
             <div className="space-y-2">
               <Label htmlFor="purchase_price" className="text-sm font-semibold text-foreground flex items-center">
                 {t('products.purchasePrice', 'Purchase Price')} <span className="text-destructive font-bold ml-0.5">*</span>
-                {autofilledFields.has('purchase_price') && (
-                  <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded ml-2">
-                    <Check className="h-3 w-3 stroke-[3]" /> Detected
-                  </span>
-                )}
               </Label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold text-sm">₹</span>
@@ -1063,11 +939,6 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
             <div className="space-y-2">
               <Label htmlFor="selling_price" className="text-sm font-semibold text-foreground flex items-center truncate" title="Selling Price (Including GST)">
                 {t('products.sellingPriceIncGst', 'Selling Price (Inc. GST)')} <span className="text-destructive font-bold ml-0.5">*</span>
-                {autofilledFields.has('selling_price') && (
-                  <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded ml-2">
-                    <Check className="h-3 w-3 stroke-[3]" /> Detected
-                  </span>
-                )}
               </Label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-primary font-bold text-sm">₹</span>
@@ -1109,11 +980,6 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
             <div className="space-y-2">
               <Label htmlFor="gst_rate" className="text-sm font-semibold text-foreground flex items-center">
                 {t('products.gstRate', 'GST')}
-                {autofilledFields.has('gst_rate') && (
-                  <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded ml-2">
-                    <Check className="h-3 w-3 stroke-[3]" /> Detected
-                  </span>
-                )}
               </Label>
               <Select
                 value={String(form.watch('gst_rate'))}
@@ -1154,11 +1020,6 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
             <div className="space-y-2">
               <Label htmlFor="opening_stock" className="text-sm font-semibold text-foreground flex items-center">
                 {t('products.quantityInStock', 'Quantity in Stock')} <span className="text-destructive font-bold ml-0.5">*</span>
-                {autofilledFields.has('opening_stock') && (
-                  <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded ml-2">
-                    <Check className="h-3 w-3 stroke-[3]" /> Detected
-                  </span>
-                )}
               </Label>
               <div className="flex rounded-lg border border-border bg-background focus-within:ring-2 focus-within:ring-primary focus-within:border-primary overflow-hidden">
                 <Input
@@ -1235,91 +1096,13 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
       </form>
 
       {/* ═════════════════════════════════════════════════════════
-          MODAL: PRODUCT BARCODE / QR SCANNER
+          MODAL: LINK PRODUCT QR / BARCODE
       ═════════════════════════════════════════════════════════ */}
-      <ProductBarcodeScannerModal
+      <LinkProductBarcodeModal
         isOpen={isScannerOpen}
         onClose={() => setIsScannerOpen(false)}
-        onApplyScanResult={handleApplyScanResult}
+        onLinkIdentifier={handleLinkIdentifier}
       />
-
-      {/* ═════════════════════════════════════════════════════════
-          MODAL: SCANNER CONFLICT RESOLUTION
-      ═════════════════════════════════════════════════════════ */}
-      <Dialog open={isConflictDialogOpen} onOpenChange={setIsConflictDialogOpen}>
-        <DialogContent className="sm:max-w-lg border-border bg-card text-card-foreground p-6 rounded-2xl shadow-2xl">
-          <DialogHeader className="space-y-1 text-left">
-            <div className="flex items-center gap-2.5">
-              <div className="h-9 w-9 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center font-bold">
-                <AlertTriangle className="h-5 w-5" />
-              </div>
-              <div>
-                <DialogTitle className="text-lg font-bold">Review Detected Data</DialogTitle>
-                <DialogDescription className="text-xs text-muted-foreground">
-                  Some fields already have entered values. Choose which values you want to keep.
-                </DialogDescription>
-              </div>
-            </div>
-          </DialogHeader>
-
-          <div className="space-y-3 my-4 max-h-80 overflow-y-auto pr-1">
-            {conflicts.map((c) => (
-              <div key={c.fieldName} className="p-3.5 rounded-xl border border-border bg-muted/30 space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold uppercase tracking-wider text-primary">{c.label}</span>
-                </div>
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div className="p-2.5 rounded-lg bg-background border border-border/80">
-                    <span className="text-[10px] uppercase font-bold text-muted-foreground block mb-0.5">Current Value</span>
-                    <span className="font-semibold text-foreground break-all">{String(c.currentValue || '—')}</span>
-                  </div>
-                  <div className="p-2.5 rounded-lg bg-primary/5 border border-primary/20">
-                    <span className="text-[10px] uppercase font-bold text-primary block mb-0.5">Detected Value</span>
-                    <span className="font-bold text-foreground break-all">{String(c.detectedValue || '—')}</span>
-                  </div>
-                </div>
-                <div className="flex items-center justify-end gap-2 pt-1">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleResolveConflict(c.fieldName, false)}
-                    className="h-7 text-xs font-semibold px-3"
-                  >
-                    Keep Current
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={() => handleResolveConflict(c.fieldName, true)}
-                    className="h-7 text-xs font-bold px-3 bg-primary hover:bg-primary/90 text-primary-foreground"
-                  >
-                    Use Detected
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <DialogFooter className="grid grid-cols-2 gap-3 sm:gap-3">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => handleResolveAllConflicts(false)}
-              className="w-full font-semibold"
-            >
-              Keep All Current
-            </Button>
-            <Button
-              type="button"
-              onClick={() => handleResolveAllConflicts(true)}
-              className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold"
-            >
-              Use All Detected
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* ═════════════════════════════════════════════════════════
           MODAL: ADD NEW CATEGORY

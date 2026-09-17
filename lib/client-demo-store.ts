@@ -930,6 +930,7 @@ export function normalizeDemoProduct(p: any) {
     min_stock: minStock,
     is_active: p.is_active !== false,
     batches: p.batches || [],
+    identifiers: p.identifiers || [],
     created_at: p.created_at || new Date().toISOString(),
     updated_at: p.updated_at || new Date().toISOString(),
   };
@@ -1050,6 +1051,7 @@ export function saveDemoProductClient(data: any): any {
     batch_number: batchNumber,
     expiry_date: dbExpiry,
     batches: batches,
+    identifiers: data.identifiers || [],
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   });
@@ -1122,6 +1124,7 @@ export function updateDemoProductClient(id: string, data: any): any {
     batch_number: batchNum,
     expiry_date: dbExpiry,
     batches: updatedBatches,
+    identifiers: data.identifiers !== undefined ? data.identifiers : (current[idx].identifiers || []),
     selling_price: data.selling_price !== undefined ? Number(data.selling_price) : current[idx].selling_price,
     purchase_price: data.purchase_price !== undefined ? Number(data.purchase_price) : current[idx].purchase_price,
     wholesale_price: data.wholesale_price !== undefined ? Number(data.wholesale_price) : current[idx].wholesale_price,

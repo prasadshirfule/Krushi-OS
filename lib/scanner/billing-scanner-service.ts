@@ -85,27 +85,53 @@ export function matchBillingProductStock(
     };
   }
 
-  // 1. Exact match search on barcode, SKU, or GTIN
-  const matchedProduct = products.find((p: any) => {
-    const pBarcode = (p.barcode || '').trim();
-    const pSku = (p.sku || '').trim();
-    const pGtin = (p.gtin || '').trim();
-    
-    // Check main product barcode / sku / gtin
-    if (searchCodes.some(code => code === pBarcode || code === pSku || code === pGtin)) {
-      return true;
-    }
+  const cleanRawTrimmed = (scannedRaw || '').trim();
 
-    // Check if any product batch has matching barcode
-    if (Array.isArray(p.batches) && p.batches.length > 0) {
-      return p.batches.some((b: any) => {
-        const bCode = (b.barcode || '').trim();
-        return searchCodes.some(code => code === bCode);
-      });
+  // 1. Priority 1: Exact raw identifier match on registered product_identifiers
+  let matchedProduct = products.find((p: any) => {
+    if (Array.isArray(p.identifiers) && p.identifiers.length > 0) {
+      return p.identifiers.some((i: any) => (i.raw_value || '').trim() === cleanRawTrimmed);
     }
-
     return false;
   });
+
+  // 2. Priority 2: Exact normalized barcode / GTIN match on registered product_identifiers
+  if (!matchedProduct) {
+    matchedProduct = products.find((p: any) => {
+      if (Array.isArray(p.identifiers) && p.identifiers.length > 0) {
+        return p.identifiers.some((i: any) => {
+          const raw = (i.raw_value || '').trim();
+          const norm = (i.normalized_value || '').trim();
+          return searchCodes.includes(raw) || (norm && searchCodes.includes(norm));
+        });
+      }
+      return false;
+    });
+  }
+
+  // 3. Priority 3: Fallback exact match on product barcode, SKU, or GTIN
+  if (!matchedProduct) {
+    matchedProduct = products.find((p: any) => {
+      const pBarcode = (p.barcode || '').trim();
+      const pSku = (p.sku || '').trim();
+      const pGtin = (p.gtin || '').trim();
+      
+      // Check main product barcode / sku / gtin
+      if (searchCodes.some(code => code === pBarcode || code === pSku || code === pGtin)) {
+        return true;
+      }
+
+      // Check if any product batch has matching barcode
+      if (Array.isArray(p.batches) && p.batches.length > 0) {
+        return p.batches.some((b: any) => {
+          const bCode = (b.barcode || '').trim();
+          return searchCodes.some(code => code === bCode);
+        });
+      }
+
+      return false;
+    });
+  }
 
   if (!matchedProduct) {
     return {
@@ -269,7 +295,7 @@ export function matchBillingProductStock(
  * Builds the standard Billing Cart Item from a matched product and batch.
  */
 export function buildBillingCartItem(match: BillingScanLookupResult): any {
-  if (!match.found || !match.product) return null;
+  if (!match.found || !match.product || match.isOutOfStock || match.isExpired || match.reason === 'OUT_OF_STOCK' || match.reason === 'EXPIRED') return null;
 
   const product = match.product;
   const activeBatch = match.selectedBatch;

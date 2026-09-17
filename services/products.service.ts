@@ -55,6 +55,7 @@ export function normalizeProduct(p: any): ProductWithRelations {
     min_stock: minStock,
     is_active: p.is_active !== false,
     batches: p.batches || [],
+    identifiers: p.identifiers || [],
     created_at: p.created_at || new Date().toISOString(),
     updated_at: p.updated_at || new Date().toISOString(),
   };
@@ -127,7 +128,7 @@ export async function getProducts(
 
     let query = supabase
       .from('products')
-      .select('*, category:categories(id, name), brand:brands(id, name, manufacturer), batches:product_batches(*)', { count: 'exact' })
+      .select('*, category:categories(id, name), brand:brands(id, name, manufacturer), batches:product_batches(*), identifiers:product_identifiers(*)', { count: 'exact' })
       .eq('shop_id', shopId)
       .eq('is_active', true);
     
@@ -166,7 +167,7 @@ export async function getProductById(shopId: string, productId: string): Promise
     const supabase = await createServerSupabaseClient();
     const { data, error } = await supabase
       .from('products')
-      .select('*, category:categories(*), brand:brands(*), batches:product_batches(*)')
+      .select('*, category:categories(*), brand:brands(*), batches:product_batches(*), identifiers:product_identifiers(*)')
       .eq('shop_id', shopId)
       .eq('id', productId)
       .single();
@@ -241,11 +242,10 @@ export async function createProduct(shopId: string, data: CreateProductInput, us
       batch_number: batchNumber,
       expiry_date: dbExpiry,
       batches: [batch],
+      identifiers: data.identifiers || [],
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     });
-
-
 
     all.unshift(newProd);
     saveStoredDemoProducts(all);
@@ -297,6 +297,24 @@ export async function createProduct(shopId: string, data: CreateProductInput, us
   if (error) {
     console.error("Atomic create_product_with_stock RPC error:", error);
     throw new Error(error.message || 'Failed to create product atomically');
+  }
+
+  // Persist registered product identifiers
+  const createdProductId = res?.id || res?.product_id;
+  if (createdProductId && Array.isArray(data.identifiers) && data.identifiers.length > 0) {
+    try {
+      const identifierRows = data.identifiers.map((ident: any, idx: number) => ({
+        shop_id: shopId,
+        product_id: createdProductId,
+        identifier_type: ident.identifier_type || 'other',
+        raw_value: String(ident.raw_value).trim(),
+        normalized_value: ident.normalized_value ? String(ident.normalized_value).trim() : null,
+        is_primary: ident.is_primary !== undefined ? Boolean(ident.is_primary) : idx === 0,
+      }));
+      await supabase.from('product_identifiers').insert(identifierRows);
+    } catch (identErr) {
+      console.warn("Failed to link product identifiers on create:", identErr);
+    }
   }
 
   return res;
@@ -354,6 +372,7 @@ export async function updateProduct(shopId: string, productId: string, data: Upd
       batch_number: batchNum,
       expiry_date: dbExpiry,
       batches: updatedBatches,
+      identifiers: data.identifiers !== undefined ? data.identifiers : (current.identifiers || []),
       current_stock: initialStock,
       stock_quantity: initialStock,
       updated_at: new Date().toISOString(),
@@ -411,6 +430,31 @@ export async function updateProduct(shopId: string, productId: string, data: Upd
   if (error) {
     console.error("Error updating product metadata:", error);
     throw new Error(error.message || 'Failed to update product');
+  }
+
+  // Synchronize registered product identifiers
+  if (data.identifiers !== undefined) {
+    try {
+      await supabase
+        .from('product_identifiers')
+        .delete()
+        .eq('shop_id', shopId)
+        .eq('product_id', productId);
+
+      if (Array.isArray(data.identifiers) && data.identifiers.length > 0) {
+        const identifierRows = data.identifiers.map((ident: any, idx: number) => ({
+          shop_id: shopId,
+          product_id: productId,
+          identifier_type: ident.identifier_type || 'other',
+          raw_value: String(ident.raw_value).trim(),
+          normalized_value: ident.normalized_value ? String(ident.normalized_value).trim() : null,
+          is_primary: ident.is_primary !== undefined ? Boolean(ident.is_primary) : idx === 0,
+        }));
+        await supabase.from('product_identifiers').insert(identifierRows);
+      }
+    } catch (identErr) {
+      console.warn("Failed to synchronize product identifiers on update:", identErr);
+    }
   }
 
   // Synchronize batch tracking information in Supabase product_batches table
@@ -491,10 +535,24 @@ export async function getProductByBarcode(shopId: string, barcode: string): Prom
     const list = getStoredDemoProducts(normalizeProduct);
     const found = list.find((p: any) => {
       if (p.is_active === false) return false;
+      
+      // 1. Registered identifiers (exact raw match or normalized in searchCodes)
+      if (Array.isArray(p.identifiers) && p.identifiers.length > 0) {
+        const hasIdentMatch = p.identifiers.some((i: any) => {
+          const raw = (i.raw_value || '').trim();
+          const norm = (i.normalized_value || '').trim();
+          return raw === cleanBarcode || searchCodes.includes(raw) || (norm && searchCodes.includes(norm));
+        });
+        if (hasIdentMatch) return true;
+      }
+
+      // 2. Barcode, SKU, GTIN
       const pBarcode = (p.barcode || '').trim();
       const pSku = (p.sku || '').trim();
       const pGtin = (p.gtin || '').trim();
       if (searchCodes.some(code => code === pBarcode || code === pSku || code === pGtin)) return true;
+      
+      // 3. Batches
       if (Array.isArray(p.batches) && p.batches.length > 0) {
         return p.batches.some((b: any) => searchCodes.includes((b.barcode || '').trim()));
       }
@@ -506,11 +564,23 @@ export async function getProductByBarcode(shopId: string, barcode: string): Prom
   try {
     const supabase = await createServerSupabaseClient();
     
-    // 1. Exact match on products table
+    // 1. First check registered product_identifiers
+    const { data: identData } = await supabase
+      .from('product_identifiers')
+      .select('product_id, products:products(*, category:categories(id, name), brand:brands(id, name, manufacturer), batches:product_batches(*), identifiers:product_identifiers(*))')
+      .eq('shop_id', shopId)
+      .or(`raw_value.eq.${cleanBarcode},${searchCodes.map(c => `normalized_value.eq.${c},raw_value.eq.${c}`).join(',')}`)
+      .limit(1);
+
+    if (identData && identData.length > 0 && (identData[0] as any).products) {
+      return (identData[0] as any).products as unknown as ProductWithRelations;
+    }
+
+    // 2. Exact match on products table
     const orClause = searchCodes.map(c => `barcode.eq.${c},sku.eq.${c}`).join(',');
     const { data, error } = await supabase
       .from('products')
-      .select('*, category:categories(id, name), brand:brands(id, name, manufacturer), batches:product_batches(*)')
+      .select('*, category:categories(id, name), brand:brands(id, name, manufacturer), batches:product_batches(*), identifiers:product_identifiers(*)')
       .eq('shop_id', shopId)
       .eq('is_active', true)
       .or(orClause)
@@ -525,10 +595,10 @@ export async function getProductByBarcode(shopId: string, barcode: string): Prom
       return data[0] as ProductWithRelations;
     }
 
-    // 2. Also check if barcode matches a specific product batch
+    // 3. Also check if barcode matches a specific product batch
     const { data: batchData } = await supabase
       .from('product_batches')
-      .select('product_id, products:products(*, category:categories(id, name), brand:brands(id, name, manufacturer), batches:product_batches(*))')
+      .select('product_id, products:products(*, category:categories(id, name), brand:brands(id, name, manufacturer), batches:product_batches(*), identifiers:product_identifiers(*))')
       .eq('shop_id', shopId)
       .eq('is_active', true)
       .in('barcode', searchCodes)

@@ -1,4 +1,4 @@
-import { Product, ProductBatch, Category, Brand } from './database';
+import { Product, ProductBatch, Category, Brand, ProductIdentifier } from './database';
 import { ProductInput } from '@/lib/validations';
 
 export type CreateProductInput = ProductInput & {
@@ -16,6 +16,7 @@ export type ProductWithRelations = Product & {
   category?: Category | null;
   brand?: Brand | null;
   batches?: ProductBatch[];
+  identifiers?: ProductIdentifier[];
 };
 
 export interface ProductListResponse {

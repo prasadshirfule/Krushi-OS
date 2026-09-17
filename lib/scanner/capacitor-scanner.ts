@@ -78,6 +78,19 @@ export class NativeBarcodeScannerSession {
   }
 
   /**
+   * Atomically acquires scan lock. Returns true if acquired, false if already locked.
+   */
+  acquireLock(): boolean {
+    if (this.isLocked) return false;
+    this.isLocked = true;
+    return true;
+  }
+
+  isLockedStatus(): boolean {
+    return this.isLocked;
+  }
+
+  /**
    * Starts bounded native camera preview at exact coordinates.
    */
   async start(box?: EmbeddedScannerBoxRect): Promise<boolean> {
