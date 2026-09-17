@@ -223,7 +223,7 @@ export function LinkProductBarcodeModal({
         }
       }}
     >
-      <DialogContent className="max-w-md w-[92vw] sm:w-full p-0 overflow-hidden bg-card border-border shadow-2xl rounded-2xl">
+      <DialogContent showCloseButton={false} className="max-w-md w-[92vw] sm:w-full p-0 overflow-hidden bg-card border-border shadow-2xl rounded-2xl">
         {/* Header */}
         <DialogHeader className="p-4 pb-2 border-b border-border/60 flex flex-row items-center justify-between">
           <div className="flex items-center gap-2">

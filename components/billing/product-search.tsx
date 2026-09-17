@@ -311,7 +311,7 @@ function ProductSearchComponent({ onAddToCart }: ProductSearchProps) {
               placeholder={t('billing.searchAnyProduct', 'Search product or barcode (F4)...')}
               className="pl-10 pr-10 py-5 text-base rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground focus-visible:border-primary"
             />
-            {query ? (
+            {query && (
               <Button
                 variant="ghost"
                 size="icon"
@@ -320,10 +320,6 @@ function ProductSearchComponent({ onAddToCart }: ProductSearchProps) {
               >
                 <X className="h-4 w-4" />
               </Button>
-            ) : (
-              <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 text-[11px] font-mono text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded border border-border pointer-events-none">
-                <Barcode className="h-3 w-3" /> F4
-              </div>
             )}
           </div>
 

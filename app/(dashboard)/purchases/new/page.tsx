@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { 
   ArrowLeft, Plus, Trash2, Search, Package, Building2, Calendar, 
-  Receipt, CreditCard, AlertCircle, Check, Loader2, Sparkles, Layers
+  Receipt, CreditCard, AlertCircle, Check, Loader2, Sparkles, Layers, FileText
 } from 'lucide-react';
 import Link from 'next/link';
 import { formatCurrency, generateId } from '@/lib/utils';
@@ -19,6 +19,8 @@ import { searchProductsAction } from '@/actions/products';
 import { getBatchesAction } from '@/actions/inventory';
 import { completePurchaseAction } from '@/actions/purchases';
 import { isClientDemoMode, getDemoProductsClient } from '@/lib/client-demo-store';
+import { PurchaseBillScannerModal } from '@/components/scanner/purchase-bill-scanner-modal';
+import { PurchaseDraftResult } from '@/lib/scanner/purchase-bill-parser';
 
 interface PurchaseItemRow {
   rowId: string;
@@ -59,6 +61,56 @@ export default function NewPurchasePage() {
   // Items in purchase
   const [items, setItems] = useState<PurchaseItemRow[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isBillScannerOpen, setIsBillScannerOpen] = useState(false);
+
+  // Apply parsed draft from Purchase Bill Scanner
+  const handleApplyPurchaseDraft = async (draft: PurchaseDraftResult) => {
+    if (draft.supplier?.id) {
+      setSelectedSupplierId(draft.supplier.id);
+    }
+    if (draft.invoiceNumber) {
+      setInvoiceNumber(draft.invoiceNumber);
+    }
+    if (draft.invoiceDate) {
+      setPurchaseDate(draft.invoiceDate);
+    }
+
+    if (draft.items && draft.items.length > 0) {
+      const mappedRows: PurchaseItemRow[] = await Promise.all(
+        draft.items.map(async (item) => {
+          let existingBatches: any[] = [];
+          if (item.matchedProductId) {
+            try {
+              const res = await getBatchesAction(item.matchedProductId);
+              if (res.success && Array.isArray(res.data)) {
+                existingBatches = res.data;
+              }
+            } catch {}
+          }
+
+          return {
+            rowId: generateId(),
+            productId: item.matchedProductId || '',
+            productName: item.matchedProductName || item.rawName || '',
+            sku: item.sku || '',
+            unit: item.unit || 'BAGS',
+            batchId: undefined,
+            batchNumber: item.batchNumber || '',
+            isNewBatch: true,
+            manufacturingDate: item.manufacturingDate || '',
+            expiryDate: item.expiryDate || '',
+            quantity: Number(item.quantity) || 1,
+            purchasePrice: Number(item.purchasePrice) || 0,
+            sellingPrice: Number(item.sellingPrice) || (Number(item.purchasePrice) > 0 ? Math.round(Number(item.purchasePrice) * 1.15) : 0),
+            gstRate: Number(item.gstRate) || 5,
+            existingBatches,
+          };
+        })
+      );
+
+      setItems(mappedRows);
+    }
+  };
 
   // Load suppliers and initial products
   const loadInitialData = useCallback(async () => {
@@ -372,6 +424,16 @@ export default function NewPurchasePage() {
             <p className="text-xs sm:text-sm text-muted-foreground">Inward supplier invoice & automatic inventory batch replenishment</p>
           </div>
         </div>
+
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => setIsBillScannerOpen(true)}
+          className="h-9 px-3.5 rounded-xl border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary font-semibold gap-2 text-xs shadow-sm shrink-0"
+        >
+          <FileText className="h-4 w-4" />
+          <span>Scan Purchase Bill / Image</span>
+        </Button>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
@@ -768,6 +830,15 @@ export default function NewPurchasePage() {
           </Button>
         </div>
       </form>
+
+      {/* ─── Dedicated Purchase Bill Scanner Modal ─── */}
+      <PurchaseBillScannerModal
+        isOpen={isBillScannerOpen}
+        onClose={() => setIsBillScannerOpen(false)}
+        onApplyDraft={handleApplyPurchaseDraft}
+        catalogProducts={catalogProducts}
+        suppliersList={suppliers}
+      />
     </div>
   );
 }
