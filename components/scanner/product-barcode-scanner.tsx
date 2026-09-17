@@ -6,6 +6,7 @@ import {
   NativeBarcodeScannerSession,
   isNativeScannerSupported,
   openCameraSettings,
+  EmbeddedScannerBoxRect,
 } from '@/lib/scanner/capacitor-scanner';
 import {
   startEmbeddedOcrCamera,
@@ -99,10 +100,14 @@ export function ProductBarcodeScannerModal({
   const [isOcrCapturing, setIsOcrCapturing] = useState(false);
 
   const sessionRef = useRef<NativeBarcodeScannerSession | null>(null);
+  const scanLockedRef = useRef(false);
+  const isProcessingRef = useRef(false);
 
   // Initialize or teardown scanner session when modal opens or closes
   useEffect(() => {
     if (!isOpen) {
+      scanLockedRef.current = false;
+      isProcessingRef.current = false;
       cleanupScanner();
       setScanResult(null);
       setManualInput('');
@@ -113,6 +118,8 @@ export function ProductBarcodeScannerModal({
     startScannerFlow();
 
     return () => {
+      scanLockedRef.current = false;
+      isProcessingRef.current = false;
       cleanupScanner();
     };
   }, [isOpen]);
@@ -135,12 +142,18 @@ export function ProductBarcodeScannerModal({
    * Main scan processing pipeline: Local parse -> Instant UI -> DB Lookup -> Background URL Enrichment
    */
   const processRawScanValue = async (rawValue: string, format = 'UNKNOWN') => {
+    if (isProcessingRef.current) {
+      console.log('[KRUSHI SCANNER] IGNORED — ALREADY PROCESSING');
+      return;
+    }
+    isProcessingRef.current = true;
     setIsProcessing(true);
-    console.log('[SCANNER RUNTIME] QR detected:', { rawValue, format });
+
+    const acceptedRawValue = rawValue.trim();
+    console.log('[KRUSHI SCANNER] PROCESSING:', acceptedRawValue.slice(0, 80));
 
     // 1. Instant Local Parse (GS1 / URL GS1 / Structured QR / Plain Barcode)
-    const initialParsed = parseScannedBarcode(rawValue, format);
-    console.log('[SCANNER RUNTIME] Digital Link parsed:', initialParsed);
+    const initialParsed = parseScannedBarcode(acceptedRawValue, format);
     setScanResult(initialParsed);
     setMode('summary');
     setIsProcessing(false);
@@ -148,11 +161,10 @@ export function ProductBarcodeScannerModal({
     // 2. Safe Background URL Enrichment from manufacturer Digital Link (if present)
     let currentResult = initialParsed;
     if (initialParsed.sourceUrl && initialParsed.sourceUrl.startsWith('https://')) {
-      console.log('[SCANNER RUNTIME] Enrichment started for URL:', initialParsed.sourceUrl);
+      console.log('[KRUSHI SCANNER] ENRICHMENT:', initialParsed.sourceUrl);
       setIsEnrichingUrl(true);
       try {
         const enrichRes = await enrichProductFromUrlAction(initialParsed.sourceUrl);
-        console.log('[SCANNER RUNTIME] Enrichment completed:', enrichRes);
         if (enrichRes.success && enrichRes.data) {
           const webResult: ProductScanResult = {
             rawValue: initialParsed.rawValue,
@@ -165,8 +177,7 @@ export function ProductBarcodeScannerModal({
           toast.success('Product details enriched from manufacturer page');
         }
       } catch (enrichErr) {
-        console.warn('[SCANNER RUNTIME] Enrichment failed (non-blocking):', enrichErr);
-        // Safe fail: keep original scan data
+        console.warn('[KRUSHI SCANNER] Enrichment failed (non-blocking):', enrichErr);
       } finally {
         setIsEnrichingUrl(false);
       }
@@ -185,9 +196,21 @@ export function ProductBarcodeScannerModal({
     } catch {
       // Non-blocking
     }
+
+    console.log('[KRUSHI SCANNER] RESULT:', {
+      productName: currentResult.productName,
+      gtin: currentResult.gtin,
+      batch: currentResult.batchNumber,
+      serial: currentResult.serialNumber,
+      source: currentResult.source,
+    });
+
+    isProcessingRef.current = false;
   };
 
   const startScannerFlow = async () => {
+    scanLockedRef.current = false;
+    isProcessingRef.current = false;
     setIsProcessing(true);
     setScanResult(null);
 
@@ -203,8 +226,16 @@ export function ProductBarcodeScannerModal({
 
     const session = new NativeBarcodeScannerSession({
       onScanResult: (result) => {
+        if (scanLockedRef.current) {
+          console.log('[KRUSHI SCANNER] IGNORED — ALREADY LOCKED in Modal');
+          return;
+        }
+        scanLockedRef.current = true;
+        const acceptedRawValue = result.rawValue;
+        const acceptedFormat = result.format;
+        cleanupScanner();
         setIsProcessing(false);
-        processRawScanValue(result.rawValue, result.format);
+        processRawScanValue(acceptedRawValue, acceptedFormat);
       },
       onError: (errMessage) => {
         setIsProcessing(false);
@@ -218,7 +249,24 @@ export function ProductBarcodeScannerModal({
     });
 
     sessionRef.current = session;
-    const started = await session.start();
+
+    // Small delay to allow Dialog and viewfinder DOM to mount before measuring coordinates
+    await new Promise((r) => setTimeout(r, 60));
+
+    const viewfinderEl = document.getElementById('krushi-barcode-viewfinder');
+    let box: EmbeddedScannerBoxRect | undefined;
+    if (viewfinderEl) {
+      const rect = viewfinderEl.getBoundingClientRect();
+      box = {
+        x: rect.left,
+        y: rect.top,
+        width: rect.width,
+        height: rect.height,
+        parentId: 'krushi-barcode-viewfinder',
+      };
+    }
+
+    const started = await session.start(box);
     setIsProcessing(false);
 
     if (!started) {
@@ -241,12 +289,16 @@ export function ProductBarcodeScannerModal({
   const handleApply = () => {
     if (scanResult) {
       onApplyScanResult(scanResult);
+      scanLockedRef.current = false;
+      isProcessingRef.current = false;
       cleanupScanner();
       onClose();
     }
   };
 
   const handleScanAgain = () => {
+    scanLockedRef.current = false;
+    isProcessingRef.current = false;
     cleanupScanner();
     setScanResult(null);
     setOcrRawInput('');
@@ -260,6 +312,7 @@ export function ProductBarcodeScannerModal({
       return;
     }
 
+    scanLockedRef.current = true;
     await processRawScanValue(trimmed, 'MANUAL_TEST');
   };
 
@@ -267,19 +320,15 @@ export function ProductBarcodeScannerModal({
    * Launch Embedded Live Camera OCR Preview (Fallback - User explicit action only)
    */
   const handleOpenEmbeddedOcrPreview = async () => {
-    console.log('[SCANNER RUNTIME] OCR fallback requested manually by user');
+    console.log('[KRUSHI SCANNER] OCR fallback requested manually by user');
     setMode('ocr_preview');
     setIsOcrTorchOn(false);
-    console.log('[SCANNER RUNTIME] OCR camera starting...');
     const startRes = await startEmbeddedOcrCamera({
       parentId: 'ocr-camera-preview-box',
     });
     if (!startRes.success) {
-      console.warn('[SCANNER RUNTIME] OCR camera start failed:', startRes.error);
       toast.error(startRes.error || 'Failed to start camera preview.');
       setMode('ocr_manual_fallback');
-    } else {
-      console.log('[SCANNER RUNTIME] OCR camera started successfully');
     }
   };
 
@@ -375,204 +424,171 @@ export function ProductBarcodeScannerModal({
   return (
     <>
       {/* ─────────────────────────────────────────────────────────
-          1. NATIVE BARCODE / QR SCANNING OVERLAY
+          1. NATIVE BARCODE / QR SCANNING MODAL (BOUNDED KRUSHI OS DIALOG)
       ───────────────────────────────────────────────────────── */}
       {mode === 'scanning' && (
-        <div
-          data-scanner-overlay="true"
-          className="fixed inset-0 z-50 flex flex-col justify-between p-4 pointer-events-auto select-none bg-transparent"
-        >
-          {/* Top Bar */}
-          <div className="flex items-center justify-between bg-black/75 backdrop-blur-md rounded-2xl p-4 text-white border border-white/10 shadow-2xl">
-            <div className="flex items-center gap-2.5">
-              <div className="h-8 w-8 rounded-xl bg-primary/20 text-primary flex items-center justify-center font-bold">
-                <Scan className="h-5 w-5" />
+        <Dialog open={true} onOpenChange={(open) => { if (!open) { cleanupScanner(); onClose(); } }}>
+          <DialogContent className="sm:max-w-md w-full bg-card text-card-foreground border border-border rounded-2xl shadow-2xl p-5 space-y-4">
+            <DialogHeader className="text-left space-y-1">
+              <div className="flex items-center gap-2.5">
+                <div className="h-8 w-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-bold">
+                  <Scan className="h-4 w-4 stroke-[2.5]" />
+                </div>
+                <div>
+                  <DialogTitle className="text-base font-bold text-foreground">Scan Product Barcode / QR</DialogTitle>
+                  <DialogDescription className="text-xs text-muted-foreground">
+                    Point camera at QR code, GS1 stream, or barcode
+                  </DialogDescription>
+                </div>
               </div>
-              <div>
-                <h3 className="text-sm font-bold tracking-wide">Scan Product Barcode / QR</h3>
-                <p className="text-[11px] text-zinc-300">Point camera at QR code, GS1 stream, or barcode</p>
+            </DialogHeader>
+
+            {/* Bounded Viewfinder Cutout Frame */}
+            <div className="flex flex-col items-center justify-center py-2">
+              <div
+                id="krushi-barcode-viewfinder"
+                className="relative w-64 h-64 sm:w-72 sm:h-72 rounded-2xl border-2 border-primary/90 bg-transparent overflow-hidden shadow-inner"
+              >
+                {/* Corner Indicators */}
+                <div className="absolute top-2 left-2 w-6 h-6 border-t-4 border-l-4 border-primary rounded-tl-md pointer-events-none" />
+                <div className="absolute top-2 right-2 w-6 h-6 border-t-4 border-r-4 border-primary rounded-tr-md pointer-events-none" />
+                <div className="absolute bottom-2 left-2 w-6 h-6 border-b-4 border-l-4 border-primary rounded-bl-md pointer-events-none" />
+                <div className="absolute bottom-2 right-2 w-6 h-6 border-b-4 border-r-4 border-primary rounded-br-md pointer-events-none" />
+
+                {/* Laser Animation */}
+                <div className="w-full h-0.5 bg-gradient-to-r from-transparent via-primary to-transparent shadow-[0_0_12px_#22c55e] animate-pulse absolute top-1/2 -translate-y-1/2 pointer-events-none" />
               </div>
-            </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => {
-                cleanupScanner();
-                onClose();
-              }}
-              className="text-white hover:bg-white/20 rounded-full h-9 w-9"
-            >
-              <X className="h-5 w-5" />
-            </Button>
-          </div>
 
-          {/* Center Scan Area Viewport with Clear Cutout Window */}
-          <div className="relative flex-1 flex flex-col items-center justify-center my-6">
-            <div className="relative w-72 h-72 sm:w-80 sm:h-80 rounded-3xl border-2 border-primary/90 shadow-[0_0_0_9999px_rgba(0,0,0,0.60)] overflow-hidden bg-transparent">
-              {/* Corner Indicators */}
-              <div className="absolute top-2 left-2 w-6 h-6 border-t-4 border-l-4 border-primary rounded-tl-lg" />
-              <div className="absolute top-2 right-2 w-6 h-6 border-t-4 border-r-4 border-primary rounded-tr-lg" />
-              <div className="absolute bottom-2 left-2 w-6 h-6 border-b-4 border-l-4 border-primary rounded-bl-lg" />
-              <div className="absolute bottom-2 right-2 w-6 h-6 border-b-4 border-r-4 border-primary rounded-br-lg" />
-
-              {/* Laser Animation */}
-              <div className="w-full h-1 bg-gradient-to-r from-transparent via-primary to-transparent shadow-[0_0_14px_#22c55e] animate-pulse my-auto absolute top-1/2 -translate-y-1/2" />
+              <p className="text-xs font-semibold text-muted-foreground mt-3 text-center">
+                Align barcode or QR inside the frame
+              </p>
             </div>
 
-            <p className="text-xs font-semibold text-white/90 bg-black/60 px-4 py-1.5 rounded-full mt-5 backdrop-blur-md border border-white/10">
-              Align barcode or QR inside the box
-            </p>
-          </div>
+            {/* Controls */}
+            <DialogFooter className="grid grid-cols-2 gap-3 sm:gap-3 pt-1">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleToggleTorch}
+                className={`font-semibold gap-2 ${
+                  isTorchOn ? 'bg-amber-500 hover:bg-amber-600 text-black border-amber-500' : ''
+                }`}
+              >
+                {isTorchOn ? <FlashlightOff className="h-4 w-4" /> : <Flashlight className="h-4 w-4" />}
+                {isTorchOn ? 'Torch ON' : 'Flashlight'}
+              </Button>
 
-          {/* Bottom Controls */}
-          <div className="flex items-center justify-center gap-4 bg-black/75 backdrop-blur-md rounded-2xl p-4 border border-white/10 shadow-2xl">
-            <Button
-              type="button"
-              variant="outline"
-              size="lg"
-              onClick={handleToggleTorch}
-              className={`rounded-xl px-5 font-bold gap-2 text-white border-white/20 ${
-                isTorchOn ? 'bg-amber-500 hover:bg-amber-600 text-black border-amber-500' : 'bg-white/10 hover:bg-white/20'
-              }`}
-            >
-              {isTorchOn ? <FlashlightOff className="h-5 w-5" /> : <Flashlight className="h-5 w-5" />}
-              {isTorchOn ? 'Torch ON' : 'Flashlight'}
-            </Button>
-
-            <Button
-              type="button"
-              variant="destructive"
-              size="lg"
-              onClick={() => {
-                cleanupScanner();
-                onClose();
-              }}
-              className="rounded-xl px-6 font-bold gap-2"
-            >
-              <X className="h-5 w-5" /> Cancel
-            </Button>
-          </div>
-        </div>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  cleanupScanner();
+                  onClose();
+                }}
+                className="font-semibold gap-1.5 text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-4 w-4" /> Cancel
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
 
       {/* ─────────────────────────────────────────────────────────
           2. EMBEDDED MINI OCR LIVE CAMERA PREVIEW MODAL (FALLBACK)
       ───────────────────────────────────────────────────────── */}
       {mode === 'ocr_preview' && (
-        <div
-          data-scanner-overlay="true"
-          className="fixed inset-0 z-50 flex flex-col justify-between p-4 pointer-events-auto select-none bg-transparent"
-        >
-          {/* Top Bar */}
-          <div className="flex items-center justify-between bg-black/80 backdrop-blur-md rounded-2xl p-4 text-white border border-white/10 shadow-2xl">
-            <div className="flex items-center gap-2.5">
-              <div className="h-8 w-8 rounded-xl bg-primary/20 text-primary flex items-center justify-center font-bold">
-                <Camera className="h-5 w-5" />
-              </div>
-              <div>
-                <h3 className="text-sm font-bold tracking-wide">Scan Product Label (OCR Fallback)</h3>
-                <p className="text-[11px] text-zinc-300">Point camera at printed packaging to capture details</p>
-              </div>
-            </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleCancelOcrPreview}
-              className="text-white hover:bg-white/20 rounded-full h-9 w-9"
-            >
-              <X className="h-5 w-5" />
-            </Button>
-          </div>
-
-          {/* Center Embedded Camera Viewport */}
-          <div className="relative flex-1 flex flex-col items-center justify-center my-4">
-            <div
-              id="ocr-camera-preview-box"
-              className="relative w-80 h-72 sm:w-96 sm:h-80 rounded-3xl border-2 border-primary/90 shadow-[0_0_0_9999px_rgba(0,0,0,0.65)] overflow-hidden bg-transparent"
-            >
-              {/* Green Corner Brackets */}
-              <div className="absolute top-2 left-2 w-7 h-7 border-t-4 border-l-4 border-primary rounded-tl-lg pointer-events-none" />
-              <div className="absolute top-2 right-2 w-7 h-7 border-t-4 border-r-4 border-primary rounded-tr-lg pointer-events-none" />
-              <div className="absolute bottom-2 left-2 w-7 h-7 border-b-4 border-l-4 border-primary rounded-bl-lg pointer-events-none" />
-              <div className="absolute bottom-2 right-2 w-7 h-7 border-b-4 border-r-4 border-primary rounded-br-lg pointer-events-none" />
-
-              {/* Center Guidance Reticle */}
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div className="w-16 h-16 border border-white/30 rounded-xl border-dashed" />
-              </div>
-
-              {/* Processing Overlay */}
-              {isOcrCapturing && (
-                <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center text-white gap-3 p-4 text-center">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                  <p className="text-xs font-bold">Recognizing text with Google ML Kit...</p>
-                  <p className="text-[11px] text-zinc-300">Extracting Product Name, Composition, MRP & Pack Size</p>
+        <Dialog open={true} onOpenChange={(open) => { if (!open) handleCancelOcrPreview(); }}>
+          <DialogContent className="sm:max-w-md w-full bg-card text-card-foreground border border-border rounded-2xl shadow-2xl p-5 space-y-4">
+            <DialogHeader className="text-left space-y-1">
+              <div className="flex items-center gap-2.5">
+                <div className="h-8 w-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-bold">
+                  <Camera className="h-4 w-4" />
                 </div>
-              )}
-            </div>
+                <div>
+                  <DialogTitle className="text-base font-bold text-foreground">Scan Product Label (OCR Fallback)</DialogTitle>
+                  <DialogDescription className="text-xs text-muted-foreground">
+                    Point camera at printed packaging to capture details
+                  </DialogDescription>
+                </div>
+              </div>
+            </DialogHeader>
 
-            <div className="text-center mt-4 space-y-1">
-              <p className="text-xs font-semibold text-white/90 bg-black/60 px-4 py-1.5 rounded-full backdrop-blur-md border border-white/10 inline-block">
+            <div className="flex flex-col items-center justify-center py-2">
+              <div
+                id="ocr-camera-preview-box"
+                className="relative w-64 h-64 sm:w-72 sm:h-72 rounded-2xl border-2 border-primary/90 bg-transparent overflow-hidden shadow-inner"
+              >
+                <div className="absolute top-2 left-2 w-6 h-6 border-t-4 border-l-4 border-primary rounded-tl-md pointer-events-none" />
+                <div className="absolute top-2 right-2 w-6 h-6 border-t-4 border-r-4 border-primary rounded-tr-md pointer-events-none" />
+                <div className="absolute bottom-2 left-2 w-6 h-6 border-b-4 border-l-4 border-primary rounded-bl-md pointer-events-none" />
+                <div className="absolute bottom-2 right-2 w-6 h-6 border-b-4 border-r-4 border-primary rounded-br-md pointer-events-none" />
+
+                {isOcrCapturing && (
+                  <div className="absolute inset-0 bg-background/90 flex flex-col items-center justify-center gap-2 p-4 text-center z-10">
+                    <Loader2 className="h-7 w-7 animate-spin text-primary" />
+                    <p className="text-xs font-bold text-foreground">Recognizing text via ML Kit...</p>
+                  </div>
+                )}
+              </div>
+
+              <p className="text-xs font-semibold text-muted-foreground mt-3 text-center">
                 Position product label inside frame
               </p>
-              <p className="text-[11px] text-zinc-300">
-                Align Name, Active Ingredients, Pack Size & MRP
-              </p>
-            </div>
-          </div>
-
-          {/* Bottom Action Controls */}
-          <div className="bg-black/80 backdrop-blur-md rounded-2xl p-4 border border-white/10 shadow-2xl space-y-3">
-            <div className="flex items-center justify-center gap-3">
-              <Button
-                type="button"
-                variant="outline"
-                size="lg"
-                onClick={handleToggleOcrTorch}
-                className={`rounded-xl px-4 font-bold gap-2 text-white border-white/20 ${
-                  isOcrTorchOn ? 'bg-amber-500 hover:bg-amber-600 text-black border-amber-500' : 'bg-white/10 hover:bg-white/20'
-                }`}
-              >
-                {isOcrTorchOn ? <FlashlightOff className="h-5 w-5" /> : <Flashlight className="h-5 w-5" />}
-                {isOcrTorchOn ? 'Torch ON' : 'Flashlight'}
-              </Button>
-
-              <Button
-                type="button"
-                size="lg"
-                onClick={handleCaptureEmbeddedOcr}
-                disabled={isOcrCapturing}
-                className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold gap-2 px-6 rounded-xl shadow-lg h-12 text-sm"
-              >
-                {isOcrCapturing ? <Loader2 className="h-5 w-5 animate-spin" /> : <Camera className="h-5 w-5" />}
-                {isOcrCapturing ? 'Processing...' : 'Capture Label'}
-              </Button>
-
-              <Button
-                type="button"
-                variant="outline"
-                size="lg"
-                onClick={handleCancelOcrPreview}
-                className="rounded-xl px-4 font-bold gap-1 text-white border-white/20 bg-white/10 hover:bg-white/20"
-              >
-                Cancel
-              </Button>
             </div>
 
-            <div className="text-center">
-              <button
-                type="button"
-                onClick={() => {
-                  stopEmbeddedOcrCamera();
-                  setMode('ocr_manual_fallback');
-                }}
-                className="text-[11px] text-zinc-300 hover:text-white underline underline-offset-2"
-              >
-                Enter label text manually instead
-              </button>
-            </div>
-          </div>
-        </div>
+            <DialogFooter className="flex flex-col gap-2 pt-1">
+              <div className="grid grid-cols-3 gap-2 w-full">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleToggleOcrTorch}
+                  className={`font-semibold gap-1.5 ${
+                    isOcrTorchOn ? 'bg-amber-500 hover:bg-amber-600 text-black border-amber-500' : ''
+                  }`}
+                >
+                  {isOcrTorchOn ? <FlashlightOff className="h-4 w-4" /> : <Flashlight className="h-4 w-4" />}
+                  {isOcrTorchOn ? 'ON' : 'Torch'}
+                </Button>
+
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleCaptureEmbeddedOcr}
+                  disabled={isOcrCapturing}
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold gap-1.5 shadow-sm"
+                >
+                  {isOcrCapturing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+                  Capture
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleCancelOcrPreview}
+                  className="font-semibold text-muted-foreground hover:text-foreground"
+                >
+                  Cancel
+                </Button>
+              </div>
+
+              <div className="text-center pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    stopEmbeddedOcrCamera();
+                    setMode('ocr_manual_fallback');
+                  }}
+                  className="text-[11px] text-muted-foreground hover:text-primary underline underline-offset-2"
+                >
+                  Enter label text manually instead
+                </button>
+              </div>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
 
       {/* ─────────────────────────────────────────────────────────

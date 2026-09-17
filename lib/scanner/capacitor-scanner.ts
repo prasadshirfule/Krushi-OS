@@ -1,8 +1,8 @@
-import { BarcodeFormat, BarcodeScanner, LensFacing } from '@capacitor-mlkit/barcode-scanning';
+import { BarcodeFormat, BarcodeScanner } from '@capacitor-mlkit/barcode-scanning';
+import { CameraPreview, CameraPreviewOptions } from '@capacitor-community/camera-preview';
 import { Capacitor } from '@capacitor/core';
 import { ProductScanResult } from './types';
 import { parseScannedBarcode } from './barcode-parser';
-import { matchScannedProduct } from './product-matcher';
 
 export interface ScannerControllerOptions {
   onScanResult: (result: ProductScanResult) => void;
@@ -10,19 +10,24 @@ export interface ScannerControllerOptions {
   onPermissionDenied?: () => void;
 }
 
+export interface EmbeddedScannerBoxRect {
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  parentId?: string;
+}
+
+let activeSession: NativeBarcodeScannerSession | null = null;
+
 /**
- * Checks whether native ML Kit barcode scanning is supported on this platform.
+ * Checks whether native camera and barcode scanning are supported on this platform.
  */
 export async function isNativeScannerSupported(): Promise<boolean> {
   if (!Capacitor.isNativePlatform()) {
     return false;
   }
-  try {
-    const { supported } = await BarcodeScanner.isSupported();
-    return Boolean(supported);
-  } catch {
-    return false;
-  }
+  return true;
 }
 
 /**
@@ -34,26 +39,13 @@ export async function ensureCameraPermission(): Promise<{ granted: boolean; deni
   }
 
   try {
-    const status = await BarcodeScanner.checkPermissions();
-
-    if (status.camera === 'granted') {
+    const mlkitStatus = await BarcodeScanner.requestPermissions();
+    if (mlkitStatus.camera === 'granted') {
       return { granted: true };
     }
-
-    if (status.camera === 'denied') {
-      // Permission denied
-      return { granted: false, deniedPermanently: true };
-    }
-
-    const requestStatus = await BarcodeScanner.requestPermissions();
-    if (requestStatus.camera === 'granted') {
-      return { granted: true };
-    }
-
-    return { granted: false, deniedPermanently: requestStatus.camera === 'denied' };
-  } catch (err: any) {
-    console.error('Failed to request camera permission:', err);
-    return { granted: false };
+    return { granted: false, deniedPermanently: mlkitStatus.camera === 'denied' };
+  } catch {
+    return { granted: true };
   }
 }
 
@@ -69,12 +61,16 @@ export async function openCameraSettings(): Promise<void> {
 }
 
 /**
- * Native Camera Scanner Session Manager
+ * Native Embedded Camera Scanner Session Manager
+ * Uses @capacitor-community/camera-preview for genuine bounded preview
+ * and @capacitor-mlkit/barcode-scanning readBarcodesFromImage for on-device ML Kit decoding.
  */
 export class NativeBarcodeScannerSession {
   private isScanning = false;
+  private isLocked = false;
+  private isStopping = false;
+  private isLoopRunning = false;
   private isTorchOn = false;
-  private listenerHandle: any = null;
   private options: ScannerControllerOptions;
 
   constructor(options: ScannerControllerOptions) {
@@ -82,9 +78,15 @@ export class NativeBarcodeScannerSession {
   }
 
   /**
-   * Starts native camera preview and ML Kit barcode detection with custom UI.
+   * Starts bounded native camera preview at exact coordinates.
    */
-  async start(): Promise<boolean> {
+  async start(box?: EmbeddedScannerBoxRect): Promise<boolean> {
+    this.isLocked = false;
+    this.isStopping = false;
+
+    console.log('[KRUSHI SCANNER] START');
+    console.log('[KRUSHI SCANNER] CAMERA PATH: EMBEDDED_CAMERA_PREVIEW');
+
     const isSupported = await isNativeScannerSupported();
     if (!isSupported) {
       this.options.onError('Product scanning with live camera is available in the KRUSHI OS Android app.');
@@ -106,57 +108,132 @@ export class NativeBarcodeScannerSession {
     }
 
     try {
-      // Make webview body transparent for camera preview underneath
-      document.body.classList.add('barcode-scanner-active');
-      document.documentElement.classList.add('barcode-scanner-active');
+      // Clean up any stale camera session first
+      try {
+        await CameraPreview.stop();
+      } catch {}
 
-      // Add listener for detected barcodes (ML Kit 8.x uses 'barcodesScanned' with array)
-      this.listenerHandle = await BarcodeScanner.addListener('barcodesScanned', async (event) => {
-        if (!this.isScanning || !event.barcodes || event.barcodes.length === 0) return;
+      if (Capacitor.isNativePlatform()) {
+        const previewOptions: CameraPreviewOptions = {
+          position: 'rear',
+          toBack: false,
+          storeToFile: true,
+          disableAudio: true,
+          enableOpacity: true,
+          x: box?.x ? Math.max(0, Math.round(box.x)) : 0,
+          y: box?.y ? Math.max(0, Math.round(box.y)) : 0,
+          width: box?.width ? Math.round(box.width) : 0,
+          height: box?.height ? Math.round(box.height) : 0,
+        };
 
-        const firstBarcode = event.barcodes[0];
-        const rawValue = firstBarcode.rawValue || firstBarcode.displayValue || '';
-        const format = String(firstBarcode.format || 'UNKNOWN');
+        await CameraPreview.start(previewOptions);
+      } else {
+        // Web fallback
+        const previewOptions: CameraPreviewOptions = {
+          position: 'rear',
+          parent: box?.parentId || 'krushi-barcode-viewfinder',
+          className: 'w-full h-full object-cover',
+          toBack: false,
+          disableAudio: true,
+        };
+        await CameraPreview.start(previewOptions);
+      }
 
-        if (!rawValue) return;
-
-        console.log('[SCANNER RUNTIME] QR detected by ML Kit:', { rawValue, format });
-
-        // Stop scanning and remove transparent overlay immediately
-        await this.stop();
-
-        try {
-          const parsed = parseScannedBarcode(rawValue, format);
-          console.log('[SCANNER RUNTIME] Local parse complete:', parsed);
-          this.options.onScanResult(parsed);
-        } catch (parseErr: any) {
-          console.error('[SCANNER RUNTIME] Error parsing scanned barcode:', parseErr);
-          this.options.onError('Failed to parse scanned barcode data.');
-        }
-      });
-
-      // Start custom scan with rear camera and prioritized product formats
       this.isScanning = true;
-      await BarcodeScanner.startScan({
-        lensFacing: LensFacing.Back,
-        formats: [
-          BarcodeFormat.QrCode,
-          BarcodeFormat.DataMatrix,
-          BarcodeFormat.Ean13,
-          BarcodeFormat.Ean8,
-          BarcodeFormat.UpcA,
-          BarcodeFormat.UpcE,
-          BarcodeFormat.Code128,
-        ],
-      });
+      activeSession = this;
 
+      // Start controlled frame analysis loop
+      this.startCaptureLoop();
       return true;
     } catch (err: any) {
-      console.error('Failed to start barcode scan:', err);
+      console.error('[KRUSHI SCANNER] Failed to start embedded camera:', err);
       await this.stop();
-      this.options.onError(err.message || 'Failed to initialize camera scanner.');
+      this.options.onError(err.message || 'Failed to start camera preview.');
       return false;
     }
+  }
+
+  /**
+   * Controlled frame capture and ML Kit barcode decoding loop
+   */
+  private async startCaptureLoop(): Promise<void> {
+    if (this.isLoopRunning) return;
+    this.isLoopRunning = true;
+
+    // Small delay for camera sensor to adjust auto-focus and auto-exposure
+    await new Promise((r) => setTimeout(r, 300));
+
+    while (this.isScanning && !this.isLocked && !this.isStopping) {
+      try {
+        if (!Capacitor.isNativePlatform()) {
+          // Web environment: wait and continue
+          await new Promise((r) => setTimeout(r, 500));
+          continue;
+        }
+
+        const captureResult = await CameraPreview.capture({ quality: 85 });
+        if (!this.isScanning || this.isLocked || this.isStopping) break;
+
+        const rawPath = captureResult?.value;
+        if (rawPath) {
+          const imagePath = rawPath.startsWith('file://')
+            ? rawPath
+            : rawPath.startsWith('/')
+            ? `file://${rawPath}`
+            : rawPath;
+
+          const decodeRes = await BarcodeScanner.readBarcodesFromImage({
+            path: imagePath,
+            formats: [
+              BarcodeFormat.QrCode,
+              BarcodeFormat.DataMatrix,
+              BarcodeFormat.Ean13,
+              BarcodeFormat.Ean8,
+              BarcodeFormat.UpcA,
+              BarcodeFormat.UpcE,
+              BarcodeFormat.Code128,
+            ],
+          });
+
+          if (decodeRes.barcodes && decodeRes.barcodes.length > 0) {
+            const first = decodeRes.barcodes[0];
+            const rawValue = (first.rawValue || first.displayValue || '').trim();
+            const format = String(first.format || 'UNKNOWN');
+
+            if (rawValue && !this.isLocked && this.isScanning) {
+              // 1. Synchronously lock IMMEDIATELY
+              this.isLocked = true;
+              console.log('[KRUSHI SCANNER] DETECTED', { format });
+              console.log('[KRUSHI SCANNER] LOCKED');
+              console.log('[KRUSHI SCANNER] RAW VALUE:', rawValue.slice(0, 80));
+
+              // 2. Stop camera immediately
+              console.log('[KRUSHI SCANNER] STOP');
+              await this.stop();
+
+              // 3. Dispatch to callback with locked value
+              try {
+                const parsed = parseScannedBarcode(rawValue, format);
+                this.options.onScanResult(parsed);
+              } catch (parseErr: any) {
+                console.error('[KRUSHI SCANNER] Error parsing scanned barcode:', parseErr);
+                this.options.onError('Failed to parse scanned barcode data.');
+              }
+              break;
+            }
+          }
+        }
+      } catch (loopErr) {
+        // Transient capture failure: continue to next tick
+      }
+
+      // Controlled interval (220ms) to prevent UI thread starvation
+      if (this.isScanning && !this.isLocked && !this.isStopping) {
+        await new Promise((r) => setTimeout(r, 220));
+      }
+    }
+
+    this.isLoopRunning = false;
   }
 
   /**
@@ -165,11 +242,12 @@ export class NativeBarcodeScannerSession {
   async toggleTorch(): Promise<boolean> {
     if (!this.isScanning) return false;
     try {
-      await BarcodeScanner.toggleTorch();
+      const nextMode = this.isTorchOn ? 'off' : 'torch';
+      await CameraPreview.setFlashMode({ flashMode: nextMode });
       this.isTorchOn = !this.isTorchOn;
       return this.isTorchOn;
     } catch (err) {
-      console.error('Torch not available:', err);
+      console.warn('[KRUSHI SCANNER] Torch not available:', err);
       return false;
     }
   }
@@ -179,29 +257,40 @@ export class NativeBarcodeScannerSession {
   }
 
   /**
-   * Stops scanning and cleans up all listeners and transparent styling.
+   * Stops scanning and releases native CameraPreview resources. Idempotent.
    */
   async stop(): Promise<void> {
+    if (this.isStopping) return;
+    this.isStopping = true;
     this.isScanning = false;
     this.isTorchOn = false;
 
     try {
-      document.body.classList.remove('barcode-scanner-active');
-      document.documentElement.classList.remove('barcode-scanner-active');
-    } catch {}
-
-    try {
-      if (this.listenerHandle) {
-        await this.listenerHandle.remove();
-        this.listenerHandle = null;
-      }
-    } catch {}
-
-    try {
-      await BarcodeScanner.removeAllListeners();
-      await BarcodeScanner.stopScan();
+      await CameraPreview.stop();
     } catch (err) {
-      // Ignore cleanup error if already stopped
+      // Safe ignore
+    } finally {
+      this.isStopping = false;
+      if (activeSession === this) {
+        activeSession = null;
+      }
     }
   }
+}
+
+export async function stopEmbeddedBarcodeCamera(): Promise<void> {
+  if (activeSession) {
+    await activeSession.stop();
+    activeSession = null;
+  }
+  try {
+    await CameraPreview.stop();
+  } catch {}
+}
+
+export async function toggleEmbeddedBarcodeTorch(currentState: boolean): Promise<boolean> {
+  if (activeSession) {
+    return await activeSession.toggleTorch();
+  }
+  return false;
 }
