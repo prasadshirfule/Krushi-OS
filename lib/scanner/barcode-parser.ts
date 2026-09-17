@@ -164,3 +164,29 @@ export function parseScannedBarcode(rawValue: string, format = 'UNKNOWN'): Produ
     fieldSources,
   };
 }
+
+/**
+ * Deterministically extracts ONLY Batch Number and Expiry Date from a scanned QR or barcode payload.
+ *
+ * Rules:
+ * - GS1 AI 10 = Batch/Lot Number
+ * - GS1 AI 17 / AI 15 = Expiry Date
+ * - Structured manufacturer QR: No / Batch / Lot = Batch Number, EXP / Expiry = Expiry Date
+ * - Deterministic parsing only from data explicitly encoded in payload.
+ * - No AI, OCR, web scraping, or guessing.
+ * - Returns undefined if not explicitly encoded.
+ */
+export function extractBatchAndExpiryFromIdentifier(rawValue: string): {
+  batchNumber?: string;
+  expiryDate?: string;
+} {
+  if (!rawValue || typeof rawValue !== 'string') {
+    return {};
+  }
+  const parsed = parseScannedBarcode(rawValue);
+  return {
+    batchNumber: parsed.batchNumber?.trim() || undefined,
+    expiryDate: parsed.expiryDate?.trim() || undefined,
+  };
+}
+

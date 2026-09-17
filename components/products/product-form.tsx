@@ -130,12 +130,14 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
     return [];
   });
 
-  // Link identifier handler (no autofill, pure registration)
+  // Link identifier handler (limited QR autofill: batch & expiry only)
   const handleLinkIdentifier = (ident: {
     raw_value: string;
     normalized_value?: string | null;
     identifier_type: 'barcode' | 'gtin' | 'qr' | 'other';
     is_primary?: boolean;
+    detected_batch?: string;
+    detected_expiry?: string;
   }) => {
     const rawTrimmed = ident.raw_value.trim();
     setLinkedIdentifiers((prev) => {
@@ -162,7 +164,26 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
 
       return next;
     });
-    toast.success('QR / Barcode linked ✓');
+
+    // Populate ONLY Batch No and Expiry Date if deterministically detected from scan
+    const detectedBatch = ident.detected_batch?.trim();
+    const detectedExpiry = ident.detected_expiry?.trim();
+
+    const populatedFields: string[] = [];
+    if (detectedBatch) {
+      form.setValue('batch_number', detectedBatch, { shouldValidate: true, shouldDirty: true });
+      populatedFields.push(`Batch: ${detectedBatch}`);
+    }
+    if (detectedExpiry) {
+      form.setValue('expiry_date', detectedExpiry, { shouldValidate: true, shouldDirty: true });
+      populatedFields.push(`Expiry: ${detectedExpiry}`);
+    }
+
+    if (populatedFields.length > 0) {
+      toast.success(`QR / Barcode linked ✓ (${populatedFields.join(', ')})`);
+    } else {
+      toast.success('QR / Barcode linked ✓');
+    }
   };
 
   const handleRemoveIdentifier = (indexToRemove: number) => {

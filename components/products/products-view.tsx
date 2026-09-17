@@ -23,15 +23,31 @@ import {
 import { exportReportToExcel, exportReportToPDF, ReportFilterMeta } from '@/lib/report-export';
 import { getSavedShopDetails } from '@/lib/shop-details';
 
+import { useRouter } from 'next/navigation';
+
 interface ProductsViewProps {
   initialProducts?: any[];
   initialCategories?: any[];
 }
 
 export function ProductsView({ initialProducts = [], initialCategories = [] }: ProductsViewProps) {
+  const router = useRouter();
   const [products, setProducts] = useState<any[]>(initialProducts);
   const [categories, setCategories] = useState<any[]>(initialCategories);
   const [isExporting, setIsExporting] = useState(false);
+
+  // Sync state if server props change
+  useEffect(() => {
+    if (!isClientDemoMode()) {
+      setProducts(initialProducts);
+    }
+  }, [initialProducts]);
+
+  useEffect(() => {
+    if (!isClientDemoMode()) {
+      setCategories(initialCategories);
+    }
+  }, [initialCategories]);
 
   const loadData = useCallback(() => {
     if (isClientDemoMode()) {
@@ -45,10 +61,18 @@ export function ProductsView({ initialProducts = [], initialCategories = [] }: P
     loadData();
 
     const handleProductsUpdated = () => {
-      loadData();
+      if (isClientDemoMode()) {
+        loadData();
+      } else {
+        router.refresh();
+      }
     };
     const handleCategoriesUpdated = () => {
-      loadData();
+      if (isClientDemoMode()) {
+        loadData();
+      } else {
+        router.refresh();
+      }
     };
 
     window.addEventListener('krushi-products-updated', handleProductsUpdated);
@@ -57,7 +81,7 @@ export function ProductsView({ initialProducts = [], initialCategories = [] }: P
       window.removeEventListener('krushi-products-updated', handleProductsUpdated);
       window.removeEventListener('krushi-categories-updated', handleCategoriesUpdated);
     };
-  }, [loadData]);
+  }, [loadData, router]);
 
   const handleExportExcel = async () => {
     if (products.length === 0) {

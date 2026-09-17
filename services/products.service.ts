@@ -143,13 +143,38 @@ export async function getProducts(
     if (options.sortBy) query = query.order(options.sortBy, { ascending: options.sortOrder === 'asc' });
     else query = query.order('created_at', { ascending: false });
     
-    const { data: products, count, error } = await query.range(offset, offset + limit - 1);
+    let { data: products, count, error } = await query.range(offset, offset + limit - 1);
+    
     if (error) {
-      console.error("Error fetching products:", error);
-      return { products: [], total: 0, pages: 0 };
+      console.warn("Retrying products fetch without identifiers join due to:", error.message || error);
+      let fallbackQuery = supabase
+        .from('products')
+        .select('*, category:categories(id, name), brand:brands(id, name, manufacturer), batches:product_batches(*)', { count: 'exact' })
+        .eq('shop_id', shopId)
+        .eq('is_active', true);
+      
+      if (options.search) {
+        const q = options.search.replace(/[,().\\]/g, '').trim();
+        if (q) {
+          fallbackQuery = fallbackQuery.or(`name.ilike.%${q}%,sku.ilike.%${q}%,barcode.ilike.%${q}%`);
+        }
+      }
+
+      if (options.category) fallbackQuery = fallbackQuery.eq('category_id', options.category);
+      if (options.sortBy) fallbackQuery = fallbackQuery.order(options.sortBy, { ascending: options.sortOrder === 'asc' });
+      else fallbackQuery = fallbackQuery.order('created_at', { ascending: false });
+
+      const fbRes = await fallbackQuery.range(offset, offset + limit - 1);
+      if (fbRes.error) {
+        console.error("Error fetching products on fallback:", fbRes.error);
+        return { products: [], total: 0, pages: 0 };
+      }
+      products = fbRes.data;
+      count = fbRes.count;
     }
     
-    return { products: (products as ProductWithRelations[]) || [], total: count || 0, pages: Math.ceil((count || 0) / limit) };
+    const normalizedList = Array.isArray(products) ? products.map(normalizeProduct) : [];
+    return { products: normalizedList, total: count || normalizedList.length, pages: Math.ceil((count || normalizedList.length) / limit) };
   } catch (error) {
     console.error("Failed to load products:", error);
     return { products: [], total: 0, pages: 0 };
@@ -165,7 +190,7 @@ export async function getProductById(shopId: string, productId: string): Promise
 
   try {
     const supabase = await createServerSupabaseClient();
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('products')
       .select('*, category:categories(*), brand:brands(*), batches:product_batches(*), identifiers:product_identifiers(*)')
       .eq('shop_id', shopId)
@@ -173,10 +198,20 @@ export async function getProductById(shopId: string, productId: string): Promise
       .single();
 
     if (error) {
-      console.error("Error fetching product by ID:", error);
-      return null;
+      console.warn("Retrying getProductById without identifiers join due to:", error.message || error);
+      const fb = await supabase
+        .from('products')
+        .select('*, category:categories(*), brand:brands(*), batches:product_batches(*)')
+        .eq('shop_id', shopId)
+        .eq('id', productId)
+        .single();
+      if (fb.error) {
+        console.error("Error fetching product by ID on fallback:", fb.error);
+        return null;
+      }
+      data = fb.data;
     }
-    return data as ProductWithRelations;
+    return data ? normalizeProduct(data) : null;
   } catch (error) {
     console.error("Failed to load product by ID:", error);
     return null;

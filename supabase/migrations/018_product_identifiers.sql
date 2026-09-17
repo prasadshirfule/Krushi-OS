@@ -24,12 +24,9 @@ ALTER TABLE product_identifiers ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can manage product identifiers in their shop"
 ON product_identifiers FOR ALL
 USING (
-  shop_id IN (
-    SELECT shop_id FROM user_profiles WHERE id = auth.uid()
-  )
+  shop_id = get_user_shop_id()
 )
 WITH CHECK (
-  shop_id IN (
-    SELECT shop_id FROM user_profiles WHERE id = auth.uid()
-  )
+  shop_id = get_user_shop_id()
 );
+

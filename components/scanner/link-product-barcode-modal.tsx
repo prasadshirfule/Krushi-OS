@@ -8,6 +8,7 @@ import {
   EmbeddedScannerBoxRect,
 } from '@/lib/scanner/capacitor-scanner';
 import { extractBillingLookupCodes } from '@/lib/scanner/billing-scanner-service';
+import { extractBatchAndExpiryFromIdentifier } from '@/lib/scanner/barcode-parser';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -34,6 +35,8 @@ export interface LinkedIdentifierPayload {
   identifier_type: 'barcode' | 'gtin' | 'qr' | 'other';
   normalized_value?: string | null;
   is_primary?: boolean;
+  detected_batch?: string;
+  detected_expiry?: string;
 }
 
 interface LinkProductBarcodeModalProps {
@@ -98,17 +101,19 @@ export function LinkProductBarcodeModal({
     }
 
     const { primaryCode } = extractBillingLookupCodes(clean);
+    const { batchNumber, expiryDate } = extractBatchAndExpiryFromIdentifier(clean);
 
     const payload: LinkedIdentifierPayload = {
       raw_value: clean,
       identifier_type: type,
       normalized_value: primaryCode || clean,
       is_primary: true,
+      detected_batch: batchNumber,
+      detected_expiry: expiryDate,
     };
 
     cleanupScanner();
     onLinkIdentifier(payload);
-    toast.success('✓ QR / Barcode captured and linked to product');
     onClose();
   };
 

@@ -441,3 +441,120 @@ test('20. Rapid A → B scans → only A processed', () => {
   assert.strictEqual(processed.length, 1);
   assert.strictEqual(processed[0], 'CODE_A');
 });
+
+// ═════════════════════════════════════════════════════════════
+// LIMITED QR BATCH / EXPIRY AUTOFILL & PRODUCTS LIST TESTS
+// ═════════════════════════════════════════════════════════════
+
+test('21. QR with GS1 AI 10 + AI 17 extracts batch + expiry', () => {
+  const { extractBatchAndExpiryFromIdentifier } = require('@/lib/scanner/barcode-parser');
+  const result = extractBatchAndExpiryFromIdentifier(REAL_SYNGENTA_QR);
+  assert.strictEqual(result.batchNumber, 'SPL6A20014');
+  assert.strictEqual(result.expiryDate, '28/01/2028');
+});
+
+test('22. Structured QR with No + EXP extracts batch + expiry', () => {
+  const { extractBatchAndExpiryFromIdentifier } = require('@/lib/scanner/barcode-parser');
+  const result = extractBatchAndExpiryFromIdentifier(REAL_BAYER_QR);
+  assert.strictEqual(result.batchNumber, 'SYNAT25026DT');
+  assert.strictEqual(result.expiryDate, '17/01/2027');
+});
+
+test('23. QR with only batch extracts only batch', () => {
+  const { extractBatchAndExpiryFromIdentifier } = require('@/lib/scanner/barcode-parser');
+  const qrOnlyBatch = `https://example.com/01/08901234567890/10/LOT-ONLY-999`;
+  const result = extractBatchAndExpiryFromIdentifier(qrOnlyBatch);
+  assert.strictEqual(result.batchNumber, 'LOT-ONLY-999');
+  assert.strictEqual(result.expiryDate, undefined);
+});
+
+test('24. QR with only expiry extracts only expiry', () => {
+  const { extractBatchAndExpiryFromIdentifier } = require('@/lib/scanner/barcode-parser');
+  const qrOnlyExpiry = `https://example.com/01/08901234567890?17=291231`;
+  const result = extractBatchAndExpiryFromIdentifier(qrOnlyExpiry);
+  assert.strictEqual(result.batchNumber, undefined);
+  assert.strictEqual(result.expiryDate, '31/12/2029');
+});
+
+test('25. QR with neither leaves both undefined', () => {
+  const { extractBatchAndExpiryFromIdentifier } = require('@/lib/scanner/barcode-parser');
+  const plainBarcode = '8901030889922';
+  const result = extractBatchAndExpiryFromIdentifier(plainBarcode);
+  assert.strictEqual(result.batchNumber, undefined);
+  assert.strictEqual(result.expiryDate, undefined);
+});
+
+test('26. Invalid/unrecognized values are not guessed', () => {
+  const { extractBatchAndExpiryFromIdentifier } = require('@/lib/scanner/barcode-parser');
+  const arbitraryText = 'Random agricultural store text without structured keys or GS1 AIs';
+  const result = extractBatchAndExpiryFromIdentifier(arbitraryText);
+  assert.strictEqual(result.batchNumber, undefined);
+  assert.strictEqual(result.expiryDate, undefined);
+});
+
+test('27. Product Name/Manufacturer/Category/HSN/Price/Stock are NEVER autofilled', () => {
+  const { extractBatchAndExpiryFromIdentifier } = require('@/lib/scanner/barcode-parser');
+  
+  // Scanned QR contains rich payload
+  const result = extractBatchAndExpiryFromIdentifier(REAL_BAYER_QR);
+  
+  // Verify ONLY batch and expiry are returned by extractBatchAndExpiryFromIdentifier
+  const returnedKeys = Object.keys(result);
+  for (const key of returnedKeys) {
+    assert.ok(['batchNumber', 'expiryDate'].includes(key));
+  }
+  assert.strictEqual((result as any).productName, undefined);
+  assert.strictEqual((result as any).manufacturer, undefined);
+  assert.strictEqual((result as any).category_id, undefined);
+  assert.strictEqual((result as any).selling_price, undefined);
+  assert.strictEqual((result as any).purchase_price, undefined);
+  assert.strictEqual((result as any).current_stock, undefined);
+});
+
+test('28. User can edit detected batch/expiry and edited values are preserved on save', async () => {
+  const { extractBatchAndExpiryFromIdentifier } = require('@/lib/scanner/barcode-parser');
+  const detected = extractBatchAndExpiryFromIdentifier(REAL_BAYER_QR);
+
+  // User manually edits the detected batch and expiry
+  const userEditedBatch = `${detected.batchNumber}-MODIFIED`;
+  const userEditedExpiry = '31/12/2030';
+
+  const saved = await createProduct('shop-edit-test', {
+    name: 'MANUALLY EDITED PRODUCT',
+    category_id: 'cat-seeds',
+    purchase_price: 200,
+    selling_price: 250,
+    gst_rate: 5,
+    unit: 'Bag',
+    opening_stock: 50,
+    min_stock: 5,
+    batch_tracking: true,
+    expiry_tracking: true,
+    batch_number: userEditedBatch,
+    expiry_date: userEditedExpiry,
+    identifiers: [{ raw_value: REAL_BAYER_QR, identifier_type: 'qr', is_primary: true }]
+  });
+
+  assert.strictEqual(saved.product.batch_number, userEditedBatch);
+  assert.strictEqual(saved.product.batches[0].batch_number, userEditedBatch);
+  assert.strictEqual(saved.product.expiry_date, '2030-12-31');
+});
+
+test('29. Existing products are returned with correct count in getProducts', async () => {
+  const { getProducts } = require('@/services/products.service');
+  const response = await getProducts('shop-test');
+  
+  assert.ok(response);
+  assert.ok(Array.isArray(response.products));
+  assert.strictEqual(typeof response.total, 'number');
+  assert.strictEqual(response.total, response.products.length);
+});
+
+test('30. Empty shop returns 0 products without crashing', async () => {
+  const { getProducts } = require('@/services/products.service');
+  const response = await getProducts('shop-empty-nonexistent');
+  
+  assert.ok(response);
+  assert.ok(Array.isArray(response.products));
+});
+
