@@ -5,7 +5,7 @@ import { searchProductsAction, getCategoriesAction, getRecentBillingProductsActi
 import { getBatchesAction } from '@/actions/inventory';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Search, Plus, Package, AlertTriangle, Barcode, X, Sparkles, Check } from 'lucide-react';
+import { Search, Plus, Package, AlertTriangle, Barcode, X, Sparkles, Check, Scan } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { formatProductPackDisplay, formatProductNameWithSize } from '@/lib/validations';
 import { MOCK_PRODUCTS, MOCK_CATEGORIES } from '@/lib/mock-data';
@@ -17,6 +17,7 @@ import {
   getRecentDemoBillingProductsClient 
 } from '@/lib/client-demo-store';
 import { useLanguage } from '@/lib/i18n';
+import { BillingBarcodeScannerModal } from '@/components/scanner/billing-barcode-scanner';
 
 interface ProductSearchProps {
   onAddToCart: (item: any) => void;
@@ -32,6 +33,7 @@ function ProductSearchComponent({ onAddToCart }: ProductSearchProps) {
   const [searchResults, setSearchResults] = useState<any[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [addedProductId, setAddedProductId] = useState<string | null>(null);
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const batchesCache = useRef<Record<string, any[]>>({});
   const queryRef = useRef(query);
@@ -298,30 +300,42 @@ function ProductSearchComponent({ onAddToCart }: ProductSearchProps) {
           </h2>
         </div>
 
-        {/* Search Bar */}
-        <div className="relative flex-1 sm:max-w-md">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            ref={searchInputRef}
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-            placeholder={t('billing.searchAnyProduct', 'Search product or barcode (F4)...')}
-            className="pl-10 pr-10 py-5 text-base rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground focus-visible:border-primary"
-          />
-          {query ? (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7 text-muted-foreground hover:text-foreground"
-              onClick={() => setQuery('')}
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          ) : (
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 text-[11px] font-mono text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded border border-border pointer-events-none">
-              <Barcode className="h-3 w-3" /> F4
-            </div>
-          )}
+        {/* Search Bar & Scan Button */}
+        <div className="flex items-center gap-2 flex-1 sm:max-w-lg">
+          <div className="relative flex-1">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              ref={searchInputRef}
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder={t('billing.searchAnyProduct', 'Search product or barcode (F4)...')}
+              className="pl-10 pr-10 py-5 text-base rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground focus-visible:border-primary"
+            />
+            {query ? (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7 text-muted-foreground hover:text-foreground"
+                onClick={() => setQuery('')}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            ) : (
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 text-[11px] font-mono text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded border border-border pointer-events-none">
+                <Barcode className="h-3 w-3" /> F4
+              </div>
+            )}
+          </div>
+
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setIsScannerOpen(true)}
+            className="h-11 px-4 rounded-xl border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary font-bold gap-2 text-xs shadow-sm shrink-0 transition-all active:scale-95"
+          >
+            <Scan className="h-4 w-4 stroke-[2.5]" />
+            <span className="hidden xs:inline">Scan Product</span>
+          </Button>
         </div>
       </div>
 
@@ -483,6 +497,17 @@ function ProductSearchComponent({ onAddToCart }: ProductSearchProps) {
           })}
         </div>
       )}
+
+      {/* Embedded Billing Barcode Scanner Dialog */}
+      <BillingBarcodeScannerModal
+        isOpen={isScannerOpen}
+        onClose={() => setIsScannerOpen(false)}
+        onAddToCart={onAddToCart}
+        productsList={allProducts}
+        onOpenManualSearch={() => {
+          searchInputRef.current?.focus();
+        }}
+      />
     </section>
   );
 }

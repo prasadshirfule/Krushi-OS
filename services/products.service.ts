@@ -183,6 +183,10 @@ export async function getProductById(shopId: string, productId: string): Promise
 }
 
 export async function createProduct(shopId: string, data: CreateProductInput, userId?: string) {
+  if (!data.category_id || !data.category_id.trim() || data.category_id === '__none__') {
+    throw new Error('Please select a category before saving the product.');
+  }
+
   if (isPlaceholderMode()) {
     const all = getStoredDemoProducts(normalizeProduct);
     const productId = `prod-${Date.now()}`;
@@ -472,27 +476,69 @@ export async function deleteProduct(shopId: string, productId: string): Promise<
 }
 
 export async function getProductByBarcode(shopId: string, barcode: string): Promise<ProductWithRelations | null> {
+  const cleanBarcode = (barcode || '').trim();
+  if (!cleanBarcode) return null;
+
+  // Search codes: raw code, leading 0 stripped, or leading 0 padded
+  const searchCodes = [cleanBarcode];
+  if (cleanBarcode.startsWith('0') && cleanBarcode.length > 1) {
+    searchCodes.push(cleanBarcode.replace(/^0+/, ''));
+  } else if (/^\d{12,13}$/.test(cleanBarcode)) {
+    searchCodes.push(cleanBarcode.padStart(14, '0'));
+  }
+
   if (isPlaceholderMode()) {
-    const all = getDemoProducts();
-    const found = all.find(p => p.is_active !== false && p.barcode === barcode);
+    const list = getStoredDemoProducts(normalizeProduct);
+    const found = list.find((p: any) => {
+      if (p.is_active === false) return false;
+      const pBarcode = (p.barcode || '').trim();
+      const pSku = (p.sku || '').trim();
+      const pGtin = (p.gtin || '').trim();
+      if (searchCodes.some(code => code === pBarcode || code === pSku || code === pGtin)) return true;
+      if (Array.isArray(p.batches) && p.batches.length > 0) {
+        return p.batches.some((b: any) => searchCodes.includes((b.barcode || '').trim()));
+      }
+      return false;
+    });
     return found ? normalizeProduct(found) : null;
   }
 
   try {
     const supabase = await createServerSupabaseClient();
+    
+    // 1. Exact match on products table
+    const orClause = searchCodes.map(c => `barcode.eq.${c},sku.eq.${c}`).join(',');
     const { data, error } = await supabase
       .from('products')
-      .select('*, category:categories(id, name), brand:brands(*), batches:product_batches(*)')
+      .select('*, category:categories(id, name), brand:brands(id, name, manufacturer), batches:product_batches(*)')
       .eq('shop_id', shopId)
-      .eq('barcode', barcode)
       .eq('is_active', true)
-      .single();
+      .or(orClause)
+      .limit(1);
 
     if (error) {
       console.error("Error fetching product by barcode:", error);
       return null;
     }
-    return data as ProductWithRelations;
+
+    if (data && data.length > 0) {
+      return data[0] as ProductWithRelations;
+    }
+
+    // 2. Also check if barcode matches a specific product batch
+    const { data: batchData } = await supabase
+      .from('product_batches')
+      .select('product_id, products:products(*, category:categories(id, name), brand:brands(id, name, manufacturer), batches:product_batches(*))')
+      .eq('shop_id', shopId)
+      .eq('is_active', true)
+      .in('barcode', searchCodes)
+      .limit(1);
+
+    if (batchData && batchData.length > 0 && (batchData[0] as any).products) {
+      return (batchData[0] as any).products as unknown as ProductWithRelations;
+    }
+
+    return null;
   } catch (error) {
     console.error("Failed to load product by barcode:", error);
     return null;
@@ -876,3 +922,4 @@ export async function createBrand(shopId: string, data: { name: string; manufact
   }
   return brand;
 }
+

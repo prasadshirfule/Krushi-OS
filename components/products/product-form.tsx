@@ -330,7 +330,7 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
     resolver: zodResolver(productSchema),
     defaultValues: {
       name: initialData?.name || '',
-      category_id: initialData?.category_id || (categories && categories.length > 0 ? categories[0].id : ''),
+      category_id: initialData?.category_id || '',
       brand_id: initialData?.brand_id || '',
       sku: initialData?.sku || '',
       barcode: initialData?.barcode || '',
@@ -349,7 +349,7 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
       expiry_tracking: true,
       batch_number: initialBatchNumber,
       expiry_date: initialExpiryFormatted,
-      product_type: initialData?.product_type || 'Fertilizer',
+      product_type: initialData?.product_type || '',
       active_ingredient: initialData?.active_ingredient || '',
       formulation: initialData?.formulation || '',
       crop: initialData?.crop || '',
@@ -546,6 +546,11 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
 
   // Submit product create / update
   const onSubmit = async (data: ProductInput) => {
+    if (!data.category_id || !data.category_id.trim() || data.category_id === '__none__') {
+      toast.error('Please select a category before saving the product.');
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const rawBatch = (data.batch_number || '').trim();

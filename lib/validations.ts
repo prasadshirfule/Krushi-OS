@@ -304,7 +304,7 @@ export function formatProductNameWithSize(
 
 export const productSchema = z.object({
   name: z.string().min(2, 'Product name must be at least 2 characters').max(200),
-  category_id: z.string().min(1, 'Category is required'),
+  category_id: z.string().min(1, 'Please select a category before saving the product.'),
   brand_id: z.string().optional().nullable(),
   description: z.string().optional().nullable(),
   sku: z.string().optional().nullable(),
