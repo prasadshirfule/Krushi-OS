@@ -67,6 +67,9 @@ function renderSourceBadge(sourceKey?: string) {
   } else if (s === 'gs1') {
     label = 'GS1';
     colorClass = 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/30';
+  } else if (s === 'structured_qr' || s === 'qr') {
+    label = 'QR';
+    colorClass = 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30';
   } else if (s === 'database' || s === 'db') {
     label = 'DB';
     colorClass = 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/30';
@@ -744,8 +747,16 @@ export function ProductBarcodeScannerModal({
               <div className="flex justify-between items-center border-b border-border/50 pb-2">
                 <span className="text-xs font-semibold text-muted-foreground">GTIN / Barcode:</span>
                 <div>
-                  <span className="font-mono font-bold text-foreground">{scanResult.gtin || scanResult.barcode || scanResult.rawValue}</span>
-                  {renderSourceBadge(scanResult.fieldSources?.['gtin'] || scanResult.fieldSources?.['barcode'])}
+                  {scanResult.gtin || scanResult.barcode ? (
+                    <>
+                      <span className="font-mono font-bold text-foreground">{scanResult.gtin || scanResult.barcode}</span>
+                      {renderSourceBadge(scanResult.fieldSources?.['gtin'] || scanResult.fieldSources?.['barcode'])}
+                    </>
+                  ) : (
+                    <span className="text-xs italic text-muted-foreground">
+                      {scanResult.sourceUrl ? 'Encoded in QR / URL' : 'Not detected in QR'}
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -823,6 +834,19 @@ export function ProductBarcodeScannerModal({
                 </div>
               </div>
             </div>
+
+            {/* Expandable Raw QR / Barcode Payload Details */}
+            {scanResult.rawValue && (
+              <details className="text-[11px] text-muted-foreground bg-muted/30 border border-border/80 rounded-xl p-2.5 group">
+                <summary className="cursor-pointer font-semibold hover:text-foreground select-none flex items-center justify-between text-xs">
+                  <span>View raw QR payload</span>
+                  <span className="text-[10px] font-mono opacity-70">[{scanResult.format || 'QR'}]</span>
+                </summary>
+                <pre className="mt-2 p-2 bg-background/80 rounded-lg border border-border/60 overflow-x-auto whitespace-pre-wrap font-mono text-[10px] text-foreground/80 break-all leading-relaxed">
+                  {scanResult.rawValue}
+                </pre>
+              </details>
+            )}
 
             {/* Enrichment & Field Resolution Status Notice */}
             <div className="p-3 bg-muted/60 border border-border rounded-xl space-y-1 text-xs">

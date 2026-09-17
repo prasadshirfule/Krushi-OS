@@ -4,9 +4,9 @@ import { ProductScanResult, ScannerSource, FieldConflictRecord } from './types';
 type PriorityMap = Record<ScannerSource, number>;
 
 const DEFAULT_PRIORITY: PriorityMap = {
-  gs1: 40,
+  gs1: 45,
+  structured_qr: 40,
   manufacturer_url: 35,
-  structured_qr: 30,
   database: 25,
   ocr: 20,
   barcode: 15,
@@ -15,43 +15,43 @@ const DEFAULT_PRIORITY: PriorityMap = {
 };
 
 const FIELD_PRIORITY_OVERRIDES: Record<string, PriorityMap> = {
-  // GTIN / Barcode: GS1 > Barcode > Database
-  gtin: { gs1: 50, barcode: 40, database: 30, structured_qr: 25, manufacturer_url: 20, ocr: 10, combined: 5, unknown: 0 },
-  barcode: { gs1: 50, barcode: 40, database: 30, structured_qr: 25, manufacturer_url: 20, ocr: 10, combined: 5, unknown: 0 },
+  // GTIN / Barcode: GS1 > Explicit QR > Barcode > Database
+  gtin: { gs1: 50, structured_qr: 45, barcode: 40, database: 30, manufacturer_url: 20, ocr: 10, combined: 5, unknown: 0 },
+  barcode: { gs1: 50, structured_qr: 45, barcode: 40, database: 30, manufacturer_url: 20, ocr: 10, combined: 5, unknown: 0 },
 
-  // Traceability: GS1 > Manufacturer Page > OCR > Database
-  batchNumber: { gs1: 50, manufacturer_url: 45, ocr: 40, structured_qr: 35, database: 20, barcode: 0, combined: 5, unknown: 0 },
-  serialNumber: { gs1: 50, manufacturer_url: 45, ocr: 40, structured_qr: 35, database: 20, barcode: 0, combined: 5, unknown: 0 },
-  manufacturingDate: { gs1: 50, manufacturer_url: 45, ocr: 40, structured_qr: 35, database: 20, barcode: 0, combined: 5, unknown: 0 },
-  expiryDate: { gs1: 50, manufacturer_url: 45, ocr: 40, structured_qr: 35, database: 20, barcode: 0, combined: 5, unknown: 0 },
-  expiryDateDB: { gs1: 50, manufacturer_url: 45, ocr: 40, structured_qr: 35, database: 20, barcode: 0, combined: 5, unknown: 0 },
+  // Traceability: GS1 > Explicit QR > Manufacturer Page > OCR > Database
+  batchNumber: { gs1: 50, structured_qr: 45, manufacturer_url: 40, ocr: 35, database: 20, barcode: 0, combined: 5, unknown: 0 },
+  serialNumber: { gs1: 50, structured_qr: 45, manufacturer_url: 40, ocr: 35, database: 20, barcode: 0, combined: 5, unknown: 0 },
+  manufacturingDate: { gs1: 50, structured_qr: 45, manufacturer_url: 40, ocr: 35, database: 20, barcode: 0, combined: 5, unknown: 0 },
+  expiryDate: { gs1: 50, structured_qr: 45, manufacturer_url: 40, ocr: 35, database: 20, barcode: 0, combined: 5, unknown: 0 },
+  expiryDateDB: { gs1: 50, structured_qr: 45, manufacturer_url: 40, ocr: 35, database: 20, barcode: 0, combined: 5, unknown: 0 },
 
-  // Product Identity: Manufacturer Page > Database > OCR
-  productName: { manufacturer_url: 50, database: 40, ocr: 30, structured_qr: 20, gs1: 10, barcode: 0, combined: 5, unknown: 0 },
-  brand: { manufacturer_url: 50, database: 40, ocr: 30, structured_qr: 20, gs1: 10, barcode: 0, combined: 5, unknown: 0 },
+  // Product Identity: Explicit QR > Manufacturer Page > Database > OCR
+  productName: { structured_qr: 50, manufacturer_url: 45, database: 40, ocr: 30, gs1: 10, barcode: 0, combined: 5, unknown: 0 },
+  brand: { structured_qr: 50, manufacturer_url: 45, database: 40, ocr: 30, gs1: 10, barcode: 0, combined: 5, unknown: 0 },
 
-  // Manufacturer: Trusted Manufacturer Page > Database > OCR
-  manufacturer: { manufacturer_url: 50, database: 40, ocr: 30, structured_qr: 20, gs1: 10, barcode: 0, combined: 5, unknown: 0 },
+  // Manufacturer: Explicit QR > Trusted Manufacturer Page > Database > OCR
+  manufacturer: { structured_qr: 50, manufacturer_url: 45, database: 40, ocr: 30, gs1: 10, barcode: 0, combined: 5, unknown: 0 },
 
-  // Composition / Active Ingredients: Trusted Manufacturer Page > Database > OCR
-  composition: { manufacturer_url: 50, database: 40, ocr: 30, structured_qr: 20, gs1: 10, barcode: 0, combined: 5, unknown: 0 },
+  // Composition / Active Ingredients: Explicit QR > Trusted Manufacturer Page > Database > OCR
+  composition: { structured_qr: 50, manufacturer_url: 45, database: 40, ocr: 30, gs1: 10, barcode: 0, combined: 5, unknown: 0 },
 
-  // Packaging: Manufacturer Page > Database > OCR
-  packSize: { manufacturer_url: 50, database: 40, ocr: 30, structured_qr: 20, gs1: 10, barcode: 0, combined: 5, unknown: 0 },
-  sizeValue: { manufacturer_url: 50, database: 40, ocr: 30, structured_qr: 20, gs1: 10, barcode: 0, combined: 5, unknown: 0 },
-  sizeUnit: { manufacturer_url: 50, database: 40, ocr: 30, structured_qr: 20, gs1: 10, barcode: 0, combined: 5, unknown: 0 },
+  // Packaging: Explicit QR > Manufacturer Page > Database > OCR
+  packSize: { structured_qr: 50, manufacturer_url: 45, database: 40, ocr: 30, gs1: 10, barcode: 0, combined: 5, unknown: 0 },
+  sizeValue: { structured_qr: 50, manufacturer_url: 45, database: 40, ocr: 30, gs1: 10, barcode: 0, combined: 5, unknown: 0 },
+  sizeUnit: { structured_qr: 50, manufacturer_url: 45, database: 40, ocr: 30, gs1: 10, barcode: 0, combined: 5, unknown: 0 },
 
-  // Category: Database > Manufacturer Page > OCR
-  category: { database: 50, manufacturer_url: 40, ocr: 30, structured_qr: 20, gs1: 10, barcode: 0, combined: 5, unknown: 0 },
-  categoryId: { database: 50, manufacturer_url: 40, ocr: 30, structured_qr: 20, gs1: 10, barcode: 0, combined: 5, unknown: 0 },
+  // Category: Explicit QR > Database > Manufacturer Page > OCR
+  category: { structured_qr: 50, database: 45, manufacturer_url: 40, ocr: 30, gs1: 10, barcode: 0, combined: 5, unknown: 0 },
+  categoryId: { structured_qr: 50, database: 45, manufacturer_url: 40, ocr: 30, gs1: 10, barcode: 0, combined: 5, unknown: 0 },
 
-  // Regulatory: Explicit Structured / Database > Manufacturer > OCR
-  hsnCode: { database: 50, manufacturer_url: 40, ocr: 30, structured_qr: 20, gs1: 0, barcode: 0, combined: 5, unknown: 0 },
-  gstRate: { database: 50, manufacturer_url: 40, ocr: 30, structured_qr: 20, gs1: 0, barcode: 0, combined: 5, unknown: 0 },
+  // Regulatory: Explicit Structured QR > Database > Manufacturer > OCR
+  hsnCode: { structured_qr: 50, database: 45, manufacturer_url: 40, ocr: 30, gs1: 0, barcode: 0, combined: 5, unknown: 0 },
+  gstRate: { structured_qr: 50, database: 45, manufacturer_url: 40, ocr: 30, gs1: 0, barcode: 0, combined: 5, unknown: 0 },
 
-  // Commercial: Current Package / Manufacturer > OCR
-  mrp: { manufacturer_url: 50, ocr: 40, database: 30, structured_qr: 20, gs1: 10, barcode: 0, combined: 5, unknown: 0 },
-  unitSalePrice: { manufacturer_url: 50, ocr: 40, database: 30, structured_qr: 20, gs1: 10, barcode: 0, combined: 5, unknown: 0 },
+  // Commercial: Explicit QR > Manufacturer > OCR > Database
+  mrp: { structured_qr: 50, manufacturer_url: 45, ocr: 40, database: 30, gs1: 10, barcode: 0, combined: 5, unknown: 0 },
+  unitSalePrice: { structured_qr: 50, manufacturer_url: 45, ocr: 40, database: 30, gs1: 10, barcode: 0, combined: 5, unknown: 0 },
 };
 
 const FIELD_LABELS: Record<string, string> = {
