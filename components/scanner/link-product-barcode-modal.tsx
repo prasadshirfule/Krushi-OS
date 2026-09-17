@@ -136,6 +136,14 @@ export function LinkProductBarcodeModal({
       detected_expiry: expiryDate,
     };
 
+    console.log('[KRUSHI SCANNER] IDENTIFIER_REGISTERED', {
+      raw_value: payload.raw_value.length > 80 ? payload.raw_value.slice(0, 80) + '...' : payload.raw_value,
+      identifier_type: payload.identifier_type,
+      normalized_value: payload.normalized_value,
+      detected_batch: payload.detected_batch,
+      detected_expiry: payload.detected_expiry,
+    });
+
     cleanupScanner();
     onLinkIdentifier(payload);
     onClose();

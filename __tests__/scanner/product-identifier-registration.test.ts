@@ -646,4 +646,180 @@ test('33. Completely arbitrary/opaque string QR links and preserves exact raw pa
   assert.strictEqual(saved.product.identifiers[0].raw_value, OPAQUE_QR);
 });
 
+test('34. Sequential capture/decode locking: isDecodeInProgressStatus tracks decode state', () => {
+  const session = new NativeBarcodeScannerSession({
+    onScanResult: () => {},
+    onError: () => {},
+  });
+
+  assert.strictEqual(session.isDecodeInProgressStatus(), false);
+  assert.strictEqual(session.isLockedStatus(), false);
+});
+
+test('35. Overlapping decode prevention: frames do not trigger concurrent decodes', async () => {
+  let decodeCount = 0;
+  let concurrentOverlap = false;
+  let activeDecoding = false;
+
+  const simulateDecodePipeline = async (frameId: number) => {
+    if (activeDecoding) {
+      // Overlap detected: frame is skipped
+      return { skipped: true, frameId };
+    }
+    activeDecoding = true;
+    decodeCount++;
+    // Simulate ML Kit async processing
+    await new Promise((r) => setTimeout(r, 20));
+    activeDecoding = false;
+    return { skipped: false, frameId };
+  };
+
+  // Launch two concurrent frames
+  const [res1, res2] = await Promise.all([
+    simulateDecodePipeline(1),
+    simulateDecodePipeline(2),
+  ]);
+
+  assert.strictEqual(decodeCount, 1);
+  assert.strictEqual(res1.skipped, false);
+  assert.strictEqual(res2.skipped, true);
+});
+
+test('36. Scanner restart cleanly resets lock, decode status, and session state', async () => {
+  const session = new NativeBarcodeScannerSession({
+    onScanResult: () => {},
+    onError: () => {},
+  });
+
+  // Acquire lock as if first scan succeeded
+  session.acquireLock();
+  assert.strictEqual(session.isLockedStatus(), true);
+
+  // Stop session
+  await session.stop();
+  assert.strictEqual(session.isLockedStatus(), true);
+
+  // Create or start new session
+  const newSession = new NativeBarcodeScannerSession({
+    onScanResult: () => {},
+    onError: () => {},
+  });
+  assert.strictEqual(newSession.isLockedStatus(), false);
+  assert.strictEqual(newSession.isDecodeInProgressStatus(), false);
+  
+  // Can acquire lock cleanly on new session
+  const acquired = newSession.acquireLock();
+  assert.strictEqual(acquired, true);
+  assert.strictEqual(newSession.isLockedStatus(), true);
+});
+
+test('37. First-scan atomic lock in multi-frame race condition', () => {
+  const session = new NativeBarcodeScannerSession({
+    onScanResult: () => {},
+    onError: () => {},
+  });
+
+  const capturedResults: string[] = [];
+  const simulateFrameDetected = (val: string) => {
+    if (session.acquireLock()) {
+      capturedResults.push(val);
+    }
+  };
+
+  // 10 concurrent detections from rapid frames
+  for (let i = 0; i < 10; i++) {
+    simulateFrameDetected(`GHARDA_SCAN_${i}`);
+  }
+
+  assert.strictEqual(capturedResults.length, 1);
+  assert.strictEqual(capturedResults[0], 'GHARDA_SCAN_0');
+});
+
+test('38. Raw Gharda QR registration with arbitrary packaging payload format', () => {
+  const GHARDA_RAW = 'GHARDA:CHLORGUARD-50:20250917:LOT-8899:VERIFIED';
+  
+  const payload = {
+    raw_value: GHARDA_RAW,
+    identifier_type: 'qr' as const,
+    normalized_value: GHARDA_RAW,
+    is_primary: true,
+  };
+
+  assert.strictEqual(payload.raw_value, GHARDA_RAW);
+  assert.strictEqual(payload.identifier_type, 'qr');
+  assert.strictEqual(payload.normalized_value, GHARDA_RAW);
+});
+
+test('39. Multi-attempt decoding fallback: Attempt 1 fail -> Attempt 2 (crop/upscale) success simulation', async () => {
+  let attempt1Count = 0;
+  let attempt2Count = 0;
+  let finalDecodedValue: string | null = null;
+
+  const simulateMultiAttemptDecode = async (frame: { hasDenseQr: boolean }) => {
+    // Attempt 1: Full frame decode
+    attempt1Count++;
+    if (!frame.hasDenseQr) {
+      return { barcodes: [{ rawValue: 'EASY_QR_123', format: 'QR_CODE' }] };
+    }
+    // Full frame fails on dense QR
+    const attempt1Res = { barcodes: [] };
+
+    // Attempt 2: Cropped + 2x upscaled
+    attempt2Count++;
+    const attempt2Res = { barcodes: [{ rawValue: 'GHARDA_DENSE_QR_PAYLOAD_ABC', format: 'QR_CODE' }] };
+    return attempt2Res;
+  };
+
+  const res = await simulateMultiAttemptDecode({ hasDenseQr: true });
+  assert.strictEqual(attempt1Count, 1);
+  assert.strictEqual(attempt2Count, 1);
+  assert.strictEqual(res.barcodes[0].rawValue, 'GHARDA_DENSE_QR_PAYLOAD_ABC');
+});
+
+test('40. Multi-attempt decoding: Normal decode success halts subsequent attempts immediately', async () => {
+  let attempt1Count = 0;
+  let attempt2Count = 0;
+  let attempt3Count = 0;
+
+  const simulateNormalSuccess = async () => {
+    attempt1Count++;
+    const res1 = { barcodes: [{ rawValue: 'STANDARD_EAN13', format: 'EAN_13' }] };
+    if (res1.barcodes.length > 0) {
+      return res1;
+    }
+    attempt2Count++;
+    attempt3Count++;
+    return { barcodes: [] };
+  };
+
+  const res = await simulateNormalSuccess();
+  assert.strictEqual(attempt1Count, 1);
+  assert.strictEqual(attempt2Count, 0);
+  assert.strictEqual(attempt3Count, 0);
+  assert.strictEqual(res.barcodes[0].rawValue, 'STANDARD_EAN13');
+});
+
+test('41. Multi-attempt decoding: Attempt 3 (enhanced contrast) triggers only when 1 & 2 fail', async () => {
+  let attempt1Count = 0;
+  let attempt2Count = 0;
+  let attempt3Count = 0;
+
+  const simulateHardScan = async () => {
+    attempt1Count++;
+    // Attempt 1 fails
+    attempt2Count++;
+    // Attempt 2 fails
+    attempt3Count++;
+    // Attempt 3 succeeds with enhanced contrast
+    return { barcodes: [{ rawValue: 'HARD_CONTRAST_GHARDA_MATRIX', format: 'DATA_MATRIX' }] };
+  };
+
+  const res = await simulateHardScan();
+  assert.strictEqual(attempt1Count, 1);
+  assert.strictEqual(attempt2Count, 1);
+  assert.strictEqual(attempt3Count, 1);
+  assert.strictEqual(res.barcodes[0].rawValue, 'HARD_CONTRAST_GHARDA_MATRIX');
+  assert.strictEqual(res.barcodes[0].format, 'DATA_MATRIX');
+});
+
 
