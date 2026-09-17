@@ -39,8 +39,14 @@ import {
   Building2, 
   Check, 
   Calendar,
-  Grid3X3
+  Grid3X3,
+  Scan,
+  CheckCircle2,
+  AlertTriangle,
+  RotateCcw
 } from 'lucide-react';
+import { ProductBarcodeScannerModal } from '@/components/scanner/product-barcode-scanner';
+import { ProductScanResult, FieldConflict } from '@/lib/scanner/types';
 
 import { 
   isClientDemoMode, 
@@ -91,6 +97,213 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
   const [newBrandName, setNewBrandName] = useState('');
   const [newBrandCompany, setNewBrandCompany] = useState('');
   const [isSavingBrand, setIsSavingBrand] = useState(false);
+
+  // Scanner state & autofill tracking
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [autofilledFields, setAutofilledFields] = useState<Set<string>>(new Set());
+  const [conflicts, setConflicts] = useState<FieldConflict[]>([]);
+  const [isConflictDialogOpen, setIsConflictDialogOpen] = useState(false);
+
+  // Handle auto-filling product form with conflict detection
+  const handleApplyScanResult = (result: ProductScanResult) => {
+    const newAutofilled = new Set(autofilledFields);
+    const newConflicts: FieldConflict[] = [];
+
+    const checkAndFill = (
+      fieldName: keyof ProductInput,
+      label: string,
+      detectedVal: any
+    ) => {
+      if (detectedVal === undefined || detectedVal === null || detectedVal === '') return;
+      
+      const currentVal = form.getValues(fieldName);
+      const isCurrentEmpty = 
+        currentVal === undefined || 
+        currentVal === null || 
+        currentVal === '' || 
+        currentVal === '__none__' ||
+        (fieldName === 'purchase_price' && Number(currentVal) === 0 && mode === 'create') ||
+        (fieldName === 'selling_price' && Number(currentVal) === 0 && mode === 'create');
+
+      if (isCurrentEmpty) {
+        form.setValue(fieldName, detectedVal, { shouldValidate: true });
+        newAutofilled.add(fieldName);
+      } else {
+        const normalizedCurrent = String(currentVal).trim().toUpperCase();
+        const normalizedDetected = String(detectedVal).trim().toUpperCase();
+
+        if (normalizedCurrent !== normalizedDetected) {
+          newConflicts.push({
+            fieldName: fieldName as any,
+            label,
+            currentValue: currentVal,
+            detectedValue: detectedVal,
+          });
+        }
+      }
+    };
+
+    // 1. Barcode / GTIN
+    if (result.barcode || result.gtin) {
+      checkAndFill('barcode', 'Barcode / GTIN', result.barcode || result.gtin);
+    }
+
+    // 2. SKU
+    if (result.sku) {
+      checkAndFill('sku', 'SKU', result.sku);
+    }
+
+    // 3. Product Name
+    if (result.productName) {
+      checkAndFill('name', 'Product Name', result.productName.toUpperCase());
+    }
+
+    // 4. Category
+    if (result.categoryId) {
+      const matchCat = categoriesList.find(c => c.id === result.categoryId);
+      if (matchCat) {
+        checkAndFill('category_id', 'Category', matchCat.id);
+      }
+    } else if (result.category) {
+      const matchCat = categoriesList.find(c => 
+        c.name.toLowerCase() === result.category?.toLowerCase() ||
+        result.category?.toLowerCase().includes(c.name.toLowerCase())
+      );
+      if (matchCat) {
+        checkAndFill('category_id', 'Category', matchCat.id);
+      }
+    }
+
+    // 5. Manufacturer / Brand
+    if (result.manufacturer || result.brand) {
+      const brandSearch = result.brand || result.manufacturer;
+      const matchBrand = brandsList.find(b => 
+        (b.name && b.name.toLowerCase() === brandSearch?.toLowerCase()) ||
+        (b.manufacturer && b.manufacturer.toLowerCase() === brandSearch?.toLowerCase()) ||
+        (result.manufacturer && b.manufacturer && b.manufacturer.toLowerCase() === result.manufacturer.toLowerCase())
+      );
+      if (matchBrand) {
+        checkAndFill('brand_id', 'Manufacturer / Brand', matchBrand.id);
+      }
+    }
+
+    // 6. HSN Code
+    if (result.hsnCode) {
+      checkAndFill('hsn_code', 'HSN Code', result.hsnCode);
+    }
+
+    // 7. GST Rate
+    if (result.gstRate !== undefined) {
+      checkAndFill('gst_rate', 'GST Rate', Number(result.gstRate));
+    }
+
+    // 8. Product Size
+    if (result.sizeValue !== undefined && result.sizeValue !== null && Number(result.sizeValue) > 0) {
+      checkAndFill('product_size_value', 'Product Size Value', Number(result.sizeValue));
+      if (result.sizeUnit) {
+        form.setValue('product_size_unit', result.sizeUnit);
+        newAutofilled.add('product_size_unit');
+      }
+      const unit = result.sizeUnit || form.getValues('product_size_unit') || 'KG';
+      form.setValue('pack_size', `${result.sizeValue} ${unit}`, { shouldValidate: true });
+    } else if (result.packSize) {
+      form.setValue('pack_size', result.packSize, { shouldValidate: true });
+      newAutofilled.add('pack_size');
+    }
+
+    // 9. Batch Number
+    if (result.batchNumber) {
+      checkAndFill('batch_number', 'Batch No', result.batchNumber);
+    }
+
+    // 10. Manufacturing Date
+    if (result.manufacturingDate) {
+      checkAndFill('mfd_date', 'Mfg Date', result.manufacturingDate);
+    }
+
+    // 11. Expiry Date
+    if (result.expiryDate) {
+      checkAndFill('expiry_date', 'Expiry Date', result.expiryDate);
+    }
+
+    // 12. Active Ingredients & Composition
+    if (result.activeIngredients && result.activeIngredients.length > 0) {
+      checkAndFill('active_ingredient', 'Active Ingredient', result.activeIngredients.join(', '));
+    } else if (result.composition) {
+      checkAndFill('active_ingredient', 'Composition', result.composition);
+    }
+
+    // 13. Formulation
+    if (result.formulation) {
+      checkAndFill('formulation', 'Formulation', result.formulation);
+    }
+
+    // 14. Licence / Registration Number
+    if (result.manufacturingLicenceNumber || result.registrationNumber) {
+      checkAndFill('licence_number', 'Licence / Reg No', result.manufacturingLicenceNumber || result.registrationNumber);
+    }
+
+    // 15. Description
+    if (result.productDescription) {
+      checkAndFill('description', 'Description', result.productDescription);
+    }
+
+    // 16. Pricing & Stock (only if explicitly encoded in recognized structured data)
+    if (result.purchasePrice !== undefined && Number(result.purchasePrice) > 0) {
+      checkAndFill('purchase_price', 'Purchase Price', Number(result.purchasePrice));
+    }
+    if (result.sellingPrice !== undefined && Number(result.sellingPrice) > 0) {
+      checkAndFill('selling_price', 'Selling Price', Number(result.sellingPrice));
+    }
+    if (result.quantity !== undefined && Number(result.quantity) > 0) {
+      checkAndFill('opening_stock', 'Quantity in Stock', Number(result.quantity));
+    }
+
+    setAutofilledFields(newAutofilled);
+
+    if (newConflicts.length > 0) {
+      setConflicts(newConflicts);
+      setIsConflictDialogOpen(true);
+      toast.info(`${newConflicts.length} field conflict(s) detected. Please review.`);
+    } else {
+      toast.success('Product fields auto-filled from scanner. Please review before saving.');
+    }
+  };
+
+  const handleResolveConflict = (conflictField: string, useDetected: boolean) => {
+    const conflict = conflicts.find(c => c.fieldName === conflictField);
+    if (!conflict) return;
+
+    if (useDetected) {
+      form.setValue(conflict.fieldName as any, conflict.detectedValue, { shouldValidate: true });
+      setAutofilledFields(prev => new Set(prev).add(conflict.fieldName));
+      toast.success(`Applied detected ${conflict.label}`);
+    } else {
+      toast.info(`Kept current ${conflict.label}`);
+    }
+
+    const remaining = conflicts.filter(c => c.fieldName !== conflictField);
+    setConflicts(remaining);
+    if (remaining.length === 0) {
+      setIsConflictDialogOpen(false);
+    }
+  };
+
+  const handleResolveAllConflicts = (useAllDetected: boolean) => {
+    if (useAllDetected) {
+      const nextAutofill = new Set(autofilledFields);
+      conflicts.forEach(c => {
+        form.setValue(c.fieldName as any, c.detectedValue, { shouldValidate: true });
+        nextAutofill.add(c.fieldName);
+      });
+      setAutofilledFields(nextAutofill);
+      toast.success('Applied all detected values');
+    } else {
+      toast.info('Kept all current values');
+    }
+    setConflicts([]);
+    setIsConflictDialogOpen(false);
+  };
 
   // Parse existing product size safely
   const parsedInitial = parseProductSize(initialData?.pack_size, initialData?.unit);
@@ -456,23 +669,39 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
         ═════════════════════════════════════════════════════════ */}
         <Card className="border border-border bg-card shadow-sm rounded-xl overflow-hidden">
           <CardHeader className="bg-muted/30 border-b border-border pb-4">
-            <div className="flex items-center gap-3">
-              <div className="h-9 w-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold">
-                <Package className="h-5 w-5" />
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="h-9 w-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold">
+                  <Package className="h-5 w-5" />
+                </div>
+                <div>
+                  <CardTitle className="text-lg font-bold text-foreground">{t('products.productDetails', 'PRODUCT DETAILS')}</CardTitle>
+                  <CardDescription className="text-xs text-muted-foreground">
+                    {t('products.productDetailsDesc', 'Product information, category, size, batch, and expiry')}
+                  </CardDescription>
+                </div>
               </div>
-              <div>
-                <CardTitle className="text-lg font-bold text-foreground">{t('products.productDetails', 'PRODUCT DETAILS')}</CardTitle>
-                <CardDescription className="text-xs text-muted-foreground">
-                  {t('products.productDetailsDesc', 'Product information, category, size, batch, and expiry')}
-                </CardDescription>
-              </div>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsScannerOpen(true)}
+                className="h-9 px-4 rounded-lg border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary font-bold gap-2 text-xs shadow-sm self-start sm:self-auto shrink-0 transition-all active:scale-95"
+              >
+                <Scan className="h-4 w-4 stroke-[2.5]" />
+                <span>Scan Barcode / QR</span>
+              </Button>
             </div>
           </CardHeader>
           <CardContent className="p-6 space-y-5">
-            {/* 1. Product Name (Full Width) */}
+            {/* 1. Product Name (Clean Full Width) */}
             <div className="space-y-2">
-              <Label htmlFor="name" className="text-sm font-semibold text-foreground">
-                {t('products.productName', 'Product Name')} <span className="text-destructive font-bold">*</span>
+              <Label htmlFor="name" className="text-sm font-semibold text-foreground flex items-center">
+                {t('products.productName', 'Product Name')} <span className="text-destructive font-bold ml-0.5">*</span>
+                {autofilledFields.has('name') && (
+                  <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded ml-2">
+                    <Check className="h-3 w-3 stroke-[3]" /> Detected
+                  </span>
+                )}
               </Label>
               <Input
                 id="name"
@@ -488,13 +717,62 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
               )}
             </div>
 
+            {/* Barcode & SKU Row */}
+            <div className="grid gap-5 grid-cols-1 sm:grid-cols-2 items-start pt-1">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="barcode" className="text-sm font-semibold text-foreground flex items-center">
+                    Barcode / GTIN
+                    {autofilledFields.has('barcode') && (
+                      <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded ml-2">
+                        <Check className="h-3 w-3 stroke-[3]" /> Detected
+                      </span>
+                    )}
+                  </Label>
+                </div>
+                <div className="flex gap-2">
+                  <Input
+                    id="barcode"
+                    placeholder="e.g. 8901234567890"
+                    className="h-11 text-sm rounded-lg border-border bg-background font-mono flex-1"
+                    {...form.register('barcode')}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setIsScannerOpen(true)}
+                    className="h-11 px-3 border-border hover:bg-muted shrink-0 text-xs font-semibold gap-1"
+                  >
+                    <Scan className="h-3.5 w-3.5 text-primary" /> Scan
+                  </Button>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="sku" className="text-sm font-semibold text-foreground">
+                  SKU (Item Code)
+                </Label>
+                <Input
+                  id="sku"
+                  placeholder="e.g. SKU-1029 (auto-generated if blank)"
+                  className="h-11 text-sm rounded-lg border-border bg-background font-mono"
+                  {...form.register('sku')}
+                />
+              </div>
+            </div>
+
             {/* 2. Category, Manufacturer, HSN Code */}
             <div className="grid gap-5 grid-cols-1 md:grid-cols-3 items-start">
               {/* Category with Quick Add */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="category_id" className="text-sm font-semibold text-foreground">
-                    {t('products.category', 'Category')} <span className="text-destructive font-bold">*</span>
+                  <Label htmlFor="category_id" className="text-sm font-semibold text-foreground flex items-center">
+                    {t('products.category', 'Category')} <span className="text-destructive font-bold ml-0.5">*</span>
+                    {autofilledFields.has('category_id') && (
+                      <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded ml-2">
+                        <Check className="h-3 w-3 stroke-[3]" /> Detected
+                      </span>
+                    )}
                   </Label>
                   <button
                     type="button"
@@ -549,8 +827,13 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
               {/* Manufacturer / Brand with Quick Add */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="brand_id" className="text-sm font-semibold text-foreground">
+                  <Label htmlFor="brand_id" className="text-sm font-semibold text-foreground flex items-center">
                     {t('products.manufacturer', 'Manufacturer')}
+                    {autofilledFields.has('brand_id') && (
+                      <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded ml-2">
+                        <Check className="h-3 w-3 stroke-[3]" /> Detected
+                      </span>
+                    )}
                   </Label>
                   <button
                     type="button"
@@ -602,8 +885,13 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
 
               {/* HSN Code */}
               <div className="space-y-2">
-                <Label htmlFor="hsn_code" className="text-sm font-semibold text-foreground">
+                <Label htmlFor="hsn_code" className="text-sm font-semibold text-foreground flex items-center">
                   {t('products.hsnCode', 'HSN Code')}
+                  {autofilledFields.has('hsn_code') && (
+                    <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded ml-2">
+                      <Check className="h-3 w-3 stroke-[3]" /> Detected
+                    </span>
+                  )}
                 </Label>
                 <Input
                   id="hsn_code"
@@ -618,8 +906,13 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
             <div className="grid gap-5 grid-cols-1 md:grid-cols-3 items-start pt-1">
               {/* Product Size (Mandatory with *) */}
               <div className="space-y-2">
-                <Label htmlFor="product_size_value" className="text-sm font-semibold text-foreground">
-                  {t('products.productSize', 'Product Size')} <span className="text-destructive font-bold">*</span>
+                <Label htmlFor="product_size_value" className="text-sm font-semibold text-foreground flex items-center">
+                  {t('products.productSize', 'Product Size')} <span className="text-destructive font-bold ml-0.5">*</span>
+                  {autofilledFields.has('product_size_value') && (
+                    <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded ml-2">
+                      <Check className="h-3 w-3 stroke-[3]" /> Detected
+                    </span>
+                  )}
                 </Label>
                 <div className="relative flex items-stretch rounded-lg border border-input bg-background focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary transition-all overflow-hidden h-11">
                   <Input
@@ -666,10 +959,15 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
                 )}
               </div>
 
-              {/* Batch No (No Optional text) */}
+              {/* Batch No */}
               <div className="space-y-2">
-                <Label htmlFor="batch_number" className="text-sm font-semibold text-foreground">
+                <Label htmlFor="batch_number" className="text-sm font-semibold text-foreground flex items-center">
                   {t('products.batchNo', 'Batch No')}
+                  {autofilledFields.has('batch_number') && (
+                    <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded ml-2">
+                      <Check className="h-3 w-3 stroke-[3]" /> Detected
+                    </span>
+                  )}
                 </Label>
                 <Input
                   id="batch_number"
@@ -682,10 +980,15 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
                 )}
               </div>
 
-              {/* Exp Date (No Optional text) */}
+              {/* Exp Date */}
               <div className="space-y-2">
-                <Label htmlFor="expiry_date" className="text-sm font-semibold text-foreground">
+                <Label htmlFor="expiry_date" className="text-sm font-semibold text-foreground flex items-center">
                   {t('products.expDate', 'Exp Date')}
+                  {autofilledFields.has('expiry_date') && (
+                    <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded ml-2">
+                      <Check className="h-3 w-3 stroke-[3]" /> Detected
+                    </span>
+                  )}
                 </Label>
                 <div className="relative">
                   <Input
@@ -726,8 +1029,13 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
           <CardContent className="p-6 grid gap-5 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 items-start">
             {/* 1. Purchase Price */}
             <div className="space-y-2">
-              <Label htmlFor="purchase_price" className="text-sm font-semibold text-foreground">
-                {t('products.purchasePrice', 'Purchase Price')} <span className="text-destructive font-bold">*</span>
+              <Label htmlFor="purchase_price" className="text-sm font-semibold text-foreground flex items-center">
+                {t('products.purchasePrice', 'Purchase Price')} <span className="text-destructive font-bold ml-0.5">*</span>
+                {autofilledFields.has('purchase_price') && (
+                  <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded ml-2">
+                    <Check className="h-3 w-3 stroke-[3]" /> Detected
+                  </span>
+                )}
               </Label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold text-sm">₹</span>
@@ -748,8 +1056,13 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
 
             {/* 2. Selling Price (Inc. GST) */}
             <div className="space-y-2">
-              <Label htmlFor="selling_price" className="text-sm font-semibold text-foreground truncate block" title="Selling Price (Including GST)">
-                {t('products.sellingPriceIncGst', 'Selling Price (Inc. GST)')} <span className="text-destructive font-bold">*</span>
+              <Label htmlFor="selling_price" className="text-sm font-semibold text-foreground flex items-center truncate" title="Selling Price (Including GST)">
+                {t('products.sellingPriceIncGst', 'Selling Price (Inc. GST)')} <span className="text-destructive font-bold ml-0.5">*</span>
+                {autofilledFields.has('selling_price') && (
+                  <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded ml-2">
+                    <Check className="h-3 w-3 stroke-[3]" /> Detected
+                  </span>
+                )}
               </Label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-primary font-bold text-sm">₹</span>
@@ -789,8 +1102,13 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
 
             {/* 4. GST */}
             <div className="space-y-2">
-              <Label htmlFor="gst_rate" className="text-sm font-semibold text-foreground">
+              <Label htmlFor="gst_rate" className="text-sm font-semibold text-foreground flex items-center">
                 {t('products.gstRate', 'GST')}
+                {autofilledFields.has('gst_rate') && (
+                  <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded ml-2">
+                    <Check className="h-3 w-3 stroke-[3]" /> Detected
+                  </span>
+                )}
               </Label>
               <Select
                 value={String(form.watch('gst_rate'))}
@@ -829,8 +1147,13 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
           <CardContent className="p-6 grid gap-6 sm:grid-cols-2">
             {/* Quantity in Stock */}
             <div className="space-y-2">
-              <Label htmlFor="opening_stock" className="text-sm font-semibold text-foreground">
-                {t('products.quantityInStock', 'Quantity in Stock')} <span className="text-destructive font-bold">*</span>
+              <Label htmlFor="opening_stock" className="text-sm font-semibold text-foreground flex items-center">
+                {t('products.quantityInStock', 'Quantity in Stock')} <span className="text-destructive font-bold ml-0.5">*</span>
+                {autofilledFields.has('opening_stock') && (
+                  <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded ml-2">
+                    <Check className="h-3 w-3 stroke-[3]" /> Detected
+                  </span>
+                )}
               </Label>
               <div className="flex rounded-lg border border-border bg-background focus-within:ring-2 focus-within:ring-primary focus-within:border-primary overflow-hidden">
                 <Input
@@ -905,6 +1228,93 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
           </Button>
         </div>
       </form>
+
+      {/* ═════════════════════════════════════════════════════════
+          MODAL: PRODUCT BARCODE / QR SCANNER
+      ═════════════════════════════════════════════════════════ */}
+      <ProductBarcodeScannerModal
+        isOpen={isScannerOpen}
+        onClose={() => setIsScannerOpen(false)}
+        onApplyScanResult={handleApplyScanResult}
+      />
+
+      {/* ═════════════════════════════════════════════════════════
+          MODAL: SCANNER CONFLICT RESOLUTION
+      ═════════════════════════════════════════════════════════ */}
+      <Dialog open={isConflictDialogOpen} onOpenChange={setIsConflictDialogOpen}>
+        <DialogContent className="sm:max-w-lg border-border bg-card text-card-foreground p-6 rounded-2xl shadow-2xl">
+          <DialogHeader className="space-y-1 text-left">
+            <div className="flex items-center gap-2.5">
+              <div className="h-9 w-9 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center font-bold">
+                <AlertTriangle className="h-5 w-5" />
+              </div>
+              <div>
+                <DialogTitle className="text-lg font-bold">Review Detected Data</DialogTitle>
+                <DialogDescription className="text-xs text-muted-foreground">
+                  Some fields already have entered values. Choose which values you want to keep.
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="space-y-3 my-4 max-h-80 overflow-y-auto pr-1">
+            {conflicts.map((c) => (
+              <div key={c.fieldName} className="p-3.5 rounded-xl border border-border bg-muted/30 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-primary">{c.label}</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="p-2.5 rounded-lg bg-background border border-border/80">
+                    <span className="text-[10px] uppercase font-bold text-muted-foreground block mb-0.5">Current Value</span>
+                    <span className="font-semibold text-foreground break-all">{String(c.currentValue || '—')}</span>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-primary/5 border border-primary/20">
+                    <span className="text-[10px] uppercase font-bold text-primary block mb-0.5">Detected Value</span>
+                    <span className="font-bold text-foreground break-all">{String(c.detectedValue || '—')}</span>
+                  </div>
+                </div>
+                <div className="flex items-center justify-end gap-2 pt-1">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleResolveConflict(c.fieldName, false)}
+                    className="h-7 text-xs font-semibold px-3"
+                  >
+                    Keep Current
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => handleResolveConflict(c.fieldName, true)}
+                    className="h-7 text-xs font-bold px-3 bg-primary hover:bg-primary/90 text-primary-foreground"
+                  >
+                    Use Detected
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <DialogFooter className="grid grid-cols-2 gap-3 sm:gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => handleResolveAllConflicts(false)}
+              className="w-full font-semibold"
+            >
+              Keep All Current
+            </Button>
+            <Button
+              type="button"
+              onClick={() => handleResolveAllConflicts(true)}
+              className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold"
+            >
+              Use All Detected
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ═════════════════════════════════════════════════════════
           MODAL: ADD NEW CATEGORY

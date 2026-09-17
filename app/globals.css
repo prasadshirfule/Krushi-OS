@@ -302,3 +302,22 @@
   opacity: 0.85 !important;
 }
 
+/* ═══════════════════════════════════════════════════════════
+   CAPACITOR NATIVE ML KIT BARCODE SCANNER TRANSPARENCY
+   ═══════════════════════════════════════════════════════════ */
+html.barcode-scanner-active,
+html.barcode-scanner-active body,
+body.barcode-scanner-active {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+/* Hide underlying page contents during active CameraX scanning while keeping scanner overlay visible */
+body.barcode-scanner-active > div:not([data-scanner-overlay="true"]),
+body.barcode-scanner-active main,
+body.barcode-scanner-active nav,
+body.barcode-scanner-active header {
+  visibility: hidden !important;
+}
+
+
