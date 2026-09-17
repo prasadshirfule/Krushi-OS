@@ -200,11 +200,17 @@ export class NativeBarcodeScannerSession {
             formats: [
               BarcodeFormat.QrCode,
               BarcodeFormat.DataMatrix,
+              BarcodeFormat.Aztec,
+              BarcodeFormat.Pdf417,
               BarcodeFormat.Ean13,
               BarcodeFormat.Ean8,
               BarcodeFormat.UpcA,
               BarcodeFormat.UpcE,
               BarcodeFormat.Code128,
+              BarcodeFormat.Code39,
+              BarcodeFormat.Code93,
+              BarcodeFormat.Codabar,
+              BarcodeFormat.Itf,
             ],
           });
 
@@ -224,14 +230,20 @@ export class NativeBarcodeScannerSession {
               console.log('[KRUSHI SCANNER] STOP');
               await this.stop();
 
-              // 3. Dispatch to callback with locked value
+              // 3. Dispatch to callback with locked value (safe parse fallback)
+              let parsed: ProductScanResult;
               try {
-                const parsed = parseScannedBarcode(rawValue, format);
-                this.options.onScanResult(parsed);
-              } catch (parseErr: any) {
-                console.error('[KRUSHI SCANNER] Error parsing scanned barcode:', parseErr);
-                this.options.onError('Failed to parse scanned barcode data.');
+                parsed = parseScannedBarcode(rawValue, format);
+              } catch (parseErr) {
+                console.warn('[KRUSHI SCANNER] Optional barcode parse error, using raw fallback:', parseErr);
+                parsed = {
+                  rawValue,
+                  format,
+                  source: 'unknown',
+                };
               }
+
+              this.options.onScanResult(parsed);
               break;
             }
           }

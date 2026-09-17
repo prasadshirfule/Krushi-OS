@@ -86,22 +86,46 @@ export function LinkProductBarcodeModal({
   };
 
   const handleCaptureIdentifier = (rawValue: string, format = 'UNKNOWN') => {
-    const clean = rawValue.trim();
+    const clean = String(rawValue || '').trim();
     if (!clean) return;
 
-    // Determine type
+    // Determine identifier type safely
+    const fmtUpper = String(format || '').toUpperCase();
     const isUrl = /^https?:\/\//i.test(clean);
     const isMultiLine = clean.includes('\n') || clean.includes('\r');
     let type: 'barcode' | 'gtin' | 'qr' | 'other' = 'barcode';
 
-    if (isUrl || isMultiLine || format === 'QR_CODE') {
+    if (isUrl || isMultiLine || fmtUpper.includes('QR') || fmtUpper.includes('AZTEC') || fmtUpper.includes('DATA_MATRIX')) {
       type = 'qr';
     } else if (/^\d{8,14}$/.test(clean)) {
       type = 'gtin';
+    } else if (fmtUpper !== 'UNKNOWN') {
+      type = 'barcode';
+    } else {
+      type = 'other';
     }
 
-    const { primaryCode } = extractBillingLookupCodes(clean);
-    const { batchNumber, expiryDate } = extractBatchAndExpiryFromIdentifier(clean);
+    // 1. PRIMARY RESPONSIBILITY: EXACT RAW IDENTIFIER (ALWAYS PRESERVED)
+    let primaryCode = clean;
+    try {
+      const extracted = extractBillingLookupCodes(clean);
+      if (extracted?.primaryCode) {
+        primaryCode = extracted.primaryCode;
+      }
+    } catch {
+      primaryCode = clean;
+    }
+
+    // 2. SECONDARY RESPONSIBILITY: BATCH/EXPIRY EXTRACTION (BEST EFFORT ONLY)
+    let batchNumber: string | undefined;
+    let expiryDate: string | undefined;
+    try {
+      const extracted = extractBatchAndExpiryFromIdentifier(clean);
+      batchNumber = extracted?.batchNumber;
+      expiryDate = extracted?.expiryDate;
+    } catch {
+      // Best-effort: parser failure or no matches never blocks registration
+    }
 
     const payload: LinkedIdentifierPayload = {
       raw_value: clean,

@@ -558,3 +558,92 @@ test('30. Empty shop returns 0 products without crashing', async () => {
   assert.ok(Array.isArray(response.products));
 });
 
+test('31. Unrecognized QR (e.g. Gharda custom payload) is ALWAYS registered as an identifier', async () => {
+  // Gharda chemicals or any arbitrary manufacturer QR payload with proprietary format
+  const GHARDA_PROPRIETARY_QR = 'GHARDA_CHLORPYRIPHOS_50EC_QR_99887766554433221100_SECURE';
+  
+  const { extractBatchAndExpiryFromIdentifier } = require('@/lib/scanner/barcode-parser');
+  const extracted = extractBatchAndExpiryFromIdentifier(GHARDA_PROPRIETARY_QR);
+  
+  // Parser extracts no batch/expiry for proprietary format
+  assert.strictEqual(extracted.batchNumber, undefined);
+  assert.strictEqual(extracted.expiryDate, undefined);
+
+  // But identifier MUST still be created and saved successfully!
+  const saved = await createProduct('shop-gharda-test', {
+    name: 'GHARDA HAMLA 550',
+    category_id: 'cat-insecticide',
+    purchase_price: 450,
+    selling_price: 520,
+    gst_rate: 18,
+    unit: 'Bottle',
+    opening_stock: 30,
+    min_stock: 5,
+    batch_tracking: true,
+    expiry_tracking: true,
+    identifiers: [
+      {
+        raw_value: GHARDA_PROPRIETARY_QR,
+        identifier_type: 'qr',
+        is_primary: true,
+      },
+    ],
+  });
+
+  assert.ok(saved.product);
+  assert.strictEqual(saved.product.name, 'GHARDA HAMLA 550');
+  assert.strictEqual(saved.product.identifiers.length, 1);
+  assert.strictEqual(saved.product.identifiers[0].raw_value, GHARDA_PROPRIETARY_QR);
+});
+
+test('32. Billing scan of unrecognized raw QR (Gharda) matches exact product', () => {
+  const GHARDA_PROPRIETARY_QR = 'GHARDA_CHLORPYRIPHOS_50EC_QR_99887766554433221100_SECURE';
+  
+  const products = [
+    {
+      id: 'prod-gharda-1',
+      name: 'GHARDA HAMLA 550',
+      current_stock: 30,
+      selling_price: 520,
+      identifiers: [
+        { raw_value: GHARDA_PROPRIETARY_QR, identifier_type: 'qr', is_primary: true }
+      ],
+      batches: [
+        { id: 'b-gharda-1', batch_number: 'BAT-GHARDA-01', quantity_available: 30, expiry_date: '2028-06-30' }
+      ]
+    }
+  ];
+
+  const match = matchBillingProductStock(products, GHARDA_PROPRIETARY_QR);
+  assert.strictEqual(match.found, true);
+  assert.strictEqual(match.product.name, 'GHARDA HAMLA 550');
+  assert.strictEqual(match.product.id, 'prod-gharda-1');
+});
+
+test('33. Completely arbitrary/opaque string QR links and preserves exact raw payload', async () => {
+  const OPAQUE_QR = 'https://custom-mfg.example.org/v/abc?token=xyz987#sec';
+  
+  const saved = await createProduct('shop-opaque-test', {
+    name: 'CUSTOM BIO STIMULANT',
+    category_id: 'cat-bio',
+    purchase_price: 300,
+    selling_price: 400,
+    gst_rate: 12,
+    unit: 'Bottle',
+    opening_stock: 10,
+    min_stock: 2,
+    batch_tracking: true,
+    expiry_tracking: true,
+    identifiers: [
+      {
+        raw_value: OPAQUE_QR,
+        identifier_type: 'qr',
+        is_primary: true,
+      },
+    ],
+  });
+
+  assert.strictEqual(saved.product.identifiers[0].raw_value, OPAQUE_QR);
+});
+
+
