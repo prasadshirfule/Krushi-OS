@@ -28,6 +28,7 @@ export interface ProductScanResult {
   barcode?: string;
   productCode?: string;
   sku?: string;
+  stableProductKey?: string;
 
   // Product identity
   productName?: string;

@@ -13,11 +13,11 @@ import { normalizeGTIN, parseGS1Date } from './gs1-parser';
 export function isGS1Url(raw: string): boolean {
   if (!raw || typeof raw !== 'string') return false;
   const trimmed = raw.trim();
-  if (!/^https?:\/\//i.test(trimmed)) return false;
+  const normalized = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
 
-  // Check if URL contains GS1 AI path markers (/01/, /10/, /21/) or query params (?11=, &17=, ?01=)
-  const hasAiInPath = /\/(01|02|10|21)\/[^/?#]+/i.test(trimmed);
-  const hasAiInQuery = /[?&](01|02|10|11|15|17|21|30)=[^&#]+/i.test(trimmed);
+  // Check if URL contains GS1 AI path markers (/01/, /02/, /10/, /21/) or query params (?11=, &17=, ?01=)
+  const hasAiInPath = /\/(01|02|10|21)\/[^/?#]+/i.test(normalized);
+  const hasAiInQuery = /[?&](01|02|10|11|15|17|21|30)=[^&#]+/i.test(normalized);
 
   return hasAiInPath || hasAiInQuery;
 }
@@ -25,10 +25,11 @@ export function isGS1Url(raw: string): boolean {
 export function parseGS1Url(rawUrl: string): ProductScanResult | null {
   if (!rawUrl || typeof rawUrl !== 'string') return null;
   const trimmed = rawUrl.trim();
+  const normalizedUrl = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
 
   let urlObj: URL;
   try {
-    urlObj = new URL(trimmed);
+    urlObj = new URL(normalizedUrl);
   } catch {
     return null;
   }
@@ -185,6 +186,7 @@ export function parseGS1Url(rawUrl: string): ProductScanResult | null {
     sourceUrl: trimmed,
     gtin,
     barcode: gtin,
+    stableProductKey: gtin ? `gtin:${normalizeGTIN(gtin)}` : undefined,
     batchNumber,
     serialNumber,
     manufacturingDate,

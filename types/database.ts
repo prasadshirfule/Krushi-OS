@@ -82,6 +82,9 @@ export interface ProductIdentifier extends BaseEntity {
   identifier_type: 'barcode' | 'gtin' | 'qr' | 'other' | string;
   raw_value: string;
   normalized_value?: string | null;
+  stable_product_key?: string | null;
+  batch_number?: string | null;
+  serial_number?: string | null;
   is_primary?: boolean;
 }
 

@@ -344,6 +344,9 @@ export async function createProduct(shopId: string, data: CreateProductInput, us
         identifier_type: ident.identifier_type || 'other',
         raw_value: String(ident.raw_value).trim(),
         normalized_value: ident.normalized_value ? String(ident.normalized_value).trim() : null,
+        stable_product_key: ident.stable_product_key ? String(ident.stable_product_key).trim() : null,
+        batch_number: ident.batch_number ? String(ident.batch_number).trim() : null,
+        serial_number: ident.serial_number ? String(ident.serial_number).trim() : null,
         is_primary: ident.is_primary !== undefined ? Boolean(ident.is_primary) : idx === 0,
       }));
       await supabase.from('product_identifiers').insert(identifierRows);
@@ -483,6 +486,9 @@ export async function updateProduct(shopId: string, productId: string, data: Upd
           identifier_type: ident.identifier_type || 'other',
           raw_value: String(ident.raw_value).trim(),
           normalized_value: ident.normalized_value ? String(ident.normalized_value).trim() : null,
+          stable_product_key: ident.stable_product_key ? String(ident.stable_product_key).trim() : null,
+          batch_number: ident.batch_number ? String(ident.batch_number).trim() : null,
+          serial_number: ident.serial_number ? String(ident.serial_number).trim() : null,
           is_primary: ident.is_primary !== undefined ? Boolean(ident.is_primary) : idx === 0,
         }));
         await supabase.from('product_identifiers').insert(identifierRows);
@@ -566,52 +572,105 @@ export async function getProductByBarcode(shopId: string, barcode: string): Prom
     searchCodes.push(cleanBarcode.padStart(14, '0'));
   }
 
+  // Parse structured information to extract GTIN, stable key, and batch candidate
+  let extractedBatch: string | null = null;
+  let stableProductKey: string | null = null;
+  try {
+    const { extractStableIdentifierInfo } = await import('@/lib/scanner/barcode-parser');
+    const info = extractStableIdentifierInfo(cleanBarcode);
+    extractedBatch = info.batchNumber || null;
+    stableProductKey = info.stableProductKey || null;
+  } catch {}
+
   if (isPlaceholderMode()) {
     const list = getStoredDemoProducts(normalizeProduct);
-    const found = list.find((p: any) => {
-      if (p.is_active === false) return false;
-      
-      // 1. Registered identifiers (exact raw match or normalized in searchCodes)
-      if (Array.isArray(p.identifiers) && p.identifiers.length > 0) {
-        const hasIdentMatch = p.identifiers.some((i: any) => {
-          const raw = (i.raw_value || '').trim();
-          const norm = (i.normalized_value || '').trim();
-          return raw === cleanBarcode || searchCodes.includes(raw) || (norm && searchCodes.includes(norm));
-        });
-        if (hasIdentMatch) return true;
-      }
+    const activeList = list.filter((p: any) => p && p.is_active !== false);
 
-      // 2. Barcode, SKU, GTIN
-      const pBarcode = (p.barcode || '').trim();
-      const pSku = (p.sku || '').trim();
-      const pGtin = (p.gtin || '').trim();
-      if (searchCodes.some(code => code === pBarcode || code === pSku || code === pGtin)) return true;
-      
-      // 3. Batches
-      if (Array.isArray(p.batches) && p.batches.length > 0) {
-        return p.batches.some((b: any) => searchCodes.includes((b.barcode || '').trim()));
+    // Level 1: Exact raw match on product_identifiers or product barcode/sku
+    let found = activeList.find((p: any) => {
+      if (Array.isArray(p.identifiers) && p.identifiers.length > 0) {
+        return p.identifiers.some((i: any) => (i.raw_value || '').trim() === cleanBarcode);
       }
-      return false;
+      return (p.barcode || '').trim() === cleanBarcode || (p.sku || '').trim() === cleanBarcode;
     });
+
+    // Level 2: Normalized GTIN / searchCodes
+    if (!found) {
+      found = activeList.find((p: any) => {
+        if (Array.isArray(p.identifiers) && p.identifiers.length > 0) {
+          const hasIdentMatch = p.identifiers.some((i: any) => {
+            const raw = (i.raw_value || '').trim();
+            const norm = (i.normalized_value || '').trim();
+            return searchCodes.includes(raw) || (norm && searchCodes.includes(norm));
+          });
+          if (hasIdentMatch) return true;
+        }
+        const pBarcode = (p.barcode || '').trim();
+        const pSku = (p.sku || '').trim();
+        const pGtin = (p.gtin || '').trim();
+        return searchCodes.some(code => code === pBarcode || code === pSku || code === pGtin);
+      });
+    }
+
+    // Level 3: Stable Product Key
+    if (!found && stableProductKey) {
+      const keyMatches = activeList.filter((p: any) => {
+        if (Array.isArray(p.identifiers) && p.identifiers.length > 0) {
+          return p.identifiers.some((i: any) => (i.stable_product_key || '').trim() === stableProductKey);
+        }
+        return false;
+      });
+      if (keyMatches.length === 1) {
+        found = keyMatches[0];
+      }
+    }
+
+    // Level 4: Batch Association (Safe single-product match)
+    if (!found && extractedBatch) {
+      const cleanBatchUpper = extractedBatch.trim().toUpperCase();
+      const batchMatches = activeList.filter((p: any) => {
+        if (Array.isArray(p.batches) && p.batches.length > 0) {
+          return p.batches.some((b: any) => (b.batch_number || '').trim().toUpperCase() === cleanBatchUpper);
+        }
+        return false;
+      });
+      if (batchMatches.length === 1) {
+        found = batchMatches[0];
+      }
+    }
+
     return found ? normalizeProduct(found) : null;
   }
 
   try {
     const supabase = await createServerSupabaseClient();
     
-    // 1. First check registered product_identifiers
-    const { data: identData } = await supabase
+    // 1. Level 1: First check exact raw value in registered product_identifiers
+    const { data: identRawData } = await supabase
       .from('product_identifiers')
       .select('product_id, products:products(*, category:categories(id, name), brand:brands(id, name, manufacturer), batches:product_batches(*), identifiers:product_identifiers(*))')
       .eq('shop_id', shopId)
-      .or(`raw_value.eq.${cleanBarcode},${searchCodes.map(c => `normalized_value.eq.${c},raw_value.eq.${c}`).join(',')}`)
+      .eq('raw_value', cleanBarcode)
       .limit(1);
 
-    if (identData && identData.length > 0 && (identData[0] as any).products) {
-      return (identData[0] as any).products as unknown as ProductWithRelations;
+    if (identRawData && identRawData.length > 0 && (identRawData[0] as any).products) {
+      return (identRawData[0] as any).products as unknown as ProductWithRelations;
     }
 
-    // 2. Exact match on products table
+    // 2. Level 2: Exact normalized code match in product_identifiers
+    const orClauseNorm = searchCodes.map(c => `normalized_value.eq.${c},raw_value.eq.${c}`).join(',');
+    const { data: identNormData } = await supabase
+      .from('product_identifiers')
+      .select('product_id, products:products(*, category:categories(id, name), brand:brands(id, name, manufacturer), batches:product_batches(*), identifiers:product_identifiers(*))')
+      .eq('shop_id', shopId)
+      .or(orClauseNorm)
+      .limit(1);
+
+    if (identNormData && identNormData.length > 0 && (identNormData[0] as any).products) {
+      return (identNormData[0] as any).products as unknown as ProductWithRelations;
+    }
+
+    // Level 2 (continued): Exact match on products table
     const orClause = searchCodes.map(c => `barcode.eq.${c},sku.eq.${c}`).join(',');
     const { data, error } = await supabase
       .from('products')
@@ -621,26 +680,38 @@ export async function getProductByBarcode(shopId: string, barcode: string): Prom
       .or(orClause)
       .limit(1);
 
-    if (error) {
-      console.error("Error fetching product by barcode:", error);
-      return null;
-    }
-
     if (data && data.length > 0) {
       return data[0] as ProductWithRelations;
     }
 
-    // 3. Also check if barcode matches a specific product batch
-    const { data: batchData } = await supabase
-      .from('product_batches')
-      .select('product_id, products:products(*, category:categories(id, name), brand:brands(id, name, manufacturer), batches:product_batches(*), identifiers:product_identifiers(*))')
-      .eq('shop_id', shopId)
-      .eq('is_active', true)
-      .in('barcode', searchCodes)
-      .limit(1);
+    // 3. Level 3: Stored stable_product_key match
+    if (stableProductKey) {
+      const { data: keyData } = await supabase
+        .from('product_identifiers')
+        .select('product_id, products:products(*, category:categories(id, name), brand:brands(id, name, manufacturer), batches:product_batches(*), identifiers:product_identifiers(*))')
+        .eq('shop_id', shopId)
+        .eq('stable_product_key', stableProductKey)
+        .limit(2);
 
-    if (batchData && batchData.length > 0 && (batchData[0] as any).products) {
-      return (batchData[0] as any).products as unknown as ProductWithRelations;
+      if (keyData && keyData.length === 1 && (keyData[0] as any).products) {
+        return (keyData[0] as any).products as unknown as ProductWithRelations;
+      }
+    }
+
+    // 4. Level 4: Batch Association (Check authoritative product_batches)
+    if (extractedBatch) {
+      const { data: batchData } = await supabase
+        .from('product_batches')
+        .select('product_id, products:products(*, category:categories(id, name), brand:brands(id, name, manufacturer), batches:product_batches(*), identifiers:product_identifiers(*))')
+        .eq('shop_id', shopId)
+        .eq('is_active', true)
+        .ilike('batch_number', extractedBatch.trim())
+        .limit(2);
+
+      if (batchData && batchData.length === 1 && (batchData[0] as any).products) {
+        return (batchData[0] as any).products as unknown as ProductWithRelations;
+      }
+      // If batchData.length > 1, multiple products share this batch -> DO NOT GUESS!
     }
 
     return null;

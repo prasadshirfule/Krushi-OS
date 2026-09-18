@@ -73,6 +73,9 @@ export interface LinkedIdentifierItem {
   identifier_type: 'barcode' | 'gtin' | 'qr' | 'other';
   raw_value: string;
   normalized_value?: string | null;
+  stable_product_key?: string | null;
+  batch_number?: string | null;
+  serial_number?: string | null;
   is_primary: boolean;
 }
 
@@ -116,6 +119,9 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
         identifier_type: item.identifier_type || 'barcode',
         raw_value: item.raw_value,
         normalized_value: item.normalized_value || null,
+        stable_product_key: item.stable_product_key || null,
+        batch_number: item.batch_number || null,
+        serial_number: item.serial_number || null,
         is_primary: Boolean(item.is_primary),
       }));
     }
@@ -124,6 +130,9 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
         identifier_type: 'barcode',
         raw_value: String(initialData.barcode).trim(),
         normalized_value: String(initialData.barcode).trim(),
+        stable_product_key: null,
+        batch_number: null,
+        serial_number: null,
         is_primary: true,
       }];
     }
@@ -135,9 +144,11 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
     raw_value: string;
     normalized_value?: string | null;
     identifier_type: 'barcode' | 'gtin' | 'qr' | 'other';
+    stable_product_key?: string | null;
+    detected_batch?: string | null;
+    detected_serial?: string | null;
+    detected_expiry?: string | null;
     is_primary?: boolean;
-    detected_batch?: string;
-    detected_expiry?: string;
   }) => {
     const rawTrimmed = ident.raw_value.trim();
     setLinkedIdentifiers((prev) => {
@@ -153,6 +164,9 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
           identifier_type: ident.identifier_type,
           raw_value: rawTrimmed,
           normalized_value: ident.normalized_value?.trim() || null,
+          stable_product_key: ident.stable_product_key?.trim() || null,
+          batch_number: ident.detected_batch?.trim() || null,
+          serial_number: ident.detected_serial?.trim() || null,
           is_primary: isFirst,
         },
       ];

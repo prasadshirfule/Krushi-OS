@@ -7,12 +7,15 @@ export interface BillingScanLookupResult {
   selectedBatch?: any;
   isOutOfStock?: boolean;
   isExpired?: boolean;
+  isAmbiguous?: boolean;
+  matchingProducts?: any[];
   availableStock?: number;
-  reason?: 'NOT_FOUND' | 'OUT_OF_STOCK' | 'EXPIRED' | 'SUCCESS';
+  reason?: 'NOT_FOUND' | 'OUT_OF_STOCK' | 'EXPIRED' | 'AMBIGUOUS' | 'SUCCESS';
   identifier?: string;
   gtin?: string;
   batchNumber?: string;
   expiryDate?: string;
+  matchLevel?: 'EXACT_RAW' | 'STABLE_IDENTIFIER' | 'IDENTIFIER_PROFILE' | 'BATCH_ASSOCIATION';
 }
 
 export interface ExtractedLookupCodes {
@@ -63,81 +66,191 @@ export function extractBillingLookupCodes(rawValue: string): ExtractedLookupCode
 }
 
 /**
- * Matches a scanned barcode/GTIN against local product inventory and selects the appropriate stock batch.
- * Strictly local-first and stock/expiry aware.
+ * Matches a scanned barcode/GTIN/serialized QR against local product inventory
+ * using a strict 4-level matching hierarchy with safety-first ambiguity detection.
+ *
+ * LEVEL 1 — EXACT RAW MATCH (Fastest, highest priority)
+ * LEVEL 2 — NORMALIZED STABLE PRODUCT IDENTIFIER (GTIN, SKU, EAN)
+ * LEVEL 3 — STORED PRODUCT IDENTIFIER PROFILE (Proven stable product key)
+ * LEVEL 4 — EXISTING BATCH ASSOCIATION (Resolves ONLY when batch uniquely belongs to 1 product)
  */
 export function matchBillingProductStock(
   products: any[],
   scannedRaw: string,
   explicitBatchNumber?: string
 ): BillingScanLookupResult {
-  const { primaryCode, searchCodes, gtin, batchNumber: extractedBatch, expiryDate } = extractBillingLookupCodes(scannedRaw);
-  const targetBatch = explicitBatchNumber || extractedBatch;
+  const cleanRawTrimmed = (scannedRaw || '').trim();
+  const { primaryCode, searchCodes, gtin, batchNumber: extractedBatch, expiryDate } = extractBillingLookupCodes(cleanRawTrimmed);
+  let targetBatch = explicitBatchNumber || extractedBatch;
 
-  if (!Array.isArray(products) || products.length === 0 || searchCodes.length === 0) {
+  if (!Array.isArray(products) || products.length === 0 || !cleanRawTrimmed) {
     return {
       found: false,
       reason: 'NOT_FOUND',
-      identifier: primaryCode || scannedRaw,
+      identifier: primaryCode || cleanRawTrimmed,
       gtin,
       batchNumber: targetBatch,
       expiryDate,
     };
   }
 
-  const cleanRawTrimmed = (scannedRaw || '').trim();
+  const activeProducts = products.filter((p: any) => p && p.is_active !== false);
+  let matchedProduct: any = null;
+  let matchLevel: 'EXACT_RAW' | 'STABLE_IDENTIFIER' | 'IDENTIFIER_PROFILE' | 'BATCH_ASSOCIATION' | undefined;
 
-  // 1. Priority 1: Exact raw identifier match on registered product_identifiers
-  let matchedProduct = products.find((p: any) => {
+  // ─────────────────────────────────────────────────────────────
+  // LEVEL 1: EXACT RAW MATCH
+  // ─────────────────────────────────────────────────────────────
+  matchedProduct = activeProducts.find((p: any) => {
     if (Array.isArray(p.identifiers) && p.identifiers.length > 0) {
       return p.identifiers.some((i: any) => (i.raw_value || '').trim() === cleanRawTrimmed);
     }
     return false;
   });
 
-  // 2. Priority 2: Exact normalized barcode / GTIN match on registered product_identifiers
   if (!matchedProduct) {
-    matchedProduct = products.find((p: any) => {
-      if (Array.isArray(p.identifiers) && p.identifiers.length > 0) {
-        return p.identifiers.some((i: any) => {
-          const raw = (i.raw_value || '').trim();
-          const norm = (i.normalized_value || '').trim();
-          return searchCodes.includes(raw) || (norm && searchCodes.includes(norm));
-        });
-      }
-      return false;
+    matchedProduct = activeProducts.find((p: any) => {
+      const pBarcode = (p.barcode || '').trim();
+      const pSku = (p.sku || '').trim();
+      return pBarcode === cleanRawTrimmed || pSku === cleanRawTrimmed;
     });
   }
 
-  // 3. Priority 3: Fallback exact match on product barcode, SKU, or GTIN
+  if (matchedProduct) {
+    matchLevel = 'EXACT_RAW';
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // LEVEL 2: NORMALIZED STABLE PRODUCT IDENTIFIER (GTIN / SKU / EAN)
+  // ─────────────────────────────────────────────────────────────
   if (!matchedProduct) {
-    matchedProduct = products.find((p: any) => {
+    matchedProduct = activeProducts.find((p: any) => {
+      // Check registered identifiers for normalized GTIN match
+      if (Array.isArray(p.identifiers) && p.identifiers.length > 0) {
+        const hasIdentMatch = p.identifiers.some((i: any) => {
+          const raw = (i.raw_value || '').trim();
+          const norm = (i.normalized_value || '').trim();
+          const stableKey = (i.stable_product_key || '').trim();
+          if (searchCodes.includes(raw) || (norm && searchCodes.includes(norm))) return true;
+          if (stableKey && stableKey.startsWith('gtin:') && searchCodes.includes(stableKey.replace('gtin:', ''))) return true;
+          return false;
+        });
+        if (hasIdentMatch) return true;
+      }
+
+      // Check product barcode / SKU / GTIN fields
       const pBarcode = (p.barcode || '').trim();
       const pSku = (p.sku || '').trim();
       const pGtin = (p.gtin || '').trim();
-      
-      // Check main product barcode / sku / gtin
       if (searchCodes.some(code => code === pBarcode || code === pSku || code === pGtin)) {
         return true;
       }
 
-      // Check if any product batch has matching barcode
-      if (Array.isArray(p.batches) && p.batches.length > 0) {
-        return p.batches.some((b: any) => {
-          const bCode = (b.barcode || '').trim();
-          return searchCodes.some(code => code === bCode);
+      return false;
+    });
+
+    if (matchedProduct) {
+      matchLevel = 'STABLE_IDENTIFIER';
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // LEVEL 3: STORED PRODUCT IDENTIFIER PROFILE (Proven stable product key)
+  // ─────────────────────────────────────────────────────────────
+  if (!matchedProduct && gtin) {
+    const gtinKey = `gtin:${gtin.trim()}`;
+    const level3Matches = activeProducts.filter((p: any) => {
+      if (Array.isArray(p.identifiers) && p.identifiers.length > 0) {
+        return p.identifiers.some((i: any) => (i.stable_product_key || '').trim() === gtinKey);
+      }
+      return false;
+    });
+
+    if (level3Matches.length === 1) {
+      matchedProduct = level3Matches[0];
+      matchLevel = 'IDENTIFIER_PROFILE';
+    } else if (level3Matches.length > 1) {
+      return {
+        found: false,
+        isAmbiguous: true,
+        reason: 'AMBIGUOUS',
+        matchingProducts: level3Matches,
+        identifier: primaryCode || cleanRawTrimmed,
+        gtin,
+        batchNumber: targetBatch,
+        expiryDate,
+      };
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // LEVEL 4: EXISTING BATCH ASSOCIATION (Authoritative product_batches check)
+  // ─────────────────────────────────────────────────────────────
+  if (!matchedProduct) {
+    const parsed = parseScannedBarcode(cleanRawTrimmed);
+    const candidateBatches = Array.from(
+      new Set(
+        [targetBatch, parsed.batchNumber, parsed.serialNumber]
+          .filter((s): s is string => Boolean(s && typeof s === 'string' && s.trim()))
+      )
+    );
+
+    for (const cand of candidateBatches) {
+      const cleanBatchUpper = cand.trim().toUpperCase();
+
+      // Check authoritative product_batches relationship first
+      let batchMatches = activeProducts.filter((p: any) => {
+        if (Array.isArray(p.batches) && p.batches.length > 0) {
+          return p.batches.some(
+            (b: any) => (b.batch_number || '').trim().toUpperCase() === cleanBatchUpper
+          );
+        }
+        return false;
+      });
+
+      // If not in product_batches, check supporting product_identifiers metadata
+      if (batchMatches.length === 0) {
+        batchMatches = activeProducts.filter((p: any) => {
+          if (Array.isArray(p.identifiers) && p.identifiers.length > 0) {
+            return p.identifiers.some(
+              (i: any) => (i.batch_number || '').trim().toUpperCase() === cleanBatchUpper
+            );
+          }
+          return false;
         });
       }
 
-      return false;
-    });
+      if (batchMatches.length === 1) {
+        // Safely resolved to exactly one product
+        matchedProduct = batchMatches[0];
+        matchLevel = 'BATCH_ASSOCIATION';
+        // Use the matching batch as the effective targetBatch
+        if (!targetBatch || targetBatch !== cand) {
+          (targetBatch as any) = cand;
+        }
+        break;
+      } else if (batchMatches.length > 1) {
+        // Multiple products share this batch: NEVER GUESS -> Return AMBIGUOUS
+        return {
+          found: false,
+          isAmbiguous: true,
+          reason: 'AMBIGUOUS',
+          matchingProducts: batchMatches,
+          identifier: primaryCode || cleanRawTrimmed,
+          gtin,
+          batchNumber: cand,
+          expiryDate,
+        };
+      }
+    }
   }
 
+  // If no product found through any level
   if (!matchedProduct) {
     return {
       found: false,
       reason: 'NOT_FOUND',
-      identifier: primaryCode || scannedRaw,
+      identifier: primaryCode || cleanRawTrimmed,
       gtin,
       batchNumber: targetBatch,
       expiryDate,
@@ -179,10 +292,11 @@ export function matchBillingProductStock(
           isOutOfStock: false,
           availableStock: batchQty,
           reason: 'EXPIRED',
-          identifier: primaryCode,
+          identifier: primaryCode || cleanRawTrimmed,
           gtin,
           batchNumber: targetBatch,
           expiryDate,
+          matchLevel,
         };
       }
 
@@ -194,10 +308,11 @@ export function matchBillingProductStock(
           isOutOfStock: true,
           availableStock: 0,
           reason: 'OUT_OF_STOCK',
-          identifier: primaryCode,
+          identifier: primaryCode || cleanRawTrimmed,
           gtin,
           batchNumber: targetBatch,
           expiryDate,
+          matchLevel,
         };
       }
     }
@@ -237,10 +352,11 @@ export function matchBillingProductStock(
           isOutOfStock: true,
           availableStock: 0,
           reason: 'OUT_OF_STOCK',
-          identifier: primaryCode,
+          identifier: primaryCode || cleanRawTrimmed,
           gtin,
           batchNumber: targetBatch,
           expiryDate,
+          matchLevel,
         };
       }
       return {
@@ -249,10 +365,11 @@ export function matchBillingProductStock(
         isExpired: true,
         availableStock: 0,
         reason: 'EXPIRED',
-        identifier: primaryCode,
+        identifier: primaryCode || cleanRawTrimmed,
         gtin,
         batchNumber: targetBatch,
         expiryDate,
+        matchLevel,
       };
     }
   }
@@ -270,10 +387,11 @@ export function matchBillingProductStock(
       isOutOfStock: true,
       availableStock: 0,
       reason: 'OUT_OF_STOCK',
-      identifier: primaryCode,
+      identifier: primaryCode || cleanRawTrimmed,
       gtin,
       batchNumber: targetBatch,
       expiryDate,
+      matchLevel,
     };
   }
 
@@ -284,10 +402,11 @@ export function matchBillingProductStock(
     isOutOfStock: false,
     availableStock,
     reason: 'SUCCESS',
-    identifier: primaryCode,
+    identifier: primaryCode || cleanRawTrimmed,
     gtin,
     batchNumber: selectedBatch?.batch_number || targetBatch,
     expiryDate: selectedBatch?.expiry_date || expiryDate,
+    matchLevel,
   };
 }
 

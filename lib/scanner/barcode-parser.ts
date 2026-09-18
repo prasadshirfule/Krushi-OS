@@ -75,6 +75,7 @@ export function parseScannedBarcode(rawValue: string, format = 'UNKNOWN'): Produ
         format,
         gtin: gs1.gtin,
         barcode: gs1.gtin,
+        stableProductKey: gs1.gtin ? `gtin:${normalizeGTIN(gs1.gtin)}` : undefined,
         batchNumber: gs1.batchNumber,
         serialNumber: gs1.serialNumber,
         manufacturingDate: gs1.productionDate,
@@ -91,6 +92,9 @@ export function parseScannedBarcode(rawValue: string, format = 'UNKNOWN'): Produ
   // 3. Check for Generic Manufacturer QR (URL + labels, query params, multi-line key-values)
   const mfgQr = parseManufacturerQr(trimmed, format);
   if (mfgQr) {
+    if (mfgQr.gtin && !mfgQr.stableProductKey) {
+      mfgQr.stableProductKey = `gtin:${normalizeGTIN(mfgQr.gtin)}`;
+    }
     return mfgQr;
   }
 
@@ -108,11 +112,14 @@ export function parseScannedBarcode(rawValue: string, format = 'UNKNOWN'): Produ
       }
     });
 
+    const structuredGtin = structured.gtin;
+
     return {
       rawValue: trimmed,
       format,
-      gtin: structured.gtin,
-      barcode: structured.barcode || structured.gtin,
+      gtin: structuredGtin,
+      barcode: structured.barcode || structuredGtin,
+      stableProductKey: structuredGtin ? `gtin:${normalizeGTIN(structuredGtin)}` : undefined,
       productName: structured.productName,
       manufacturer: structured.manufacturer,
       brand: structured.brand || structured.manufacturer,
@@ -158,6 +165,7 @@ export function parseScannedBarcode(rawValue: string, format = 'UNKNOWN'): Produ
     format,
     barcode: !isUrl ? cleanBarcode : undefined,
     gtin: normalizedGtin,
+    stableProductKey: normalizedGtin ? `gtin:${normalizedGtin}` : undefined,
     sourceUrl: isUrl ? cleanBarcode : undefined,
     source: !isUrl ? 'barcode' : 'unknown',
     detectedFields,
@@ -187,6 +195,85 @@ export function extractBatchAndExpiryFromIdentifier(rawValue: string): {
   return {
     batchNumber: parsed.batchNumber?.trim() || undefined,
     expiryDate: parsed.expiryDate?.trim() || undefined,
+  };
+}
+
+export interface ExtractedIdentifierInfo {
+  rawValue: string;
+  format?: string;
+  identifierType: 'barcode' | 'gtin' | 'qr' | 'other';
+  normalizedValue: string;
+  gtin?: string;
+  productCode?: string;
+  stableProductKey?: string | null;
+  batchNumber?: string | null;
+  serialNumber?: string | null;
+  manufacturingDate?: string | null;
+  expiryDate?: string | null;
+  expiryDateDB?: string | null;
+}
+
+/**
+ * Extracts complete identifier metadata while strictly enforcing safety rules:
+ * - GTIN/EAN/UPC or explicit product code -> safe stableProductKey
+ * - Batch/Serial/Dates -> stored in separate fields, stableProductKey = null
+ * - Never guesses stableProductKey from arbitrary URL shapes
+ */
+export function extractStableIdentifierInfo(rawValue: string, format = 'UNKNOWN'): ExtractedIdentifierInfo {
+  const clean = (rawValue || '').trim();
+  if (!clean) {
+    return {
+      rawValue: '',
+      identifierType: 'other',
+      normalizedValue: '',
+      stableProductKey: null,
+      batchNumber: null,
+      serialNumber: null,
+      manufacturingDate: null,
+      expiryDate: null,
+      expiryDateDB: null,
+    };
+  }
+
+  const parsed = parseScannedBarcode(clean, format);
+  const fmtUpper = String(format || '').toUpperCase();
+  const isUrl = /^https?:\/\//i.test(clean) || (clean.includes('/') && /^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\//.test(clean));
+  const isMultiLine = clean.includes('\n') || clean.includes('\r');
+
+  let type: 'barcode' | 'gtin' | 'qr' | 'other' = 'barcode';
+  if (isUrl || isMultiLine || fmtUpper.includes('QR') || fmtUpper.includes('AZTEC') || fmtUpper.includes('DATA_MATRIX')) {
+    type = 'qr';
+  } else if (parsed.gtin || /^\d{8,14}$/.test(clean)) {
+    type = 'gtin';
+  } else if (fmtUpper !== 'UNKNOWN') {
+    type = 'barcode';
+  } else {
+    type = 'other';
+  }
+
+  const normalizedValue = (parsed.gtin || parsed.barcode || clean).trim();
+
+  // Strict safety rule: stableProductKey is ONLY created for proven product identities
+  let stableProductKey: string | null = null;
+  if (parsed.gtin) {
+    stableProductKey = `gtin:${normalizeGTIN(parsed.gtin)}`;
+  } else if (parsed.productCode) {
+    stableProductKey = `sku:${parsed.productCode.trim().toUpperCase()}`;
+  }
+
+  return {
+    rawValue: clean,
+    format: parsed.format,
+    identifierType: type,
+    normalizedValue,
+    gtin: parsed.gtin,
+    productCode: parsed.productCode,
+    stableProductKey,
+    batchNumber: parsed.batchNumber?.trim() || null,
+    serialNumber: parsed.serialNumber?.trim() || null,
+    manufacturingDate: parsed.manufacturingDate?.trim() || null,
+    expiryDate: parsed.expiryDate?.trim() || null,
+    expiryDateDB: parsed.expiryDateDB?.trim() || null,
   };
 }
 

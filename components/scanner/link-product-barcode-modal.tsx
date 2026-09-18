@@ -27,16 +27,18 @@ import {
   Smartphone,
   Check,
   QrCode,
-  Barcode,
 } from 'lucide-react';
+import { extractStableIdentifierInfo } from '@/lib/scanner/barcode-parser';
 
 export interface LinkedIdentifierPayload {
   raw_value: string;
   identifier_type: 'barcode' | 'gtin' | 'qr' | 'other';
   normalized_value?: string | null;
+  stable_product_key?: string | null;
+  detected_batch?: string | null;
+  detected_serial?: string | null;
+  detected_expiry?: string | null;
   is_primary?: boolean;
-  detected_batch?: string;
-  detected_expiry?: string;
 }
 
 interface LinkProductBarcodeModalProps {
@@ -89,58 +91,26 @@ export function LinkProductBarcodeModal({
     const clean = String(rawValue || '').trim();
     if (!clean) return;
 
-    // Determine identifier type safely
-    const fmtUpper = String(format || '').toUpperCase();
-    const isUrl = /^https?:\/\//i.test(clean);
-    const isMultiLine = clean.includes('\n') || clean.includes('\r');
-    let type: 'barcode' | 'gtin' | 'qr' | 'other' = 'barcode';
-
-    if (isUrl || isMultiLine || fmtUpper.includes('QR') || fmtUpper.includes('AZTEC') || fmtUpper.includes('DATA_MATRIX')) {
-      type = 'qr';
-    } else if (/^\d{8,14}$/.test(clean)) {
-      type = 'gtin';
-    } else if (fmtUpper !== 'UNKNOWN') {
-      type = 'barcode';
-    } else {
-      type = 'other';
-    }
-
-    // 1. PRIMARY RESPONSIBILITY: EXACT RAW IDENTIFIER (ALWAYS PRESERVED)
-    let primaryCode = clean;
-    try {
-      const extracted = extractBillingLookupCodes(clean);
-      if (extracted?.primaryCode) {
-        primaryCode = extracted.primaryCode;
-      }
-    } catch {
-      primaryCode = clean;
-    }
-
-    // 2. SECONDARY RESPONSIBILITY: BATCH/EXPIRY EXTRACTION (BEST EFFORT ONLY)
-    let batchNumber: string | undefined;
-    let expiryDate: string | undefined;
-    try {
-      const extracted = extractBatchAndExpiryFromIdentifier(clean);
-      batchNumber = extracted?.batchNumber;
-      expiryDate = extracted?.expiryDate;
-    } catch {
-      // Best-effort: parser failure or no matches never blocks registration
-    }
+    const info = extractStableIdentifierInfo(clean, format);
 
     const payload: LinkedIdentifierPayload = {
       raw_value: clean,
-      identifier_type: type,
-      normalized_value: primaryCode || clean,
+      identifier_type: info.identifierType,
+      normalized_value: info.normalizedValue || clean,
+      stable_product_key: info.stableProductKey,
+      detected_batch: info.batchNumber,
+      detected_serial: info.serialNumber,
+      detected_expiry: info.expiryDate,
       is_primary: true,
-      detected_batch: batchNumber,
-      detected_expiry: expiryDate,
     };
 
     console.log('[KRUSHI SCANNER] IDENTIFIER_REGISTERED', {
       raw_value: payload.raw_value.length > 80 ? payload.raw_value.slice(0, 80) + '...' : payload.raw_value,
       identifier_type: payload.identifier_type,
       normalized_value: payload.normalized_value,
+      stable_product_key: payload.stable_product_key,
       detected_batch: payload.detected_batch,
+      detected_serial: payload.detected_serial,
       detected_expiry: payload.detected_expiry,
     });
 

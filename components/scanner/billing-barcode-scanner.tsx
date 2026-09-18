@@ -54,7 +54,7 @@ export function BillingBarcodeScannerModal({
   productsList = [],
   onOpenManualSearch,
 }: BillingBarcodeScannerModalProps) {
-  const [mode, setMode] = useState<'scanning' | 'not_found' | 'out_of_stock' | 'permission_denied' | 'web_fallback'>('scanning');
+  const [mode, setMode] = useState<'scanning' | 'not_found' | 'ambiguous' | 'out_of_stock' | 'permission_denied' | 'web_fallback'>('scanning');
   const [isTorchOn, setIsTorchOn] = useState(false);
   const [lookupResult, setLookupResult] = useState<BillingScanLookupResult | null>(null);
   const [scannedCodeDisplay, setScannedCodeDisplay] = useState('');
@@ -127,7 +127,7 @@ export function BillingBarcodeScannerModal({
       let match = matchBillingProductStock(candidateProducts, acceptedRawValue);
 
       // 2. If not found in-memory and not in client demo mode, perform exact DB lookup action
-      if (!match.found && !isClientDemoMode()) {
+      if (!match.found && !match.isAmbiguous && !isClientDemoMode()) {
         try {
           const res = await getProductByBarcodeAction(acceptedRawValue);
           if (res.success && res.data) {
@@ -139,6 +139,11 @@ export function BillingBarcodeScannerModal({
       }
 
       setLookupResult(match);
+
+      if (match.isAmbiguous || match.reason === 'AMBIGUOUS') {
+        setMode('ambiguous');
+        return;
+      }
 
       if (!match.found) {
         setMode('not_found');
@@ -404,6 +409,45 @@ export function BillingBarcodeScannerModal({
             </div>
           )}
 
+          {mode === 'ambiguous' && (
+            <div className="py-3 text-center space-y-4">
+              <div className="h-12 w-12 mx-auto rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+                <AlertCircle className="h-6 w-6" />
+              </div>
+
+              <div className="space-y-1.5">
+                <h3 className="text-base font-bold text-foreground">Product Identification Ambiguous</h3>
+                {scannedCodeDisplay && (
+                  <p className="text-xs font-mono bg-muted/60 py-1 px-2.5 rounded-md inline-block text-muted-foreground border border-border">
+                    {lookupResult?.batchNumber ? `Batch: ${lookupResult.batchNumber}` : (scannedCodeDisplay.length > 50 ? scannedCodeDisplay.slice(0, 50) + '...' : scannedCodeDisplay)}
+                  </p>
+                )}
+                <p className="text-xs text-muted-foreground max-w-xs mx-auto">
+                  Multiple products may match this QR. Please select the product manually.
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-2 pt-2">
+                <Button
+                  onClick={handleManualSearchClick}
+                  className="w-full gap-2 font-bold text-xs h-10 bg-primary hover:bg-primary/90 text-primary-foreground"
+                >
+                  <Search className="h-3.5 w-3.5" /> Search Manually
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    cleanupScanner();
+                    onClose();
+                  }}
+                  className="w-full text-xs text-muted-foreground h-9"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
+
           {mode === 'not_found' && (
             <div className="py-3 text-center space-y-4">
               <div className="h-12 w-12 mx-auto rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center">
@@ -411,14 +455,14 @@ export function BillingBarcodeScannerModal({
               </div>
 
               <div className="space-y-1.5">
-                <h3 className="text-base font-bold text-foreground">Product Not Found</h3>
+                <h3 className="text-base font-bold text-foreground">Product Not Registered</h3>
                 {scannedCodeDisplay && (
                   <p className="text-xs font-mono bg-muted/60 py-1 px-2.5 rounded-md inline-block text-muted-foreground border border-border">
-                    {scannedCodeDisplay}
+                    {scannedCodeDisplay.length > 50 ? scannedCodeDisplay.slice(0, 50) + '...' : scannedCodeDisplay}
                   </p>
                 )}
                 <p className="text-xs text-muted-foreground max-w-xs mx-auto">
-                  This barcode is not registered in your inventory.
+                  This barcode or QR is not registered in your inventory.
                 </p>
               </div>
 
