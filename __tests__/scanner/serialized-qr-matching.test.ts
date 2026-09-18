@@ -348,4 +348,57 @@ test('KRUSHI OS — Serialized Product QR Matching & Safe Ambiguity Test Suite',
     assert.ok(content.includes('idx_product_identifiers_batch'), 'Must add index on batch_number');
   });
 
+  await t.test('13. Authoritative product_batches precedence: selects existing batch without duplicating', () => {
+    const scannedQr = 'ivcs.ai/21/IS6X024B/10/ANOTHER_SERIAL_777?11=260317&17=280316';
+    const existingBatch = {
+      id: 'batch-orig-1',
+      batch_number: 'IS6X024B',
+      quantity_available: 8,
+      expiry_date: '2028-03-16',
+      selling_price: 1200,
+    };
+
+    const products = [
+      {
+        id: 'p-xel-auth',
+        name: 'XELORA (400 ML)',
+        current_stock: 8,
+        batches: [existingBatch],
+      }
+    ];
+
+    const match = matchBillingProductStock(products, scannedQr);
+    assert.strictEqual(match.found, true);
+    assert.strictEqual(match.selectedBatch.id, 'batch-orig-1');
+    assert.strictEqual(match.selectedBatch.batch_number, 'IS6X024B');
+    // Ensure product batches array length remains unchanged (no duplicate batch created)
+    assert.strictEqual(products[0].batches.length, 1);
+  });
+
+  await t.test('14. Non-existent batch during billing is not silently created -> fails safely', () => {
+    const scannedQr = 'ivcs.ai/21/NON_EXISTENT_BATCH_999/10/SERIAL_000?11=260317&17=280316';
+    const products = [
+      {
+        id: 'p-xel-auth',
+        name: 'XELORA (400 ML)',
+        current_stock: 5,
+        batches: [
+          {
+            id: 'batch-orig-1',
+            batch_number: 'IS6X024B',
+            quantity_available: 5,
+            expiry_date: '2028-03-16',
+          }
+        ],
+      }
+    ];
+
+    const match = matchBillingProductStock(products, scannedQr);
+    // Batch does not exist anywhere in shop -> NOT_FOUND, never silently fabricated
+    assert.strictEqual(match.found, false);
+    assert.strictEqual(match.reason, 'NOT_FOUND');
+    assert.strictEqual(products[0].batches.length, 1);
+  });
+
 });
+
