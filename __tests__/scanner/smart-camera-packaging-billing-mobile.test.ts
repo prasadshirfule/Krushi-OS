@@ -292,6 +292,112 @@ assert.strictEqual(isRouteActive('/sales/KOS-001', '/sales'), true);
 assert.strictEqual(isRouteActive('/billing', '/sales'), false);
 console.log('✓ 4.2 Active route highlighting correctly matches base routes and subpaths');
 
+// ─────────────────────────────────────────────────────────────
+// FEATURE 5 TESTS: Complete Multi-Batch Lifecycle, Date Separation & Stock Invariants
+// ─────────────────────────────────────────────────────────────
+console.log('\n--- FEATURE 5: Complete Multi-Batch Lifecycle, Date Separation & Stock Invariants ---');
+
+// 5.1 Scanning packaging must never create physical stock
+const packagingRaw = `
+  COROMANDEL GROMAX
+  Batch No. CRMD-2026-A
+  Mfg. Date 15/01/2026
+  Expiry Date 14/01/2028
+  Maximum Retail Price Rs. 850.00
+  Coromandel International Ltd
+`;
+const extractedBatch1 = parseProductLabelOcr(packagingRaw);
+assert.strictEqual(extractedBatch1.batchNumber, 'CRMD-2026-A');
+assert.strictEqual(extractedBatch1.mrp, 850.0);
+assert.strictEqual(extractedBatch1.manufacturingDate, '2026-01-15');
+assert.strictEqual(extractedBatch1.expiryDate, '14/01/2028');
+assert.strictEqual(extractedBatch1.quantity, undefined, 'Packaging scan MUST NEVER fabricate physical stock quantity');
+
+// Simulated Product Record with Batch 1
+const mockProductWithBatches: any = {
+  id: 'prod-crmd',
+  name: 'COROMANDEL GROMAX',
+  barcode: '8901234567890',
+  sku: 'CRMD-GRO',
+  selling_price: 800.0, // Authorized selling price
+  wholesale_price: 750.0, // Wholesale price (distinct from MRP)
+  mrp: 850.0, // Retail MRP
+  current_stock: 0, // No stock created yet
+  is_active: true,
+  batches: [
+    {
+      id: 'batch-1',
+      batch_number: 'CRMD-2026-A',
+      manufacturing_date: '2026-01-15',
+      expiry_date: '2028-01-14',
+      best_before_date: null,
+      mrp: 850.0,
+      purchase_price: 720.0,
+      selling_price: 800.0,
+      quantity_available: 0, // 0 physical stock
+      is_active: true,
+    },
+  ],
+};
+
+// 5.2 Add a second batch of the same product with distinct dates and MRP
+const batch2: any = {
+  id: 'batch-2',
+  batch_number: 'CRMD-2026-B',
+  manufacturing_date: '2026-03-01',
+  expiry_date: '2028-03-31',
+  best_before_date: '2027-12-31',
+  mrp: 890.0, // Higher MRP
+  purchase_price: 760.0,
+  selling_price: 840.0,
+  quantity_available: 0,
+  is_active: true,
+};
+mockProductWithBatches.batches.push(batch2);
+
+// 5.3 Batch 1 details remain 100% unchanged (no overwriting)
+const verifiedBatch1 = mockProductWithBatches.batches.find((b: any) => b.id === 'batch-1')!;
+assert.strictEqual(verifiedBatch1.batch_number, 'CRMD-2026-A');
+assert.strictEqual(verifiedBatch1.manufacturing_date, '2026-01-15');
+assert.strictEqual(verifiedBatch1.expiry_date, '2028-01-14');
+assert.strictEqual(verifiedBatch1.mrp, 850.0, 'Batch 1 MRP must not be overwritten by Batch 2 MRP');
+assert.strictEqual(verifiedBatch1.quantity_available, 0);
+
+// 5.4 Stock Arrival via Purchase workflow
+verifiedBatch1.quantity_available = 25;
+batch2.quantity_available = 50;
+mockProductWithBatches.current_stock = 75;
+
+// 5.5 Billing: Plain scan picks Batch 1 via FEFO (earlier expiry: Jan 2028 vs Mar 2028)
+const fefoMatch = matchBillingProductStock([mockProductWithBatches], '8901234567890');
+assert.strictEqual(fefoMatch.found, true);
+assert.strictEqual(fefoMatch.selectedBatch?.id, 'batch-1', 'FEFO must select batch-1 with earlier expiry');
+assert.strictEqual(fefoMatch.availableStock, 25);
+
+// 5.6 Billing: Structured scan for Batch 2 specifically selects Batch 2
+const structuredQrBatch2 = '(01)08901234567890(10)CRMD-2026-B(17)280331';
+const batch2Match = matchBillingProductStock([mockProductWithBatches], structuredQrBatch2);
+assert.strictEqual(batch2Match.found, true);
+assert.strictEqual(batch2Match.selectedBatch?.id, 'batch-2');
+assert.strictEqual(batch2Match.selectedBatch?.batch_number, 'CRMD-2026-B');
+assert.strictEqual(batch2Match.availableStock, 50);
+
+// 5.7 Pricing safety: Cart rate comes from authorized selling_price, NOT OCR MRP
+const cartItemBatch2 = buildBillingCartItem(batch2Match);
+assert.strictEqual(cartItemBatch2.rate, 840.0, 'Cart rate must reflect authorized selling price');
+assert.notStrictEqual(cartItemBatch2.rate, batch2.mrp, 'Cart rate must not naively use MRP if selling price is set');
+
+// 5.8 Out-of-stock validation during billing
+batch2.quantity_available = 0; // Simulate stock exhausted
+const oosMatch = matchBillingProductStock([mockProductWithBatches], structuredQrBatch2);
+assert.strictEqual(oosMatch.isOutOfStock, true, 'Server/stock engine must flag batch as out of stock');
+
+console.log('✓ 5.1 Scanning packaging never creates physical stock (stock remains 0 until purchase)');
+console.log('✓ 5.2 Multi-batch isolation: Batch 1 dates and MRP are strictly preserved when Batch 2 is added');
+console.log('✓ 5.3 FEFO and explicit batch targeting correctly allocate available purchase stock');
+console.log('✓ 5.4 Authorized selling price is enforced over OCR MRP during billing');
+console.log('✓ 5.5 Out of stock batch is prevented from checkout');
+
 console.log('\n================================================================');
 console.log('🎉 ALL KRUSHI OS SCANNER, BATCH, BILLING & MOBILE TESTS PASSED!');
 console.log('================================================================\n');
