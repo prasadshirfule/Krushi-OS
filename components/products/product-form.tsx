@@ -48,6 +48,8 @@ import {
   Link2
 } from 'lucide-react';
 import { LinkProductBarcodeModal } from '@/components/scanner/link-product-barcode-modal';
+import { PackagingScannerModal, ConfirmedPackagingDetails } from '@/components/scanner/packaging-scanner-modal';
+import { Sparkles } from 'lucide-react';
 
 import { 
   isClientDemoMode, 
@@ -112,6 +114,7 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
 
   // Linked QR / Barcode Identifiers State
   const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [isPackagingScannerOpen, setIsPackagingScannerOpen] = useState(false);
   const [linkedIdentifiers, setLinkedIdentifiers] = useState<LinkedIdentifierItem[]>(() => {
     if (initialData?.identifiers && Array.isArray(initialData.identifiers) && initialData.identifiers.length > 0) {
       return initialData.identifiers.map((item: any) => ({
@@ -200,6 +203,99 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
     }
   };
 
+  // Dedicated Agricultural Packaging Details Scanner Handler (Batch, MFG, EXP, MRP, Pack Size)
+  const handlePackagingDetailsConfirmed = (details: ConfirmedPackagingDetails) => {
+    const applied: string[] = [];
+
+    // 1. Product Name (if empty or in create mode)
+    if (details.productName && (!form.getValues('name') || mode === 'create')) {
+      form.setValue('name', details.productName, { shouldValidate: true, shouldDirty: true });
+      applied.push(`Name: ${details.productName}`);
+    }
+
+    // 2. Manufacturer / Brand
+    if (details.manufacturer) {
+      const matchBrand = brandsList.find(
+        (b) =>
+          b.name?.toLowerCase() === details.manufacturer?.toLowerCase() ||
+          b.manufacturer?.toLowerCase() === details.manufacturer?.toLowerCase()
+      );
+      if (matchBrand) {
+        form.setValue('brand_id', matchBrand.id, { shouldValidate: true, shouldDirty: true });
+        applied.push(`Brand: ${matchBrand.name}`);
+      }
+    }
+
+    // 3. Batch Number
+    if (details.batchNumber) {
+      form.setValue('batch_number', details.batchNumber, { shouldValidate: true, shouldDirty: true });
+      applied.push(`Batch: ${details.batchNumber}`);
+    }
+
+    // 4. Manufacturing Date
+    if (details.manufacturingDate) {
+      const formattedMfd = formatToDDMMYYYY(details.manufacturingDate) || details.manufacturingDate;
+      form.setValue('mfd_date', formattedMfd, { shouldValidate: true, shouldDirty: true });
+      applied.push(`MFD: ${formattedMfd}`);
+    }
+
+    // 5. Expiry Date
+    if (details.expiryDate) {
+      const formattedExp = formatToDDMMYYYY(details.expiryDate) || details.expiryDate;
+      form.setValue('expiry_date', formattedExp, { shouldValidate: true, shouldDirty: true });
+      applied.push(`Expiry: ${formattedExp}`);
+    }
+
+    // 6. MRP / Selling Price (Do NOT map to wholesale_price)
+    if (details.mrp && details.mrp > 0) {
+      form.setValue('mrp', details.mrp, { shouldValidate: true, shouldDirty: true });
+      if (!form.getValues('selling_price') || Number(form.getValues('selling_price')) === 0) {
+        form.setValue('selling_price', details.mrp, { shouldValidate: true, shouldDirty: true });
+      }
+      applied.push(`MRP: ₹${details.mrp}`);
+    }
+
+    // 6. Size & Unit
+    if (details.sizeValue && details.sizeValue > 0) {
+      const normUnit = (details.sizeUnit || 'G').toUpperCase();
+      const validUnits = ['KG', 'G', 'GM', 'L', 'ML', 'BAG', 'BOTTLE', 'PIECE', 'PACKET'];
+      const matchedUnit = validUnits.find((u) => u === normUnit) || 'KG';
+      form.setValue('product_size_value', details.sizeValue, { shouldValidate: true, shouldDirty: true });
+      form.setValue('product_size_unit', matchedUnit, { shouldValidate: true, shouldDirty: true });
+      form.setValue('pack_size', `${details.sizeValue} ${matchedUnit}`, { shouldValidate: true, shouldDirty: true });
+      applied.push(`Size: ${details.sizeValue} ${matchedUnit}`);
+    } else if (details.packSize) {
+      form.setValue('pack_size', details.packSize, { shouldValidate: true, shouldDirty: true });
+      applied.push(`Pack: ${details.packSize}`);
+    }
+
+    // 7. Composition & Formulation
+    if (details.composition && !form.getValues('active_ingredient')) {
+      form.setValue('active_ingredient', details.composition, { shouldValidate: false, shouldDirty: true });
+    }
+    if (details.formulation && !form.getValues('formulation')) {
+      form.setValue('formulation', details.formulation, { shouldValidate: false, shouldDirty: true });
+    }
+
+    // 8. Barcode / GTIN registration
+    if (details.barcode) {
+      handleLinkIdentifier({
+        raw_value: details.barcode,
+        normalized_value: details.barcode,
+        identifier_type: 'barcode',
+        detected_batch: details.batchNumber || null,
+        detected_expiry: details.expiryDate || null,
+        is_primary: true,
+      });
+    }
+
+    if (applied.length > 0) {
+      toast.success(`Packaging Details Applied ✓ (${applied.slice(0, 3).join(', ')})`);
+    } else {
+      toast.info('Packaging details applied');
+    }
+  };
+
   const handleRemoveIdentifier = (indexToRemove: number) => {
     setLinkedIdentifiers((prev) => {
       const next = prev.filter((_, idx) => idx !== indexToRemove);
@@ -222,6 +318,8 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
 
   const initialBatch = initialData?.batches?.[0];
   const initialBatchNumber = initialData?.batch_number || initialBatch?.batch_number || '';
+  const rawInitialMfd = initialData?.mfd_date || initialBatch?.manufacturing_date || '';
+  const initialMfdFormatted = formatToDDMMYYYY(rawInitialMfd);
   const rawInitialExpiry = initialData?.expiry_date || initialBatch?.expiry_date || initialBatch?.exp_date || '';
   const initialExpiryFormatted = formatToDDMMYYYY(rawInitialExpiry);
   const initialStock = mode === 'create'
@@ -242,7 +340,8 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
       barcode: initialData?.barcode || '',
       purchase_price: initialData?.purchase_price !== undefined && initialData?.purchase_price !== null ? Number(initialData.purchase_price) : (mode === 'edit' ? 0 : (undefined as unknown as number)),
       selling_price: initialData?.selling_price !== undefined && initialData?.selling_price !== null && Number(initialData.selling_price) > 0 ? Number(initialData.selling_price) : (mode === 'edit' ? Number(initialData?.selling_price || 0) : (undefined as unknown as number)),
-      wholesale_price: initialData?.wholesale_price ?? initialData?.mrp ?? null,
+      mrp: initialData?.mrp !== undefined && initialData?.mrp !== null ? Number(initialData.mrp) : (initialBatch?.mrp !== undefined && initialBatch?.mrp !== null ? Number(initialBatch.mrp) : null),
+      wholesale_price: initialData?.wholesale_price ?? null,
       hsn_code: initialData?.hsn_code || '',
       gst_rate: initialData?.gst_rate ?? 18,
       unit: initialData?.unit || 'Piece',
@@ -254,6 +353,7 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
       batch_tracking: true,
       expiry_tracking: true,
       batch_number: initialBatchNumber,
+      mfd_date: initialMfdFormatted,
       expiry_date: initialExpiryFormatted,
       product_type: initialData?.product_type || '',
       active_ingredient: initialData?.active_ingredient || '',
@@ -264,6 +364,28 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
       identifiers: [],
     },
   });
+
+  // Handle formatted typing for Manufacturing Date (DD/MM/YYYY)
+  const handleMfdChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const inputVal = e.target.value;
+    const prevVal = form.getValues('mfd_date') || '';
+
+    // Allow user to backspace freely
+    if (inputVal.length < prevVal.length) {
+      form.setValue('mfd_date', inputVal, { shouldValidate: false });
+      return;
+    }
+
+    // Extract digits and automatically format with slashes
+    const digits = inputVal.replace(/\D/g, '').slice(0, 8);
+    let formatted = digits;
+    if (digits.length > 2 && digits.length <= 4) {
+      formatted = `${digits.slice(0, 2)}/${digits.slice(2)}`;
+    } else if (digits.length > 4) {
+      formatted = `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+    }
+    form.setValue('mfd_date', formatted, { shouldValidate: true });
+  };
 
   // Handle formatted typing for Expiry Date (DD/MM/YYYY)
   const handleExpiryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -460,6 +582,8 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
     setIsSubmitting(true);
     try {
       const rawBatch = (data.batch_number || '').trim();
+      const rawMfdStr = (data.mfd_date || '').trim();
+      const dbMfd = rawMfdStr ? (formatDDMMYYYYtoDB(rawMfdStr) || rawMfdStr) : null;
       const rawExpStr = (data.expiry_date || '').trim();
       const dbExpiry = rawExpStr ? (formatDDMMYYYYtoDB(rawExpStr) || rawExpStr) : null;
       const hasBatch = Boolean(rawBatch);
@@ -478,7 +602,10 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
         ...data,
         name: normalizedName,
         batch_number: hasBatch ? rawBatch : null,
+        mfd_date: dbMfd,
         expiry_date: dbExpiry,
+        mrp: data.mrp !== undefined && data.mrp !== null && data.mrp !== ('' as any) ? Number(data.mrp) : null,
+        wholesale_price: data.wholesale_price !== undefined && data.wholesale_price !== null && data.wholesale_price !== ('' as any) ? Number(data.wholesale_price) : null,
         batch_tracking: hasBatch,
         expiry_tracking: hasExpiry,
         product_size_value: sizeVal,
@@ -595,15 +722,26 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
                   </CardDescription>
                 </div>
               </div>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setIsScannerOpen(true)}
-                className="h-9 px-4 rounded-lg border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary font-bold gap-2 text-xs shadow-sm self-start sm:self-auto shrink-0 transition-all active:scale-95"
-              >
-                <Scan className="h-4 w-4 stroke-[2.5]" />
-                <span>Link QR / Barcode</span>
-              </Button>
+              <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto shrink-0">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsScannerOpen(true)}
+                  className="h-9 px-3.5 rounded-lg border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary font-bold gap-2 text-xs shadow-sm transition-all active:scale-95"
+                >
+                  <Scan className="h-4 w-4 stroke-[2.5]" />
+                  <span>Scan Product Barcode / QR</span>
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsPackagingScannerOpen(true)}
+                  className="h-9 px-3.5 rounded-lg border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 font-bold gap-2 text-xs shadow-sm transition-all active:scale-95"
+                >
+                  <Sparkles className="h-4 w-4 stroke-[2.5]" />
+                  <span>Scan Packaging Details</span>
+                </Button>
+              </div>
             </div>
           </CardHeader>
           <CardContent className="p-6 space-y-5">
@@ -891,8 +1029,8 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
               </div>
             </div>
 
-            {/* 5. Batch & Expiry Row */}
-            <div className="grid gap-5 grid-cols-1 sm:grid-cols-2 items-start">
+            {/* 5. Batch, MFG & Expiry Row */}
+            <div className="grid gap-5 grid-cols-1 sm:grid-cols-3 items-start">
               {/* Batch Number */}
               <div className="space-y-2">
                 <Label htmlFor="batch_number" className="text-sm font-semibold text-foreground flex items-center">
@@ -900,16 +1038,34 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
                 </Label>
                 <Input
                   id="batch_number"
-                  placeholder="e.g. BAT-2025-01 (Auto-assigned if empty)"
+                  placeholder="e.g. BAT-2025-01"
                   className="h-11 text-sm rounded-lg border-border bg-background font-mono"
                   {...form.register('batch_number')}
                 />
               </div>
 
+              {/* Manufacturing Date (DD/MM/YYYY) */}
+              <div className="space-y-2">
+                <Label htmlFor="mfd_date" className="text-sm font-semibold text-foreground flex items-center">
+                  {t('products.mfgDate', 'Mfg Date (MFD)')} <span className="text-xs text-muted-foreground font-normal ml-1">(DD/MM/YYYY)</span>
+                </Label>
+                <div className="relative">
+                  <Input
+                    id="mfd_date"
+                    placeholder="DD/MM/YYYY"
+                    maxLength={10}
+                    className="h-11 text-sm rounded-lg border-border bg-background font-mono pl-3 pr-8"
+                    value={form.watch('mfd_date') || ''}
+                    onChange={handleMfdChange}
+                  />
+                  <Calendar className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                </div>
+              </div>
+
               {/* Expiry Date (DD/MM/YYYY) */}
               <div className="space-y-2">
                 <Label htmlFor="expiry_date" className="text-sm font-semibold text-foreground flex items-center">
-                  {t('products.expiryDate', 'Expiry Date')} <span className="text-xs text-muted-foreground font-normal ml-1">(DD/MM/YYYY)</span>
+                  {t('products.expiryDate', 'Expiry Date (EXP)')} <span className="text-xs text-muted-foreground font-normal ml-1">(DD/MM/YYYY)</span>
                 </Label>
                 <div className="relative">
                   <Input
@@ -931,7 +1087,7 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
         </Card>
 
         {/* ═════════════════════════════════════════════════════════
-            SECTION 2: PRICING & TAX (Strictly 4 Clean Fields)
+            SECTION 2: PRICING & TAX (Strictly Clean Dedicated Fields)
         ═════════════════════════════════════════════════════════ */}
         <Card className="border border-border bg-card shadow-sm rounded-xl overflow-hidden">
           <CardHeader className="bg-muted/30 border-b border-border pb-4">
@@ -947,7 +1103,7 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
               </div>
             </div>
           </CardHeader>
-          <CardContent className="p-6 grid gap-5 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 items-start">
+          <CardContent className="p-6 grid gap-5 grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 items-start">
             {/* 1. Purchase Price */}
             <div className="space-y-2">
               <Label htmlFor="purchase_price" className="text-sm font-semibold text-foreground flex items-center">
@@ -992,10 +1148,32 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
               )}
             </div>
 
-            {/* 3. MRP */}
+            {/* 3. MRP (Maximum Retail Price) */}
             <div className="space-y-2">
-              <Label htmlFor="wholesale_price" className="text-sm font-semibold text-foreground">
+              <Label htmlFor="mrp" className="text-sm font-semibold text-foreground">
                 {t('products.mrp', 'MRP')}
+              </Label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold text-sm">₹</span>
+                <Input
+                  id="mrp"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="0.00"
+                  className="pl-8 h-11 text-base rounded-lg border-border bg-background [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  {...form.register('mrp')}
+                />
+              </div>
+              {form.formState.errors.mrp && (
+                <p className="text-xs text-destructive font-medium">{form.formState.errors.mrp.message}</p>
+              )}
+            </div>
+
+            {/* 4. Wholesale Price (Optional) */}
+            <div className="space-y-2">
+              <Label htmlFor="wholesale_price" className="text-sm font-semibold text-foreground truncate" title="Wholesale / Dealer Price">
+                {t('products.wholesalePrice', 'Wholesale Price')}
               </Label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold text-sm">₹</span>
@@ -1011,7 +1189,7 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
               </div>
             </div>
 
-            {/* 4. GST */}
+            {/* 5. GST */}
             <div className="space-y-2">
               <Label htmlFor="gst_rate" className="text-sm font-semibold text-foreground flex items-center">
                 {t('products.gstRate', 'GST')}
@@ -1137,6 +1315,18 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
         isOpen={isScannerOpen}
         onClose={() => setIsScannerOpen(false)}
         onLinkIdentifier={handleLinkIdentifier}
+        currentProductId={initialData?.id}
+        existingIdentifiers={linkedIdentifiers}
+      />
+
+      {/* ═════════════════════════════════════════════════════════
+          MODAL: SCAN AGRICULTURAL PACKAGING DETAILS (OCR + BATCH)
+      ═════════════════════════════════════════════════════════ */}
+      <PackagingScannerModal
+        isOpen={isPackagingScannerOpen}
+        onClose={() => setIsPackagingScannerOpen(false)}
+        onConfirmDetails={handlePackagingDetailsConfirmed}
+        initialProductHint={form.watch('name')}
       />
 
       {/* ═════════════════════════════════════════════════════════

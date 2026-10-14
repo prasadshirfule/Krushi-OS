@@ -17,7 +17,9 @@ import {
   getRecentDemoBillingProductsClient 
 } from '@/lib/client-demo-store';
 import { useLanguage } from '@/lib/i18n';
+import { toast } from 'sonner';
 import { BillingBarcodeScannerModal } from '@/components/scanner/billing-barcode-scanner';
+import { PackagingScannerModal, ConfirmedPackagingDetails } from '@/components/scanner/packaging-scanner-modal';
 
 interface ProductSearchProps {
   onAddToCart: (item: any) => void;
@@ -34,6 +36,7 @@ function ProductSearchComponent({ onAddToCart }: ProductSearchProps) {
   const [loading, setLoading] = useState(false);
   const [addedProductId, setAddedProductId] = useState<string | null>(null);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [isPackagingModalOpen, setIsPackagingModalOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const batchesCache = useRef<Record<string, any[]>>({});
   const queryRef = useRef(query);
@@ -287,6 +290,38 @@ function ProductSearchComponent({ onAddToCart }: ProductSearchProps) {
     }
   }, [onAddToCart]);
 
+  const handlePackagingConfirmed = (details: ConfirmedPackagingDetails) => {
+    setIsPackagingModalOpen(false);
+
+    // Look for matching product in loaded products
+    let matchedProduct: any = null;
+    if (details.barcode) {
+      matchedProduct = allProducts.find(
+        (p) =>
+          (p.barcode || '').trim() === details.barcode?.trim() ||
+          (Array.isArray(p.identifiers) && p.identifiers.some((i: any) => (i.raw_value || '').trim() === details.barcode?.trim()))
+      );
+    }
+
+    if (!matchedProduct && details.productName) {
+      const q = details.productName.trim().toLowerCase();
+      matchedProduct = allProducts.find(
+        (p) => (p.name || '').trim().toLowerCase() === q
+      );
+    }
+
+    if (matchedProduct) {
+      handleAdd(matchedProduct);
+      toast.success(`Recognized "${matchedProduct.name}" from packaging ✓`);
+    } else if (details.productName) {
+      setQuery(details.productName);
+      toast.info(`Filtered catalog for "${details.productName}"`);
+      searchInputRef.current?.focus();
+    } else {
+      toast.info('Packaging details reviewed');
+    }
+  };
+
   return (
     <section className="rounded-xl border border-border bg-card p-5 md:p-6 shadow-sm space-y-5 text-card-foreground">
       {/* ─── Header & Search ─── */}
@@ -327,10 +362,22 @@ function ProductSearchComponent({ onAddToCart }: ProductSearchProps) {
             type="button"
             variant="outline"
             onClick={() => setIsScannerOpen(true)}
-            className="h-11 px-4 rounded-xl border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary font-bold gap-2 text-xs shadow-sm shrink-0 transition-all active:scale-95"
+            className="h-11 px-3.5 rounded-xl border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary font-bold gap-1.5 text-xs shadow-sm shrink-0 transition-all active:scale-95"
+            title="Scan Product Barcode / QR (Real Camera)"
           >
             <Scan className="h-4 w-4 stroke-[2.5]" />
-            <span className="hidden xs:inline">Scan Product</span>
+            <span className="hidden xs:inline">Scan Barcode</span>
+          </Button>
+
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setIsPackagingModalOpen(true)}
+            className="h-11 px-3.5 rounded-xl border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 font-bold gap-1.5 text-xs shadow-sm shrink-0 transition-all active:scale-95"
+            title="Scan Packaging Details / Read Label (OCR)"
+          >
+            <Sparkles className="h-4 w-4 stroke-[2.5]" />
+            <span className="hidden sm:inline">Scan Packaging</span>
           </Button>
         </div>
       </div>
@@ -503,6 +550,13 @@ function ProductSearchComponent({ onAddToCart }: ProductSearchProps) {
         onOpenManualSearch={() => {
           searchInputRef.current?.focus();
         }}
+      />
+
+      {/* Embedded Billing Packaging Scanner Dialog (OCR + Batch Recognition) */}
+      <PackagingScannerModal
+        isOpen={isPackagingModalOpen}
+        onClose={() => setIsPackagingModalOpen(false)}
+        onConfirmDetails={handlePackagingConfirmed}
       />
     </section>
   );

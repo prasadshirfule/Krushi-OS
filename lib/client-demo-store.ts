@@ -1003,6 +1003,8 @@ export function saveDemoProductClient(data: any): any {
   const initialStock = Number(data.opening_stock ?? data.current_stock ?? 0);
   const sellingPrice = Number(data.selling_price ?? 0);
   const purchasePrice = Number(data.purchase_price ?? 0);
+  const mrpVal = data.mrp !== undefined && data.mrp !== null ? Number(data.mrp) : sellingPrice;
+  const dbMfd = formatDDMMYYYYtoDB(data.mfd_date) || data.mfd_date || null;
   const dbExpiry = formatDDMMYYYYtoDB(data.expiry_date) || data.expiry_date || null;
   const batchNumber = data.batch_number || `BAT-${Date.now().toString().slice(-4)}`;
 
@@ -1017,10 +1019,12 @@ export function saveDemoProductClient(data: any): any {
     {
       id: `batch-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       batch_number: batchNumber,
+      manufacturing_date: dbMfd,
       expiry_date: dbExpiry,
       quantity_available: initialStock,
       selling_price: sellingPrice,
       purchase_price: purchasePrice,
+      mrp: mrpVal,
     }
   ];
 
@@ -1043,12 +1047,13 @@ export function saveDemoProductClient(data: any): any {
     purchase_price: purchasePrice,
     selling_price: sellingPrice,
     wholesale_price: Number(data.wholesale_price ?? sellingPrice),
-    mrp: Number(data.mrp ?? data.wholesale_price ?? sellingPrice),
+    mrp: mrpVal,
     current_stock: initialStock,
     stock_quantity: initialStock,
     min_stock: Number(data.min_stock ?? 5),
     is_active: true,
     batch_number: batchNumber,
+    mfd_date: dbMfd,
     expiry_date: dbExpiry,
     batches: batches,
     identifiers: data.identifiers || [],
@@ -1079,6 +1084,7 @@ export function updateDemoProductClient(id: string, data: any): any {
     ? Number(data.opening_stock) 
     : (data.current_stock !== undefined ? Number(data.current_stock) : current[idx].current_stock);
   const dbExpiry = data.expiry_date ? (formatDDMMYYYYtoDB(data.expiry_date) || data.expiry_date) : current[idx].expiry_date;
+  const dbMfd = data.mfd_date ? (formatDDMMYYYYtoDB(data.mfd_date) || data.mfd_date) : current[idx].mfd_date;
   const batchNum = data.batch_number || current[idx].batch_number || current[idx].batches?.[0]?.batch_number;
 
   const sizeValue = data.product_size_value !== undefined 
@@ -1091,12 +1097,14 @@ export function updateDemoProductClient(id: string, data: any): any {
     : (sizeValue ? `${sizeValue} ${sizeUnit || 'KG'}` : current[idx].pack_size);
 
   let updatedBatches = current[idx].batches ? [...current[idx].batches] : [];
-  if (batchNum || dbExpiry) {
+  if (batchNum || dbExpiry || dbMfd || data.mrp !== undefined) {
     if (updatedBatches.length > 0) {
       updatedBatches[0] = {
         ...updatedBatches[0],
         batch_number: batchNum || updatedBatches[0].batch_number,
+        manufacturing_date: dbMfd || updatedBatches[0].manufacturing_date,
         expiry_date: dbExpiry,
+        mrp: data.mrp !== undefined ? Number(data.mrp) : (updatedBatches[0].mrp ?? current[idx].mrp),
         quantity_available: initialStock,
         selling_price: data.selling_price !== undefined ? Number(data.selling_price) : updatedBatches[0].selling_price,
         purchase_price: data.purchase_price !== undefined ? Number(data.purchase_price) : updatedBatches[0].purchase_price,
@@ -1106,7 +1114,9 @@ export function updateDemoProductClient(id: string, data: any): any {
         {
           id: `batch-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
           batch_number: batchNum,
+          manufacturing_date: dbMfd,
           expiry_date: dbExpiry,
+          mrp: data.mrp !== undefined ? Number(data.mrp) : current[idx].mrp,
           quantity_available: initialStock,
           selling_price: Number(data.selling_price ?? current[idx].selling_price),
           purchase_price: Number(data.purchase_price ?? current[idx].purchase_price),
@@ -1122,6 +1132,7 @@ export function updateDemoProductClient(id: string, data: any): any {
     category_id: catId,
     category: foundCat || current[idx].category,
     batch_number: batchNum,
+    mfd_date: dbMfd,
     expiry_date: dbExpiry,
     batches: updatedBatches,
     identifiers: data.identifiers !== undefined ? data.identifiers : (current[idx].identifiers || []),
