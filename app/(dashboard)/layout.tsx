@@ -1,6 +1,7 @@
 import { getAuthAndPermissions } from '@/lib/auth-helper'
 import { Sidebar } from '@/components/layout/sidebar'
 import { Header } from '@/components/layout/header'
+import { MobileBottomNav } from '@/components/layout/mobile-bottom-nav'
 import { GlobalNavigationIndicator } from '@/components/layout/global-navigation-indicator'
 import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
@@ -67,10 +68,11 @@ export default async function DashboardLayout({
       <Sidebar />
       <div className='flex flex-col sm:gap-4 sm:py-4 sm:pl-64 w-full min-w-0 max-w-full'>
         <Header user={user} />
-        <main className='flex-1 items-start p-3 sm:px-6 sm:py-0 w-full min-w-0 max-w-full'>
+        <main className='flex-1 items-start p-3 sm:px-6 sm:py-0 pb-24 sm:pb-6 w-full min-w-0 max-w-full'>
           {children}
         </main>
       </div>
+      <MobileBottomNav />
       <Suspense fallback={null}>
         <GlobalNavigationIndicator />
       </Suspense>

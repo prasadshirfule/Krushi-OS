@@ -178,8 +178,8 @@ export function parseProductLabelOcr(rawText: string): ProductScanResult {
     }
   }
 
-  // 5. Expiry Date Extraction (e.g., "Expiry Date 28 JAN 2028", "Exp Date: 26/07/2027", "Best Before: 28 JAN 2028")
-  const expMatch = fullText.match(/(?:expiry\s*date|exp\.?\s*date|use\s*before|best\s*before|expiration\s*date)\s*[:=-]?\s*(\d{1,2}[\s\-\/\.][A-Za-z]{3,9}[\s\-\/\.]\d{2,4}|\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4}|\d{4}[\/\-\.]\d{1,2}[\/\-\.]\d{1,2})/i);
+  // 5. Expiry Date Extraction (e.g., "Expiry Date 28 JAN 2028", "EXP: 09-AUG-2027", "Exp Date: 26/07/2027", "Best Before: 28 JAN 2028")
+  const expMatch = fullText.match(/(?:expiry(?:\s*date)?|exp\.?(?:\s*date)?|use\s*before|best\s*before|expiration(?:\s*date)?)\s*[:=-]?\s*(\d{1,2}[\s\-\/\.][A-Za-z]{3,9}[\s\-\/\.]\d{2,4}|\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4}|\d{4}[\/\-\.]\d{1,2}[\/\-\.]\d{1,2})/i);
   if (expMatch) {
     const parsed = parseDateString(expMatch[1]);
     if (parsed) {

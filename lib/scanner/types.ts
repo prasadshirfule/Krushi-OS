@@ -56,6 +56,8 @@ export interface ProductScanResult {
   batchNumber?: string;
   serialNumber?: string;
   manufacturingDate?: string; // YYYY-MM-DD or DD/MM/YYYY
+  bestBeforeDate?: string; // DD/MM/YYYY
+  bestBeforeDateDB?: string; // YYYY-MM-DD
   expiryDate?: string; // DD/MM/YYYY for UI display
   expiryDateDB?: string; // YYYY-MM-DD for database
 
@@ -92,6 +94,8 @@ export interface GS1ParsedData {
   batchNumber?: string;
   serialNumber?: string;
   productionDate?: string; // YYYY-MM-DD
+  bestBeforeDate?: string; // DD/MM/YYYY
+  bestBeforeDateDB?: string; // YYYY-MM-DD
   expiryDate?: string; // DD/MM/YYYY
   expiryDateDB?: string; // YYYY-MM-DD
   quantity?: number;

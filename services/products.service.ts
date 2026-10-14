@@ -291,7 +291,9 @@ export async function createProduct(shopId: string, data: CreateProductInput, us
   const normalizedProductName = (data.name || '').trim().toUpperCase();
   const rawBatch = (data.batch_number || '').trim();
   const rawExpStr = (data.expiry_date || '').trim();
+  const rawMfdStr = (data.mfd_date || '').trim();
   const dbExpiry = rawExpStr ? (formatDDMMYYYYtoDB(rawExpStr) || rawExpStr) : null;
+  const dbMfd = rawMfdStr ? (formatDDMMYYYYtoDB(rawMfdStr) || rawMfdStr) : null;
   const hasBatch = Boolean(rawBatch);
   const hasExpiry = Boolean(dbExpiry);
 
@@ -308,6 +310,7 @@ export async function createProduct(shopId: string, data: CreateProductInput, us
     p_description: data.description || null,
     p_purchase_price: Number(data.purchase_price || 0),
     p_wholesale_price: Number(data.wholesale_price || 0),
+    p_mrp: data.mrp !== undefined && data.mrp !== null ? Number(data.mrp) : null,
     p_gst_rate: Number(data.gst_rate || 0),
     p_hsn_code: data.hsn_code || null,
     p_min_stock: Number(data.min_stock !== undefined && data.min_stock !== null ? data.min_stock : 5),
@@ -315,7 +318,7 @@ export async function createProduct(shopId: string, data: CreateProductInput, us
     p_batch_tracking: hasBatch,
     p_expiry_tracking: hasExpiry,
     p_batch_number: hasBatch ? rawBatch : null,
-    p_mfd_date: data.mfd_date || null,
+    p_mfd_date: dbMfd,
     p_expiry_date: dbExpiry,
     p_product_type: data.product_type || null,
     p_active_ingredient: data.active_ingredient || null,
@@ -327,15 +330,38 @@ export async function createProduct(shopId: string, data: CreateProductInput, us
   };
 
   // Execute atomic PL/pgSQL function - NO DIRECT FALLBACK TO PRESERVE TRANSACTION SAFETY
-  const { data: res, error } = await supabase.rpc('create_product_with_stock', rpcParams);
+  let res: any;
+  let rpcError: any;
+  const { data: firstRes, error: firstErr } = await supabase.rpc('create_product_with_stock', rpcParams);
+  if (firstErr && (firstErr.message?.includes('schema cache') || firstErr.message?.includes('p_mrp'))) {
+    console.warn("create_product_with_stock retrying without p_mrp (migration 021 pending):", firstErr.message);
+    const { p_mrp, ...legacyRpcParams } = rpcParams;
+    const { data: fallbackRes, error: fallbackErr } = await supabase.rpc('create_product_with_stock', legacyRpcParams);
+    res = fallbackRes;
+    rpcError = fallbackErr;
+  } else {
+    res = firstRes;
+    rpcError = firstErr;
+  }
 
-  if (error) {
-    console.error("Atomic create_product_with_stock RPC error:", error);
-    throw new Error(error.message || 'Failed to create product atomically');
+  if (rpcError) {
+    console.error("Atomic create_product_with_stock RPC error:", rpcError);
+    throw new Error(rpcError.message || 'Failed to create product atomically');
   }
 
   // Persist registered product identifiers
   const createdProductId = res?.id || res?.product_id;
+  if (createdProductId && data.mrp !== undefined && data.mrp !== null) {
+    try {
+      await supabase.from('products').update({ mrp: Number(data.mrp) }).eq('id', createdProductId);
+    } catch {}
+    const createdBatchId = res?.batch_id;
+    if (createdBatchId) {
+      try {
+        await supabase.from('product_batches').update({ mrp: Number(data.mrp) }).eq('id', createdBatchId);
+      } catch {}
+    }
+  }
   if (createdProductId && Array.isArray(data.identifiers) && data.identifiers.length > 0) {
     try {
       const identifierRows = data.identifiers.map((ident: any, idx: number) => ({
@@ -434,6 +460,7 @@ export async function updateProduct(shopId: string, productId: string, data: Upd
     purchase_price: data.purchase_price,
     selling_price: data.selling_price,
     wholesale_price: data.wholesale_price,
+    mrp: data.mrp,
     gst_rate: data.gst_rate,
     hsn_code: data.hsn_code,
     unit: data.unit,
@@ -457,13 +484,27 @@ export async function updateProduct(shopId: string, productId: string, data: Upd
     }
   }
 
-  const { data: product, error } = await supabase
+  let { data: product, error } = await supabase
     .from('products')
     .update(cleanPayload)
     .eq('shop_id', shopId)
     .eq('id', productId)
     .select()
     .single();
+
+  if (error && error.message?.includes('mrp')) {
+    console.warn("products update retrying without mrp (migration 021 pending):", error.message);
+    const { mrp, ...payloadWithoutMrp } = cleanPayload;
+    const retry = await supabase
+      .from('products')
+      .update(payloadWithoutMrp)
+      .eq('shop_id', shopId)
+      .eq('id', productId)
+      .select()
+      .single();
+    product = retry.data;
+    error = retry.error;
+  }
 
   if (error) {
     console.error("Error updating product metadata:", error);
@@ -499,8 +540,9 @@ export async function updateProduct(shopId: string, productId: string, data: Upd
   }
 
   // Synchronize batch tracking information in Supabase product_batches table
-  if (data.batch_number || data.expiry_date) {
+  if (data.batch_number || data.expiry_date || data.mfd_date || data.mrp !== undefined) {
     const dbExpiry = data.expiry_date ? (formatDDMMYYYYtoDB(data.expiry_date) || data.expiry_date) : null;
+    const dbMfd = data.mfd_date ? (formatDDMMYYYYtoDB(data.mfd_date) || data.mfd_date) : null;
     const { data: existingBatch } = await supabase
       .from('product_batches')
       .select('id')
@@ -514,22 +556,39 @@ export async function updateProduct(shopId: string, productId: string, data: Upd
       const batchUpdate: Record<string, any> = {};
       if (data.batch_number) batchUpdate.batch_number = data.batch_number.trim();
       if (dbExpiry) batchUpdate.expiry_date = dbExpiry;
+      if (dbMfd) batchUpdate.manufacturing_date = dbMfd;
+      if (data.mrp !== undefined) batchUpdate.mrp = data.mrp !== null ? Number(data.mrp) : null;
       if (data.selling_price !== undefined) batchUpdate.selling_price = Number(data.selling_price);
       if (data.purchase_price !== undefined) batchUpdate.purchase_price = Number(data.purchase_price);
       if (Object.keys(batchUpdate).length > 0) {
-        await supabase.from('product_batches').update(batchUpdate).eq('id', existingBatch.id);
+        const { error: batchErr } = await supabase.from('product_batches').update(batchUpdate).eq('id', existingBatch.id);
+        if (batchErr && batchErr.message?.includes('mrp')) {
+          delete batchUpdate.mrp;
+          if (Object.keys(batchUpdate).length > 0) {
+            await supabase.from('product_batches').update(batchUpdate).eq('id', existingBatch.id);
+          }
+        }
       }
     } else if (data.batch_number) {
-      await supabase.from('product_batches').insert({
+      const newBatchPayload: Record<string, any> = {
         shop_id: shopId,
         product_id: productId,
         batch_number: data.batch_number.trim(),
+        manufacturing_date: dbMfd,
         expiry_date: dbExpiry,
         purchase_price: Number(data.purchase_price || 0),
         selling_price: Number(data.selling_price || 0),
         quantity_available: Number((data as any).opening_stock || (data as any).current_stock || 0),
         is_active: true,
-      });
+      };
+      if (data.mrp !== undefined && data.mrp !== null) {
+        newBatchPayload.mrp = Number(data.mrp);
+      }
+      const { error: insErr } = await supabase.from('product_batches').insert(newBatchPayload);
+      if (insErr && insErr.message?.includes('mrp')) {
+        delete newBatchPayload.mrp;
+        await supabase.from('product_batches').insert(newBatchPayload);
+      }
     }
   }
 
@@ -1097,5 +1156,70 @@ export async function createBrand(shopId: string, data: { name: string; manufact
     throw new Error(error.message || 'Failed to create brand');
   }
   return brand;
+}
+
+export async function checkProductIdentifierAvailability(
+  shopId: string,
+  rawValue: string,
+  excludeProductId?: string
+): Promise<{ available: boolean; linkedProductName?: string }> {
+  const clean = (rawValue || '').trim();
+  if (!clean) return { available: true };
+
+  if (isPlaceholderMode()) {
+    const list = getStoredDemoProducts(normalizeProduct);
+    const existing = list.find((p) => {
+      if (excludeProductId && p.id === excludeProductId) return false;
+      const inIdentifiers = Array.isArray(p.identifiers) && p.identifiers.some((i: any) => (i.raw_value || '').trim() === clean);
+      const inBarcode = (p.barcode || '').trim() === clean;
+      return inIdentifiers || inBarcode;
+    });
+
+    if (existing) {
+      return { available: false, linkedProductName: existing.name };
+    }
+    return { available: true };
+  }
+
+  try {
+    const supabase = await createServerSupabaseClient();
+    let query = supabase
+      .from('product_identifiers')
+      .select('product_id, products:products(name)')
+      .eq('shop_id', shopId)
+      .eq('raw_value', clean);
+
+    if (excludeProductId) {
+      query = query.neq('product_id', excludeProductId);
+    }
+
+    const { data } = await query.limit(1);
+    if (data && data.length > 0) {
+      const prodName = (data[0] as any)?.products?.name || 'Another product';
+      return { available: false, linkedProductName: prodName };
+    }
+
+    // Also check primary barcode on products table
+    let prodQuery = supabase
+      .from('products')
+      .select('name')
+      .eq('shop_id', shopId)
+      .eq('is_active', true)
+      .eq('barcode', clean);
+
+    if (excludeProductId) {
+      prodQuery = prodQuery.neq('id', excludeProductId);
+    }
+
+    const { data: prodData } = await prodQuery.limit(1);
+    if (prodData && prodData.length > 0) {
+      return { available: false, linkedProductName: prodData[0].name };
+    }
+
+    return { available: true };
+  } catch (err) {
+    console.warn('Error checking product identifier availability:', err);
+    return { available: true };
+  }
 }
 

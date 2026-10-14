@@ -155,3 +155,19 @@ export async function getRecentBillingProductsAction(limit: number = 4): Promise
     return { success: false, error: error.message || 'An unexpected error occurred' };
   }
 }
+
+export async function validateProductIdentifierAction(
+  rawValue: string,
+  currentProductId?: string
+): Promise<{ available: boolean; linkedProductName?: string }> {
+  try {
+    const userData = await getAuthAndPermissions('products.view');
+    return await productsService.checkProductIdentifierAvailability(
+      userData.shop_id,
+      rawValue,
+      currentProductId
+    );
+  } catch {
+    return { available: true };
+  }
+}

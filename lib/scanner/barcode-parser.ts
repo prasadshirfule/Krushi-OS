@@ -65,6 +65,11 @@ export function parseScannedBarcode(rawValue: string, format = 'UNKNOWN'): Produ
         fieldSources['expiryDate'] = 'gs1';
         fieldSources['expiryDateDB'] = 'gs1';
       }
+      if (gs1.bestBeforeDate) {
+        detectedFields.push('bestBeforeDate', 'bestBeforeDateDB');
+        (fieldSources as any)['bestBeforeDate'] = 'gs1';
+        (fieldSources as any)['bestBeforeDateDB'] = 'gs1';
+      }
       if (gs1.quantity) {
         detectedFields.push('quantity');
         fieldSources['quantity'] = 'gs1';
@@ -79,6 +84,8 @@ export function parseScannedBarcode(rawValue: string, format = 'UNKNOWN'): Produ
         batchNumber: gs1.batchNumber,
         serialNumber: gs1.serialNumber,
         manufacturingDate: gs1.productionDate,
+        bestBeforeDate: gs1.bestBeforeDate,
+        bestBeforeDateDB: gs1.bestBeforeDateDB,
         expiryDate: gs1.expiryDate,
         expiryDateDB: gs1.expiryDateDB,
         quantity: gs1.quantity,

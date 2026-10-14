@@ -113,6 +113,8 @@ function parseBracketedGS1(raw: string): GS1ParsedData | null {
   let batchNumber: string | undefined;
   let serialNumber: string | undefined;
   let productionDate: string | undefined;
+  let bestBeforeDate: string | undefined;
+  let bestBeforeDateDB: string | undefined;
   let expiryDate: string | undefined;
   let expiryDateDB: string | undefined;
   let quantity: number | undefined;
@@ -141,7 +143,14 @@ function parseBracketedGS1(raw: string): GS1ParsedData | null {
           productionDate = dateParsed.isoDate;
           parsedValue = dateParsed.isoDate;
         }
-      } else if (ai === '17' || ai === '15') {
+      } else if (ai === '15') {
+        const dateParsed = parseGS1Date(val);
+        if (dateParsed) {
+          bestBeforeDate = dateParsed.uiDate;
+          bestBeforeDateDB = dateParsed.isoDate;
+          parsedValue = dateParsed.uiDate;
+        }
+      } else if (ai === '17') {
         const dateParsed = parseGS1Date(val);
         if (dateParsed) {
           expiryDate = dateParsed.uiDate;
@@ -181,6 +190,8 @@ function parseBracketedGS1(raw: string): GS1ParsedData | null {
     batchNumber,
     serialNumber,
     productionDate,
+    bestBeforeDate,
+    bestBeforeDateDB,
     expiryDate,
     expiryDateDB,
     quantity,
@@ -206,6 +217,8 @@ function parseRawGS1Stream(raw: string): GS1ParsedData | null {
   let batchNumber: string | undefined;
   let serialNumber: string | undefined;
   let productionDate: string | undefined;
+  let bestBeforeDate: string | undefined;
+  let bestBeforeDateDB: string | undefined;
   let expiryDate: string | undefined;
   let expiryDateDB: string | undefined;
   let quantity: number | undefined;
@@ -279,7 +292,14 @@ function parseRawGS1Stream(raw: string): GS1ParsedData | null {
           productionDate = dateParsed.isoDate;
           parsedValue = dateParsed.isoDate;
         }
-      } else if (matchedAI === '17' || matchedAI === '15') {
+      } else if (matchedAI === '15') {
+        const dateParsed = parseGS1Date(val);
+        if (dateParsed) {
+          bestBeforeDate = dateParsed.uiDate;
+          bestBeforeDateDB = dateParsed.isoDate;
+          parsedValue = dateParsed.uiDate;
+        }
+      } else if (matchedAI === '17') {
         const dateParsed = parseGS1Date(val);
         if (dateParsed) {
           expiryDate = dateParsed.uiDate;
@@ -312,6 +332,8 @@ function parseRawGS1Stream(raw: string): GS1ParsedData | null {
     batchNumber,
     serialNumber,
     productionDate,
+    bestBeforeDate,
+    bestBeforeDateDB,
     expiryDate,
     expiryDateDB,
     quantity,
