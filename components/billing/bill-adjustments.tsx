@@ -155,12 +155,12 @@ export default function BillAdjustments({
   };
 
   return (
-    <section className="rounded-xl border border-border bg-card p-5 md:p-6 shadow-sm space-y-4 text-card-foreground">
+    <section className="rounded-xl border border-border bg-card p-3.5 sm:p-5 md:p-6 shadow-xs space-y-3.5 sm:space-y-4 text-card-foreground min-w-0">
       {/* ─── Header ─── */}
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <div className="flex items-center gap-2.5">
-          <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center">
-            <SlidersHorizontal className="h-5 w-5 text-primary" />
+        <div className="flex items-center gap-2 sm:gap-2.5">
+          <div className="h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+            <SlidersHorizontal className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
           </div>
           <div>
             <div className="flex items-center gap-2">

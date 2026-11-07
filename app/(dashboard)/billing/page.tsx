@@ -297,33 +297,33 @@ export default function BillingPage() {
 
   /* ─── Render ─── */
   return (
-    <div className="max-w-5xl mx-auto space-y-6 pb-10">
+    <div className="max-w-5xl mx-auto space-y-4 sm:space-y-6 pb-10 min-w-0">
 
       {/* ════════ PAGE HEADER ════════ */}
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <h1 className="text-2xl md:text-3xl font-bold text-foreground flex items-center gap-2">
+        <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-foreground flex items-center gap-2">
           <span className="text-primary">🧾</span> New Bill
         </h1>
-        <div className="flex items-center gap-4 text-sm text-muted-foreground">
+        <div className="flex items-center gap-3 sm:gap-4 text-xs sm:text-sm text-muted-foreground">
           <span>{dateStr} • {timeStr}</span>
           <span className="flex items-center gap-1 text-primary font-medium">
-            <Wifi className="h-4 w-4" /> Online
+            <Wifi className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> Online
           </span>
         </div>
       </div>
 
       {/* ════════ SETUP NOTICE IF PROFILE / BANK DETAILS INCOMPLETE ════════ */}
       {isProfileLoaded && !isShopProfileComplete(shopProfile) && (
-        <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 md:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
-          <div className="flex items-start gap-3">
-            <div className="h-9 w-9 rounded-full bg-amber-500/20 flex items-center justify-center shrink-0 mt-0.5 sm:mt-0">
-              <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+        <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 sm:p-4 md:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 shadow-xs">
+          <div className="flex items-start gap-2.5 sm:gap-3">
+            <div className="h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-amber-500/20 flex items-center justify-center shrink-0 mt-0.5 sm:mt-0">
+              <AlertCircle className="h-4 w-4 sm:h-5 sm:w-5 text-amber-600 dark:text-amber-400" />
             </div>
             <div>
-              <h3 className="text-sm md:text-base font-bold text-foreground">
+              <h3 className="text-xs sm:text-sm md:text-base font-bold text-foreground">
                 Complete Your Shop &amp; Bank Details
               </h3>
-              <p className="text-xs md:text-sm text-muted-foreground mt-0.5">
+              <p className="text-[11px] sm:text-xs md:text-sm text-muted-foreground mt-0.5">
                 {!shopProfile?.shopName 
                   ? 'Please enter your shop details and bank account in Settings before printing invoices.' 
                   : 'Please complete your bank account details (Bank Name, A/C No, IFSC) in Settings for official invoices.'}
@@ -331,59 +331,59 @@ export default function BillingPage() {
             </div>
           </div>
           <Link href="/settings?tab=shop" className="shrink-0 w-full sm:w-auto">
-            <Button size="sm" className="w-full bg-amber-600 hover:bg-amber-700 text-white font-semibold flex items-center gap-1.5">
-              <Store className="h-4 w-4" /> Complete Setup <ArrowRight className="h-4 w-4" />
+            <Button size="sm" className="w-full bg-amber-600 hover:bg-amber-700 text-white font-semibold flex items-center justify-center gap-1.5 text-xs sm:text-sm">
+              <Store className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> Complete Setup <ArrowRight className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             </Button>
           </Link>
         </div>
       )}
 
       {/* ════════ SECTION 1: CUSTOMER (Dark Card) ════════ */}
-      <section className="rounded-xl border border-border bg-card p-5 md:p-6 shadow-sm text-card-foreground">
-        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-          <div className="flex items-center gap-2.5">
-            <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center">
-              <User className="h-5 w-5 text-primary" />
+      <section className="rounded-xl border border-border bg-card p-3.5 sm:p-5 md:p-6 shadow-xs text-card-foreground min-w-0">
+        <div className="flex items-center justify-between mb-3 sm:mb-4 flex-wrap gap-2">
+          <div className="flex items-center gap-2 sm:gap-2.5">
+            <div className="h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+              <User className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-foreground">Customer / Farmer</h2>
-              <p className="text-xs text-muted-foreground">Select registered farmer or enter customer details directly below</p>
+              <h2 className="text-base sm:text-lg font-semibold text-foreground">Customer / Farmer</h2>
+              <p className="text-[11px] sm:text-xs text-muted-foreground">Select registered farmer or enter customer details directly below</p>
             </div>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <Button
               variant="outline"
               size="sm"
-              className="text-muted-foreground border-border hover:bg-muted font-medium"
+              className="text-muted-foreground border-border hover:bg-muted font-medium text-xs sm:text-sm h-8 sm:h-9"
               onClick={() => setShowNewCustomerDialog(true)}
             >
-              <UserPlus className="h-4 w-4 mr-1.5" /> New Registered Farmer
+              <UserPlus className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1 sm:mr-1.5" /> New Registered Farmer
             </Button>
             {(customerName || customerPhone || customerVillage) && (
               <Button
                 variant="ghost"
                 size="sm"
-                className="text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                className="text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10 h-8 sm:h-9"
                 onClick={clearCustomer}
               >
-                <X className="h-3.5 w-3.5 mr-1" /> Clear Customer
+                <X className="h-3.5 w-3.5 mr-1" /> Clear
               </Button>
             )}
           </div>
         </div>
 
         {/* Customer Input Fields: Customer Name, Contact No., Village */}
-        <div className="space-y-3.5">
+        <div className="space-y-3 sm:space-y-3.5">
           {/* 1. Customer Name */}
-          <div className="space-y-1.5">
+          <div className="space-y-1 sm:space-y-1.5">
             <label htmlFor="billing-customer-name" className="text-xs font-semibold text-foreground flex items-center justify-between">
               <span>Customer Name</span>
               {customerId && customerId !== 'walk-in' ? (
-                <span className="text-[11px] font-bold text-emerald-500 flex items-center gap-1">
+                <span className="text-[10px] sm:text-[11px] font-bold text-emerald-500 flex items-center gap-1">
                   ✓ Registered Farmer
                 </span>
               ) : customerName ? (
-                <span className="text-[11px] font-medium text-muted-foreground">
+                <span className="text-[10px] sm:text-[11px] font-medium text-muted-foreground">
                   Walk-in Customer
                 </span>
               ) : null}
@@ -402,7 +402,7 @@ export default function BillingPage() {
                 }}
                 onKeyDown={handleCustomerSearchKeyDown}
                 placeholder="Enter customer name or search registered farmer..."
-                className="text-base py-5 uppercase font-medium bg-background border-border text-foreground placeholder:text-muted-foreground/70"
+                className="text-sm sm:text-base py-3 sm:py-5 uppercase font-medium bg-background border-border text-foreground placeholder:text-muted-foreground/70"
               />
               {customerSearch.trim() && searchResults.length > 0 && (
                 <div className="absolute top-full left-0 right-0 z-30 mt-1 bg-popover border border-border rounded-lg shadow-lg max-h-48 overflow-y-auto p-1.5 space-y-1">
@@ -413,11 +413,11 @@ export default function BillingPage() {
                     <button
                       key={c.id}
                       type="button"
-                      className="w-full text-left px-3 py-2 rounded-md hover:bg-accent hover:text-accent-foreground text-sm flex items-center justify-between transition-colors cursor-pointer"
+                      className="w-full text-left px-3 py-2 rounded-md hover:bg-accent hover:text-accent-foreground text-xs sm:text-sm flex items-center justify-between transition-colors cursor-pointer"
                       onClick={() => selectCustomer(c)}
                     >
                       <span className="font-semibold text-foreground">{c.name}</span>
-                      <div className="flex items-center gap-3 text-xs text-muted-foreground font-mono">
+                      <div className="flex items-center gap-2 sm:gap-3 text-xs text-muted-foreground font-mono">
                         {c.phone && <span>{c.phone}</span>}
                         {c.village && <span className="font-sans text-muted-foreground/80">• {c.village}</span>}
                       </div>
@@ -429,8 +429,8 @@ export default function BillingPage() {
           </div>
 
           {/* 2. Contact No. & 3. Village directly below Customer Name */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-            <div className="space-y-1.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3.5">
+            <div className="space-y-1 sm:space-y-1.5">
               <label htmlFor="billing-contact-no" className="text-xs font-semibold text-foreground flex items-center gap-1">
                 <Phone className="h-3 w-3 text-muted-foreground" />
                 <span>Contact No.</span>
@@ -448,11 +448,11 @@ export default function BillingPage() {
                   }
                 }}
                 placeholder="10-digit mobile number"
-                className="text-sm py-4 bg-background border-border text-foreground placeholder:text-muted-foreground/70 font-mono"
+                className="text-xs sm:text-sm py-2.5 sm:py-4 bg-background border-border text-foreground placeholder:text-muted-foreground/70 font-mono"
               />
             </div>
 
-            <div className="space-y-1.5">
+            <div className="space-y-1 sm:space-y-1.5">
               <label htmlFor="billing-village" className="text-xs font-semibold text-foreground flex items-center gap-1">
                 <MapPin className="h-3 w-3 text-muted-foreground" />
                 <span>Village</span>
@@ -467,7 +467,7 @@ export default function BillingPage() {
                   }
                 }}
                 placeholder="Village / Town name"
-                className="text-sm py-4 uppercase bg-background border-border text-foreground placeholder:text-muted-foreground/70"
+                className="text-xs sm:text-sm py-2.5 sm:py-4 uppercase bg-background border-border text-foreground placeholder:text-muted-foreground/70"
               />
             </div>
           </div>

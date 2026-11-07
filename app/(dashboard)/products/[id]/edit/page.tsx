@@ -17,7 +17,7 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
   const brands = brandRes.success ? (brandRes.data || []) : [];
 
   return (
-    <div className="flex-1 space-y-4 p-8 pt-6">
+    <div className="flex-1 space-y-3 sm:space-y-4 p-0 sm:p-4 md:p-6 pt-1 sm:pt-4">
       <EditProductWrapper 
         productId={id} 
         ssrProduct={initialData} 

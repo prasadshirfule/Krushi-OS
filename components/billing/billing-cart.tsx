@@ -130,18 +130,18 @@ export default function BillingCart({ items, onChange, onClear, totals: propTota
   };
 
   return (
-    <section className="rounded-xl border border-border bg-card p-4 sm:p-6 shadow-sm space-y-5 text-card-foreground min-w-0 max-w-full">
+    <section className="rounded-xl border border-border bg-card p-3.5 sm:p-5 md:p-6 shadow-xs space-y-4 sm:space-y-5 text-card-foreground min-w-0 max-w-full">
       {/* ─── Header ─── */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center">
-            <Receipt className="h-5 w-5 text-primary" />
+        <div className="flex items-center gap-2 sm:gap-2.5">
+          <div className="h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+            <Receipt className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
           </div>
           <div>
-            <h2 className="text-lg font-semibold text-foreground">
+            <h2 className="text-base sm:text-lg font-semibold text-foreground">
               {t('billing.currentBill', 'Current Bill')}
             </h2>
-            <span className="text-xs text-muted-foreground font-medium">
+            <span className="text-[11px] sm:text-xs text-muted-foreground font-medium">
               {items.length} {items.length === 1 ? 'item' : 'items'} added
             </span>
           </div>

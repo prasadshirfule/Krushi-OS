@@ -665,41 +665,42 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
 
   return (
     <>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8 max-w-4xl mx-auto pb-24">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 sm:space-y-6 md:space-y-8 w-full max-w-4xl mx-auto pb-24">
         {/* ─── Page Header ─── */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-border">
-          <div className="flex items-center gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 pb-3 sm:pb-4 border-b border-border">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
             <Button
               type="button"
               variant="outline"
               size="icon"
               onClick={() => router.back()}
-              className="h-10 w-10 border-border hover:bg-muted shrink-0"
+              className="h-9 w-9 sm:h-10 sm:w-10 border-border hover:bg-muted shrink-0"
             >
-              <ArrowLeft className="h-5 w-5" />
+              <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5" />
             </Button>
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
+            <div className="min-w-0">
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight text-foreground truncate">
                 {mode === 'create' ? 'Add New Product' : `Edit Product: ${initialData?.name}`}
               </h1>
-              <p className="text-sm text-muted-foreground mt-0.5">
+              <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 line-clamp-1 sm:line-clamp-none">
                 Manual product entry + QR/Barcode identifier linking for instant billing lookup
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-3 self-end sm:self-auto">
-            <Button type="button" variant="outline" onClick={() => router.back()} className="px-5 font-semibold">
+          <div className="flex items-center gap-2 sm:gap-3 self-end sm:self-auto w-full sm:w-auto justify-end">
+            <Button type="button" variant="outline" size="sm" onClick={() => router.back()} className="px-3 sm:px-5 font-semibold text-xs sm:text-sm h-9 sm:h-10">
               Cancel
             </Button>
             <Button
               type="submit"
+              size="sm"
               disabled={isSubmitting}
-              className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold px-6 shadow-sm"
+              className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold px-4 sm:px-6 shadow-xs text-xs sm:text-sm h-9 sm:h-10"
             >
               {isSubmitting ? (
-                <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</>
+                <><Loader2 className="mr-1.5 sm:mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin" /> Saving...</>
               ) : (
-                <><Check className="mr-2 h-4 w-4 stroke-[3]" /> {mode === 'create' ? 'SAVE PRODUCT' : 'UPDATE PRODUCT'}</>
+                <><Check className="mr-1.5 sm:mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4 stroke-[3]" /> {mode === 'create' ? 'SAVE PRODUCT' : 'UPDATE PRODUCT'}</>
               )}
             </Button>
           </div>
@@ -708,52 +709,52 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
         {/* ═════════════════════════════════════════════════════════
             SECTION 1: PRODUCT DETAILS
         ═════════════════════════════════════════════════════════ */}
-        <Card className="border border-border bg-card shadow-sm rounded-xl overflow-hidden">
-          <CardHeader className="bg-muted/30 border-b border-border pb-4">
+        <Card className="border border-border bg-card shadow-xs rounded-xl overflow-hidden">
+          <CardHeader className="bg-muted/30 border-b border-border p-3.5 sm:p-5 md:p-6 pb-3 sm:pb-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="h-9 w-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold">
-                  <Package className="h-5 w-5" />
+              <div className="flex items-center gap-2.5 sm:gap-3">
+                <div className="h-8 w-8 sm:h-9 sm:w-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold shrink-0">
+                  <Package className="h-4 w-4 sm:h-5 sm:w-5" />
                 </div>
                 <div>
-                  <CardTitle className="text-lg font-bold text-foreground">{t('products.productDetails', 'PRODUCT DETAILS')}</CardTitle>
+                  <CardTitle className="text-base sm:text-lg font-bold text-foreground">{t('products.productDetails', 'PRODUCT DETAILS')}</CardTitle>
                   <CardDescription className="text-xs text-muted-foreground">
                     {t('products.productDetailsDesc', 'Product information, category, size, batch, and expiry')}
                   </CardDescription>
                 </div>
               </div>
-              <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto shrink-0">
+              <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto shrink-0 w-full sm:w-auto">
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => setIsScannerOpen(true)}
-                  className="h-9 px-3.5 rounded-lg border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary font-bold gap-2 text-xs shadow-sm transition-all active:scale-95"
+                  className="h-8 sm:h-9 px-2.5 sm:px-3.5 rounded-lg border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary font-bold gap-1.5 sm:gap-2 text-xs shadow-xs transition-all active:scale-95 flex-1 sm:flex-initial"
                 >
-                  <Scan className="h-4 w-4 stroke-[2.5]" />
-                  <span>Scan Product Barcode / QR</span>
+                  <Scan className="h-3.5 w-3.5 sm:h-4 sm:w-4 stroke-[2.5]" />
+                  <span className="truncate">Scan Barcode / QR</span>
                 </Button>
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => setIsPackagingScannerOpen(true)}
-                  className="h-9 px-3.5 rounded-lg border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 font-bold gap-2 text-xs shadow-sm transition-all active:scale-95"
+                  className="h-8 sm:h-9 px-2.5 sm:px-3.5 rounded-lg border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 font-bold gap-1.5 sm:gap-2 text-xs shadow-xs transition-all active:scale-95 flex-1 sm:flex-initial"
                 >
-                  <Sparkles className="h-4 w-4 stroke-[2.5]" />
-                  <span>Scan Packaging Details</span>
+                  <Sparkles className="h-3.5 w-3.5 sm:h-4 sm:w-4 stroke-[2.5]" />
+                  <span className="truncate">Scan Packaging</span>
                 </Button>
               </div>
             </div>
           </CardHeader>
-          <CardContent className="p-6 space-y-5">
+          <CardContent className="p-3.5 sm:p-5 md:p-6 space-y-3.5 sm:space-y-5">
             {/* 1. Product Name (Clean Full Width) */}
-            <div className="space-y-2">
-              <Label htmlFor="name" className="text-sm font-semibold text-foreground flex items-center">
+            <div className="space-y-1.5 sm:space-y-2">
+              <Label htmlFor="name" className="text-xs sm:text-sm font-semibold text-foreground flex items-center">
                 {t('products.productName', 'Product Name')} <span className="text-destructive font-bold ml-0.5">*</span>
               </Label>
               <Input
                 id="name"
                 placeholder="e.g. UREA, DAP, CONFIDOR, COTTON SEEDS, EVICENT"
-                className="h-11 text-base rounded-lg border-border bg-background uppercase font-bold"
+                className="h-10 sm:h-11 text-sm sm:text-base rounded-lg border-border bg-background uppercase font-bold"
                 {...form.register('name')}
                 onChange={(e) => {
                   form.setValue('name', e.target.value.toUpperCase(), { shouldValidate: true });
@@ -765,11 +766,11 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
             </div>
 
             {/* 2. Category, Manufacturer, HSN Code */}
-            <div className="grid gap-5 grid-cols-1 md:grid-cols-3 items-start">
+            <div className="grid gap-3.5 sm:gap-5 grid-cols-1 md:grid-cols-3 items-start">
               {/* Category with Quick Add */}
-              <div className="space-y-2">
+              <div className="space-y-1.5 sm:space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="category_id" className="text-sm font-semibold text-foreground flex items-center">
+                  <Label htmlFor="category_id" className="text-xs sm:text-sm font-semibold text-foreground flex items-center">
                     {t('products.category', 'Category')} <span className="text-destructive font-bold ml-0.5">*</span>
                   </Label>
                   <button
@@ -790,7 +791,7 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
                     }
                   }}
                 >
-                  <SelectTrigger id="category_id" className="h-11 rounded-lg border-border bg-background text-foreground">
+                  <SelectTrigger id="category_id" className="h-10 sm:h-11 rounded-lg border-border bg-background text-foreground text-xs sm:text-sm">
                     <SelectValue placeholder={t('products.selectCategory', 'Select Category')} />
                   </SelectTrigger>
                   <SelectContent>
@@ -813,9 +814,9 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
               </div>
 
               {/* Manufacturer / Brand with Quick Add */}
-              <div className="space-y-2">
+              <div className="space-y-1.5 sm:space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="brand_id" className="text-sm font-semibold text-foreground flex items-center">
+                  <Label htmlFor="brand_id" className="text-xs sm:text-sm font-semibold text-foreground flex items-center">
                     {t('products.brand', 'Manufacturer')}
                   </Label>
                   <button
@@ -838,7 +839,7 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
                     }
                   }}
                 >
-                  <SelectTrigger id="brand_id" className="h-11 rounded-lg border-border bg-background text-foreground">
+                  <SelectTrigger id="brand_id" className="h-10 sm:h-11 rounded-lg border-border bg-background text-foreground text-xs sm:text-sm">
                     <SelectValue placeholder="Select Manufacturer (Optional)" />
                   </SelectTrigger>
                   <SelectContent>
@@ -858,29 +859,29 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
               </div>
 
               {/* HSN Code */}
-              <div className="space-y-2">
-                <Label htmlFor="hsn_code" className="text-sm font-semibold text-foreground flex items-center">
+              <div className="space-y-1.5 sm:space-y-2">
+                <Label htmlFor="hsn_code" className="text-xs sm:text-sm font-semibold text-foreground flex items-center">
                   {t('products.hsnCode', 'HSN Code')}
                 </Label>
                 <Input
                   id="hsn_code"
                   placeholder="e.g. 31021000"
-                  className="h-11 text-sm rounded-lg border-border bg-background font-mono"
+                  className="h-10 sm:h-11 text-xs sm:text-sm rounded-lg border-border bg-background font-mono"
                   {...form.register('hsn_code')}
                 />
               </div>
             </div>
 
             {/* 3. Linked Product QR / Barcodes Container */}
-            <div className="p-4 rounded-xl border border-primary/20 bg-primary/5 space-y-3">
+            <div className="p-3 sm:p-4 rounded-xl border border-primary/20 bg-primary/5 space-y-2.5 sm:space-y-3">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
-                  <div className="h-7 w-7 rounded-md bg-primary/20 text-primary flex items-center justify-center">
-                    <Link2 className="h-4 w-4" />
+                  <div className="h-6 w-6 sm:h-7 sm:w-7 rounded-md bg-primary/20 text-primary flex items-center justify-center shrink-0">
+                    <Link2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                   </div>
                   <div>
-                    <h4 className="text-sm font-bold text-foreground">Linked Product QR / Barcodes</h4>
-                    <p className="text-xs text-muted-foreground">
+                    <h4 className="text-xs sm:text-sm font-bold text-foreground">Linked Product QR / Barcodes</h4>
+                    <p className="text-[11px] sm:text-xs text-muted-foreground">
                       Saved identifiers are used for instant exact product lookup during Billing
                     </p>
                   </div>
@@ -890,7 +891,7 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
                   size="sm"
                   variant="outline"
                   onClick={() => setIsScannerOpen(true)}
-                  className="h-8 text-xs font-bold gap-1.5 border-primary/40 text-primary hover:bg-primary/20 bg-background"
+                  className="h-7 sm:h-8 text-xs font-bold gap-1.5 border-primary/40 text-primary hover:bg-primary/20 bg-background self-start sm:self-auto"
                 >
                   <Plus className="h-3.5 w-3.5" />
                   <span>Add QR / Barcode</span>
@@ -898,7 +899,7 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
               </div>
 
               {linkedIdentifiers.length === 0 ? (
-                <div className="p-3 text-center rounded-lg border border-dashed border-border bg-background/60 text-xs text-muted-foreground">
+                <div className="p-2.5 sm:p-3 text-center rounded-lg border border-dashed border-border bg-background/60 text-xs text-muted-foreground">
                   No QR/Barcode linked yet. Click <strong>&quot;Add QR / Barcode&quot;</strong> to scan and register one or more identifiers.
                 </div>
               ) : (
@@ -912,10 +913,10 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
                     return (
                       <div
                         key={`${ident.raw_value}-${index}`}
-                        className="flex items-center justify-between p-2.5 rounded-lg border border-border bg-background text-xs shadow-xs"
+                        className="flex items-center justify-between p-2 sm:p-2.5 rounded-lg border border-border bg-background text-xs shadow-xs min-w-0"
                       >
-                        <div className="flex items-center gap-2.5 overflow-hidden">
-                          <span className={`inline-flex items-center gap-1 font-bold text-[10px] px-2 py-0.5 rounded-md uppercase tracking-wider ${
+                        <div className="flex items-center gap-2 overflow-hidden min-w-0">
+                          <span className={`inline-flex items-center gap-1 font-bold text-[9px] sm:text-[10px] px-1.5 sm:px-2 py-0.5 rounded-md uppercase tracking-wider shrink-0 ${
                             isQr 
                               ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20' 
                               : 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20'
@@ -923,11 +924,11 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
                             {isQr ? <QrCode className="h-3 w-3" /> : <Barcode className="h-3 w-3" />}
                             {ident.identifier_type}
                           </span>
-                          <span className="font-mono text-foreground break-all truncate font-semibold">
+                          <span className="font-mono text-foreground truncate font-semibold text-xs sm:text-sm">
                             {truncatedVal}
                           </span>
                           {ident.is_primary && (
-                            <span className="text-[10px] bg-muted px-1.5 py-0.2 rounded text-muted-foreground font-semibold">
+                            <span className="text-[9px] sm:text-[10px] bg-muted px-1.5 py-0.2 rounded text-muted-foreground font-semibold shrink-0">
                               Primary
                             </span>
                           )}
@@ -937,7 +938,7 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
                           variant="ghost"
                           size="icon"
                           onClick={() => handleRemoveIdentifier(index)}
-                          className="h-7 w-7 text-muted-foreground hover:text-destructive shrink-0"
+                          className="h-7 w-7 text-muted-foreground hover:text-destructive shrink-0 ml-1"
                           title="Unlink identifier"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
@@ -950,10 +951,10 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
             </div>
 
             {/* 4. Product Size and Physical Packaging */}
-            <div className="grid gap-5 grid-cols-1 md:grid-cols-2 items-start">
+            <div className="grid gap-3.5 sm:gap-5 grid-cols-1 md:grid-cols-2 items-start">
               {/* Product Size (Numeric Value + Measurement Unit) */}
-              <div className="space-y-2">
-                <Label htmlFor="product_size_value" className="text-sm font-semibold text-foreground flex items-center">
+              <div className="space-y-1.5 sm:space-y-2">
+                <Label htmlFor="product_size_value" className="text-xs sm:text-sm font-semibold text-foreground flex items-center">
                   Product Size <span className="text-destructive font-bold ml-0.5">*</span>
                 </Label>
                 <div className="flex gap-2">
@@ -963,7 +964,7 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
                     step="any"
                     min="0.001"
                     placeholder="e.g. 45, 100, 500, 1"
-                    className="h-11 text-base font-bold rounded-lg border-border bg-background flex-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    className="h-10 sm:h-11 text-sm sm:text-base font-bold rounded-lg border-border bg-background flex-1 min-w-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     value={form.watch('product_size_value') !== undefined && form.watch('product_size_value') !== null ? String(form.watch('product_size_value')) : ''}
                     onChange={(e) => {
                       const val = e.target.value;
@@ -984,12 +985,12 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
                       }
                     }}
                   >
-                    <SelectTrigger className="w-[140px] h-11 rounded-lg border-border bg-background text-foreground font-bold shrink-0">
+                    <SelectTrigger className="w-[115px] sm:w-[140px] h-10 sm:h-11 rounded-lg border-border bg-background text-foreground font-bold shrink-0 text-xs sm:text-sm">
                       <SelectValue placeholder="Unit" />
                     </SelectTrigger>
                     <SelectContent>
                       {PRODUCT_SIZE_UNITS.map((u) => (
-                        <SelectItem key={u.value} value={u.value} className="font-semibold">
+                        <SelectItem key={u.value} value={u.value} className="font-semibold text-xs sm:text-sm">
                           {u.label}
                         </SelectItem>
                       ))}
@@ -1003,15 +1004,15 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
               </div>
 
               {/* Physical Packaging Unit */}
-              <div className="space-y-2">
-                <Label htmlFor="unit" className="text-sm font-semibold text-foreground flex items-center">
+              <div className="space-y-1.5 sm:space-y-2">
+                <Label htmlFor="unit" className="text-xs sm:text-sm font-semibold text-foreground flex items-center">
                   Packaging Type <span className="text-destructive font-bold ml-0.5">*</span>
                 </Label>
                 <Select
                   value={form.watch('unit') || 'Piece'}
                   onValueChange={(val) => form.setValue('unit', val, { shouldValidate: true })}
                 >
-                  <SelectTrigger id="unit" className="h-11 rounded-lg border-border bg-background text-foreground">
+                  <SelectTrigger id="unit" className="h-10 sm:h-11 rounded-lg border-border bg-background text-foreground text-xs sm:text-sm">
                     <SelectValue placeholder="Select Packaging" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1030,31 +1031,31 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
             </div>
 
             {/* 5. Batch, MFG & Expiry Row */}
-            <div className="grid gap-5 grid-cols-1 sm:grid-cols-3 items-start">
+            <div className="grid gap-3.5 sm:gap-5 grid-cols-1 sm:grid-cols-3 items-start">
               {/* Batch Number */}
-              <div className="space-y-2">
-                <Label htmlFor="batch_number" className="text-sm font-semibold text-foreground flex items-center">
+              <div className="space-y-1.5 sm:space-y-2">
+                <Label htmlFor="batch_number" className="text-xs sm:text-sm font-semibold text-foreground flex items-center">
                   {t('products.batchNumber', 'Batch No')}
                 </Label>
                 <Input
                   id="batch_number"
                   placeholder="e.g. BAT-2025-01"
-                  className="h-11 text-sm rounded-lg border-border bg-background font-mono"
+                  className="h-10 sm:h-11 text-xs sm:text-sm rounded-lg border-border bg-background font-mono"
                   {...form.register('batch_number')}
                 />
               </div>
 
               {/* Manufacturing Date (DD/MM/YYYY) */}
-              <div className="space-y-2">
-                <Label htmlFor="mfd_date" className="text-sm font-semibold text-foreground flex items-center">
-                  {t('products.mfgDate', 'Mfg Date (MFD)')} <span className="text-xs text-muted-foreground font-normal ml-1">(DD/MM/YYYY)</span>
+              <div className="space-y-1.5 sm:space-y-2">
+                <Label htmlFor="mfd_date" className="text-xs sm:text-sm font-semibold text-foreground flex items-center">
+                  {t('products.mfgDate', 'Mfg Date (MFD)')} <span className="text-[11px] sm:text-xs text-muted-foreground font-normal ml-1">(DD/MM/YYYY)</span>
                 </Label>
                 <div className="relative">
                   <Input
                     id="mfd_date"
                     placeholder="DD/MM/YYYY"
                     maxLength={10}
-                    className="h-11 text-sm rounded-lg border-border bg-background font-mono pl-3 pr-8"
+                    className="h-10 sm:h-11 text-xs sm:text-sm rounded-lg border-border bg-background font-mono pl-3 pr-8"
                     value={form.watch('mfd_date') || ''}
                     onChange={handleMfdChange}
                   />
@@ -1063,16 +1064,16 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
               </div>
 
               {/* Expiry Date (DD/MM/YYYY) */}
-              <div className="space-y-2">
-                <Label htmlFor="expiry_date" className="text-sm font-semibold text-foreground flex items-center">
-                  {t('products.expiryDate', 'Expiry Date (EXP)')} <span className="text-xs text-muted-foreground font-normal ml-1">(DD/MM/YYYY)</span>
+              <div className="space-y-1.5 sm:space-y-2">
+                <Label htmlFor="expiry_date" className="text-xs sm:text-sm font-semibold text-foreground flex items-center">
+                  {t('products.expiryDate', 'Expiry Date (EXP)')} <span className="text-[11px] sm:text-xs text-muted-foreground font-normal ml-1">(DD/MM/YYYY)</span>
                 </Label>
                 <div className="relative">
                   <Input
                     id="expiry_date"
                     placeholder="DD/MM/YYYY"
                     maxLength={10}
-                    className="h-11 text-sm rounded-lg border-border bg-background font-mono pl-3 pr-8"
+                    className="h-10 sm:h-11 text-xs sm:text-sm rounded-lg border-border bg-background font-mono pl-3 pr-8"
                     value={form.watch('expiry_date') || ''}
                     onChange={handleExpiryChange}
                   />
@@ -1089,35 +1090,35 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
         {/* ═════════════════════════════════════════════════════════
             SECTION 2: PRICING & TAX (Strictly Clean Dedicated Fields)
         ═════════════════════════════════════════════════════════ */}
-        <Card className="border border-border bg-card shadow-sm rounded-xl overflow-hidden">
-          <CardHeader className="bg-muted/30 border-b border-border pb-4">
-            <div className="flex items-center gap-3">
-              <div className="h-9 w-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold">
-                <IndianRupee className="h-5 w-5" />
+        <Card className="border border-border bg-card shadow-xs rounded-xl overflow-hidden">
+          <CardHeader className="bg-muted/30 border-b border-border p-3.5 sm:p-5 md:p-6 pb-3 sm:pb-4">
+            <div className="flex items-center gap-2.5 sm:gap-3">
+              <div className="h-8 w-8 sm:h-9 sm:w-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold shrink-0">
+                <IndianRupee className="h-4 w-4 sm:h-5 sm:w-5" />
               </div>
               <div>
-                <CardTitle className="text-lg font-bold text-foreground">{t('products.pricingTax', 'PRICING & TAX')}</CardTitle>
+                <CardTitle className="text-base sm:text-lg font-bold text-foreground">{t('products.pricingTax', 'PRICING & TAX')}</CardTitle>
                 <CardDescription className="text-xs text-muted-foreground">
                   {t('products.pricingTaxDesc', 'Purchase price, selling price, MRP, and GST rates')}
                 </CardDescription>
               </div>
             </div>
           </CardHeader>
-          <CardContent className="p-6 grid gap-5 grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 items-start">
+          <CardContent className="p-3.5 sm:p-5 md:p-6 grid gap-3 sm:gap-5 grid-cols-2 sm:grid-cols-2 lg:grid-cols-5 items-start">
             {/* 1. Purchase Price */}
-            <div className="space-y-2">
-              <Label htmlFor="purchase_price" className="text-sm font-semibold text-foreground flex items-center">
+            <div className="space-y-1.5 sm:space-y-2">
+              <Label htmlFor="purchase_price" className="text-xs sm:text-sm font-semibold text-foreground flex items-center truncate">
                 {t('products.purchasePrice', 'Purchase Price')} <span className="text-destructive font-bold ml-0.5">*</span>
               </Label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold text-sm">₹</span>
+                <span className="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold text-xs sm:text-sm">₹</span>
                 <Input
                   id="purchase_price"
                   type="number"
                   step="0.01"
                   min="0"
                   placeholder="0.00"
-                  className="pl-8 h-11 text-base rounded-lg border-border bg-background [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  className="pl-6 sm:pl-8 h-10 sm:h-11 text-sm sm:text-base rounded-lg border-border bg-background [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   {...form.register('purchase_price')}
                 />
               </div>
@@ -1127,19 +1128,19 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
             </div>
 
             {/* 2. Selling Price (Inc. GST) */}
-            <div className="space-y-2">
-              <Label htmlFor="selling_price" className="text-sm font-semibold text-foreground flex items-center truncate" title="Selling Price (Including GST)">
+            <div className="space-y-1.5 sm:space-y-2">
+              <Label htmlFor="selling_price" className="text-xs sm:text-sm font-semibold text-foreground flex items-center truncate" title="Selling Price (Including GST)">
                 {t('products.sellingPriceIncGst', 'Selling Price (Inc. GST)')} <span className="text-destructive font-bold ml-0.5">*</span>
               </Label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-primary font-bold text-sm">₹</span>
+                <span className="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 text-primary font-bold text-xs sm:text-sm">₹</span>
                 <Input
                   id="selling_price"
                   type="number"
                   step="0.01"
                   min="0.01"
                   placeholder="0.00"
-                  className="pl-8 h-11 text-base font-bold text-primary rounded-lg border-primary/40 bg-primary/5 focus-visible:border-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  className="pl-6 sm:pl-8 h-10 sm:h-11 text-sm sm:text-base font-bold text-primary rounded-lg border-primary/40 bg-primary/5 focus-visible:border-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   {...form.register('selling_price')}
                 />
               </div>
@@ -1149,19 +1150,19 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
             </div>
 
             {/* 3. MRP (Maximum Retail Price) */}
-            <div className="space-y-2">
-              <Label htmlFor="mrp" className="text-sm font-semibold text-foreground">
+            <div className="space-y-1.5 sm:space-y-2">
+              <Label htmlFor="mrp" className="text-xs sm:text-sm font-semibold text-foreground">
                 {t('products.mrp', 'MRP')}
               </Label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold text-sm">₹</span>
+                <span className="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold text-xs sm:text-sm">₹</span>
                 <Input
                   id="mrp"
                   type="number"
                   step="0.01"
                   min="0"
                   placeholder="0.00"
-                  className="pl-8 h-11 text-base rounded-lg border-border bg-background [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  className="pl-6 sm:pl-8 h-10 sm:h-11 text-sm sm:text-base rounded-lg border-border bg-background [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   {...form.register('mrp')}
                 />
               </div>
@@ -1171,39 +1172,39 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
             </div>
 
             {/* 4. Wholesale Price (Optional) */}
-            <div className="space-y-2">
-              <Label htmlFor="wholesale_price" className="text-sm font-semibold text-foreground truncate" title="Wholesale / Dealer Price">
+            <div className="space-y-1.5 sm:space-y-2">
+              <Label htmlFor="wholesale_price" className="text-xs sm:text-sm font-semibold text-foreground truncate" title="Wholesale / Dealer Price">
                 {t('products.wholesalePrice', 'Wholesale Price')}
               </Label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold text-sm">₹</span>
+                <span className="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold text-xs sm:text-sm">₹</span>
                 <Input
                   id="wholesale_price"
                   type="number"
                   step="0.01"
                   min="0"
                   placeholder="0.00"
-                  className="pl-8 h-11 text-base rounded-lg border-border bg-background [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  className="pl-6 sm:pl-8 h-10 sm:h-11 text-sm sm:text-base rounded-lg border-border bg-background [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   {...form.register('wholesale_price')}
                 />
               </div>
             </div>
 
             {/* 5. GST */}
-            <div className="space-y-2">
-              <Label htmlFor="gst_rate" className="text-sm font-semibold text-foreground flex items-center">
-                {t('products.gstRate', 'GST')}
+            <div className="space-y-1.5 sm:space-y-2 col-span-2 sm:col-span-1 lg:col-span-1">
+              <Label htmlFor="gst_rate" className="text-xs sm:text-sm font-semibold text-foreground flex items-center">
+                {t('products.gstRate', 'GST Rate')}
               </Label>
               <Select
                 value={String(form.watch('gst_rate'))}
                 onValueChange={(val) => form.setValue('gst_rate', Number(val))}
               >
-                <SelectTrigger id="gst_rate" className="h-11 rounded-lg border-border bg-background text-foreground text-sm">
+                <SelectTrigger id="gst_rate" className="h-10 sm:h-11 rounded-lg border-border bg-background text-foreground text-xs sm:text-sm">
                   <SelectValue placeholder="Select GST" />
                 </SelectTrigger>
                 <SelectContent>
                   {GST_RATES.map((rate) => (
-                    <SelectItem key={rate} value={String(rate)}>{rate}%</SelectItem>
+                    <SelectItem key={rate} value={String(rate)} className="text-xs sm:text-sm">{rate}%</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -1214,24 +1215,24 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
         {/* ═════════════════════════════════════════════════════════
             SECTION 3: STOCK & INVENTORY
         ═════════════════════════════════════════════════════════ */}
-        <Card className="border border-border bg-card shadow-sm rounded-xl overflow-hidden">
-          <CardHeader className="bg-muted/30 border-b border-border pb-4">
-            <div className="flex items-center gap-3">
-              <div className="h-9 w-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold">
-                <Boxes className="h-5 w-5" />
+        <Card className="border border-border bg-card shadow-xs rounded-xl overflow-hidden">
+          <CardHeader className="bg-muted/30 border-b border-border p-3.5 sm:p-5 md:p-6 pb-3 sm:pb-4">
+            <div className="flex items-center gap-2.5 sm:gap-3">
+              <div className="h-8 w-8 sm:h-9 sm:w-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold shrink-0">
+                <Boxes className="h-4 w-4 sm:h-5 sm:w-5" />
               </div>
               <div>
-                <CardTitle className="text-lg font-bold text-foreground">{t('products.stockInventory', 'STOCK & INVENTORY')}</CardTitle>
+                <CardTitle className="text-base sm:text-lg font-bold text-foreground">{t('products.stockInventory', 'STOCK & INVENTORY')}</CardTitle>
                 <CardDescription className="text-xs text-muted-foreground">
                   {t('products.stockInventoryDesc', 'Stock quantities and minimum stock alert levels')}
                 </CardDescription>
               </div>
             </div>
           </CardHeader>
-          <CardContent className="p-6 grid gap-6 sm:grid-cols-2">
+          <CardContent className="p-3.5 sm:p-5 md:p-6 grid gap-3.5 sm:gap-6 sm:grid-cols-2">
             {/* Quantity in Stock */}
-            <div className="space-y-2">
-              <Label htmlFor="opening_stock" className="text-sm font-semibold text-foreground flex items-center">
+            <div className="space-y-1.5 sm:space-y-2">
+              <Label htmlFor="opening_stock" className="text-xs sm:text-sm font-semibold text-foreground flex items-center">
                 {t('products.quantityInStock', 'Quantity in Stock')} <span className="text-destructive font-bold ml-0.5">*</span>
               </Label>
               <div className="flex rounded-lg border border-border bg-background focus-within:ring-2 focus-within:ring-primary focus-within:border-primary overflow-hidden">
@@ -1241,10 +1242,10 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
                   step="1"
                   min="0"
                   placeholder="e.g. 10"
-                  className="h-11 border-0 focus-visible:ring-0 focus-visible:ring-offset-0 rounded-none text-base font-bold text-foreground px-3.5 flex-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  className="h-10 sm:h-11 border-0 focus-visible:ring-0 focus-visible:ring-offset-0 rounded-none text-sm sm:text-base font-bold text-foreground px-3 flex-1 min-w-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   {...form.register('opening_stock')}
                 />
-                <div className="px-4 py-2.5 bg-muted/40 border-l border-border text-sm font-bold text-muted-foreground flex items-center justify-center min-w-[80px]">
+                <div className="px-3 sm:px-4 py-2 bg-muted/40 border-l border-border text-xs sm:text-sm font-bold text-muted-foreground flex items-center justify-center min-w-[64px] sm:min-w-[80px] shrink-0">
                   Pieces
                 </div>
               </div>
@@ -1255,8 +1256,8 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
             </div>
 
             {/* Minimum Stock Level */}
-            <div className="space-y-2">
-              <Label htmlFor="min_stock" className="text-sm font-semibold text-foreground">
+            <div className="space-y-1.5 sm:space-y-2">
+              <Label htmlFor="min_stock" className="text-xs sm:text-sm font-semibold text-foreground">
                 {t('products.minStockAlert', 'Minimum Stock Level Alert')} <span className="text-destructive font-bold">*</span>
               </Label>
               <div className="flex rounded-lg border border-border bg-background focus-within:ring-2 focus-within:ring-primary overflow-hidden">
@@ -1265,10 +1266,10 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
                   type="number"
                   min="0"
                   placeholder="e.g. 5"
-                  className="h-11 border-0 focus-visible:ring-0 focus-visible:ring-offset-0 rounded-none text-base px-3.5 flex-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  className="h-10 sm:h-11 border-0 focus-visible:ring-0 focus-visible:ring-offset-0 rounded-none text-sm sm:text-base px-3 flex-1 min-w-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   {...form.register('min_stock')}
                 />
-                <div className="px-4 py-2.5 bg-muted/40 border-l border-border text-sm font-bold text-muted-foreground flex items-center justify-center min-w-[80px]">
+                <div className="px-3 sm:px-4 py-2 bg-muted/40 border-l border-border text-xs sm:text-sm font-bold text-muted-foreground flex items-center justify-center min-w-[64px] sm:min-w-[80px] shrink-0">
                   Pieces
                 </div>
               </div>
@@ -1281,28 +1282,28 @@ export function ProductForm({ mode, initialData, categories, brands }: ProductFo
         </Card>
 
         {/* ═════════════════════════════════════════════════════════
-            STICKY BOTTOM ACTION BAR
+            STICKY BOTTOM ACTION BAR (Floating safely above mobile nav)
         ═════════════════════════════════════════════════════════ */}
-        <div className="sticky bottom-0 z-20 bg-background/95 backdrop-blur border-t border-border p-4 rounded-xl shadow-lg flex items-center justify-between gap-4">
+        <div className="sticky bottom-16 sm:bottom-0 z-20 bg-background/95 backdrop-blur-md border border-border p-3 sm:p-4 rounded-xl shadow-lg flex items-center justify-between gap-3 sm:gap-4 mt-4 sm:mt-6">
           <Button
             type="button"
             variant="outline"
-            size="lg"
+            size="default"
             onClick={() => router.back()}
-            className="px-6 font-semibold border-border hover:bg-muted"
+            className="px-4 sm:px-6 font-semibold border-border hover:bg-muted text-xs sm:text-sm h-10 sm:h-11"
           >
             {t('common.cancel', 'Cancel')}
           </Button>
           <Button
             type="submit"
-            size="lg"
+            size="default"
             disabled={isSubmitting}
-            className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold px-8 h-12 text-base shadow-md transition-all active:scale-95"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold px-5 sm:px-8 h-10 sm:h-11 text-xs sm:text-sm shadow-md transition-all active:scale-95 flex-1 sm:flex-initial max-w-[240px] sm:max-w-none justify-center"
           >
             {isSubmitting ? (
-              <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> {t('common.saving', 'Saving Product...')}</>
+              <><Loader2 className="mr-1.5 sm:mr-2 h-4 w-4 animate-spin" /> {t('common.saving', 'Saving...')}</>
             ) : (
-              <><Check className="mr-2 h-5 w-5 stroke-[3]" /> {mode === 'create' ? t('products.createProduct', 'SAVE PRODUCT') : t('products.updateProduct', 'UPDATE PRODUCT')}</>
+              <><Check className="mr-1.5 sm:mr-2 h-4 w-4 stroke-[3]" /> {mode === 'create' ? t('products.createProduct', 'SAVE PRODUCT') : t('products.updateProduct', 'UPDATE PRODUCT')}</>
             )}
           </Button>
         </div>
