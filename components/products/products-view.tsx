@@ -179,18 +179,18 @@ export function ProductsView({ initialProducts = [], initialCategories = [] }: P
   }).length;
 
   return (
-    <div className="flex-1 space-y-6 p-6 md:p-8 pt-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="flex-1 space-y-4 sm:space-y-6 p-0 sm:p-2 md:p-6 pt-1 sm:pt-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight text-foreground">Products</h2>
-          <p className="text-sm text-muted-foreground">Manage your agricultural catalog, pricing, and stock levels</p>
+          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">Products</h2>
+          <p className="text-xs sm:text-sm text-muted-foreground">Manage your agricultural catalog, pricing, and stock levels</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 self-start sm:self-auto">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="border-border hover:bg-muted font-semibold" disabled={isExporting}>
-                {isExporting ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Download className="h-4 w-4 mr-1.5" />}
-                Export <ChevronDown className="h-3.5 w-3.5 ml-1 opacity-70" />
+              <Button variant="outline" size="sm" className="border-border hover:bg-muted font-semibold text-xs sm:text-sm h-9" disabled={isExporting}>
+                {isExporting ? <Loader2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 animate-spin" /> : <Download className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5" />}
+                Export <ChevronDown className="h-3 w-3 sm:h-3.5 sm:w-3.5 ml-1 opacity-70" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
@@ -204,35 +204,35 @@ export function ProductsView({ initialProducts = [], initialCategories = [] }: P
           </DropdownMenu>
 
           <Link href="/products/new">
-            <Button className="bg-primary hover:bg-primary/90 font-semibold shadow-sm">
-              <Plus className="h-4 w-4 mr-1.5" /> Add Product
+            <Button size="sm" className="bg-primary hover:bg-primary/90 font-semibold shadow-xs text-xs sm:text-sm h-9">
+              <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5" /> Add Product
             </Button>
           </Link>
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="border border-border bg-card">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Products</CardTitle>
-            <Package className="h-4 w-4 text-primary" />
+      <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
+        <Card className="border border-border bg-card p-3 sm:p-4">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 p-0 pb-1.5 sm:pb-2">
+            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground truncate">Total Products</CardTitle>
+            <Package className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary shrink-0" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-foreground">{products.length}</div>
-            <p className="text-xs text-muted-foreground mt-1">Active products in catalog</p>
+          <CardContent className="p-0">
+            <div className="text-xl sm:text-2xl font-bold text-foreground">{products.length}</div>
+            <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1 truncate">Active products</p>
           </CardContent>
         </Card>
 
-        <Card className="border border-border bg-card">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Low Stock Alert</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-amber-500" />
+        <Card className="border border-border bg-card p-3 sm:p-4">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 p-0 pb-1.5 sm:pb-2">
+            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground truncate">Low Stock Alert</CardTitle>
+            <AlertTriangle className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-amber-500 shrink-0" />
           </CardHeader>
-          <CardContent>
-            <div className={`text-2xl font-bold ${lowStockCount > 0 ? 'text-amber-500' : 'text-foreground'}`}>
+          <CardContent className="p-0">
+            <div className={`text-xl sm:text-2xl font-bold ${lowStockCount > 0 ? 'text-amber-500' : 'text-foreground'}`}>
               {lowStockCount}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">Items at or below min threshold</p>
+            <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1 truncate">Below min threshold</p>
           </CardContent>
         </Card>
       </div>

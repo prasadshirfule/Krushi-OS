@@ -7,12 +7,12 @@ import { BatchList } from "@/components/inventory/batch-list";
 export default async function ProductDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   return (
-    <div className="flex-1 space-y-4 p-8 pt-6">
+    <div className="flex-1 space-y-3 sm:space-y-4 p-0 sm:p-4 md:p-6 pt-1 sm:pt-4">
       <div className="flex items-center justify-between space-y-2">
-        <h2 className="text-3xl font-bold tracking-tight">Product Details</h2>
+        <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Product Details</h2>
         <div className="flex items-center space-x-2">
           <Link href={`/products/${id}/edit`}>
-            <Button>Edit Product</Button>
+            <Button size="sm" className="sm:size-default">Edit Product</Button>
           </Link>
         </div>
       </div>

@@ -400,15 +400,15 @@ export default function PaymentPanel({ cart, adjustments = [], totals, customerI
   };
 
   return (
-    <section className="rounded-xl border border-border bg-card p-5 md:p-6 shadow-sm space-y-5 text-card-foreground">
+    <section className="rounded-xl border border-border bg-card p-3.5 sm:p-5 md:p-6 shadow-xs space-y-4 sm:space-y-5 text-card-foreground min-w-0">
       {/* ─── Header ─── */}
-      <div className="flex items-center gap-2.5">
-        <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center">
-          <CreditCard className="h-5 w-5 text-primary" />
+      <div className="flex items-center gap-2 sm:gap-2.5">
+        <div className="h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+          <CreditCard className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
         </div>
         <div>
-          <h2 className="text-lg font-semibold text-foreground">Payment Method</h2>
-          <span className="text-xs text-muted-foreground font-medium">
+          <h2 className="text-base sm:text-lg font-semibold text-foreground">Payment Method</h2>
+          <span className="text-[11px] sm:text-xs text-muted-foreground font-medium">
             Select how the customer is paying
           </span>
         </div>
@@ -854,7 +854,7 @@ export default function PaymentPanel({ cart, adjustments = [], totals, customerI
           type="button"
           onClick={handleCompleteSale}
           disabled={isSaleDisabled}
-          className={`w-full h-16 rounded-xl text-xl md:text-2xl font-black transition-all flex items-center justify-center gap-3 shadow-lg ${
+          className={`w-full h-14 sm:h-16 rounded-xl text-lg sm:text-xl md:text-2xl font-black transition-all flex items-center justify-center gap-2 sm:gap-3 shadow-lg ${
             isSaleDisabled
               ? 'bg-muted text-muted-foreground cursor-not-allowed shadow-none'
               : 'bg-primary hover:bg-primary/90 text-primary-foreground shadow-primary/25 hover:shadow-xl active:scale-[0.99] cursor-pointer'

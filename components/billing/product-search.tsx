@@ -323,37 +323,37 @@ function ProductSearchComponent({ onAddToCart }: ProductSearchProps) {
   };
 
   return (
-    <section className="rounded-xl border border-border bg-card p-5 md:p-6 shadow-sm space-y-5 text-card-foreground">
+    <section className="rounded-xl border border-border bg-card p-3 sm:p-5 md:p-6 shadow-xs space-y-3 sm:space-y-4 text-card-foreground min-w-0">
       {/* ─── Header & Search ─── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5">
-          <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center">
-            <Package className="h-5 w-5 text-primary" />
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3">
+        <div className="flex items-center gap-2 sm:gap-2.5">
+          <div className="h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+            <Package className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
           </div>
-          <h2 className="text-lg font-semibold text-foreground">
+          <h2 className="text-base sm:text-lg font-semibold text-foreground">
             {t('billing.searchProduct', 'Select Products')}
           </h2>
         </div>
 
         {/* Search Bar & Scan Button */}
-        <div className="flex items-center gap-2 flex-1 sm:max-w-lg">
-          <div className="relative flex-1">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-1 sm:max-w-lg">
+          <div className="relative flex-1 min-w-0">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground" />
             <Input
               ref={searchInputRef}
               value={query}
               onChange={e => setQuery(e.target.value)}
               placeholder={t('billing.searchAnyProduct', 'Search product or barcode (F4)...')}
-              className="pl-10 pr-10 py-5 text-base rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground focus-visible:border-primary"
+              className="pl-8 sm:pl-10 pr-8 h-10 sm:h-11 text-xs sm:text-base rounded-lg sm:rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground focus-visible:border-primary"
             />
             {query && (
               <Button
                 variant="ghost"
                 size="icon"
-                className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7 text-muted-foreground hover:text-foreground"
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 h-6 w-6 sm:h-7 sm:w-7 text-muted-foreground hover:text-foreground"
                 onClick={() => setQuery('')}
               >
-                <X className="h-4 w-4" />
+                <X className="h-3.5 w-3.5" />
               </Button>
             )}
           </div>
@@ -362,18 +362,18 @@ function ProductSearchComponent({ onAddToCart }: ProductSearchProps) {
             type="button"
             variant="outline"
             onClick={() => setIsScannerOpen(true)}
-            className="h-11 px-3.5 rounded-xl border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary font-bold gap-1.5 text-xs shadow-sm shrink-0 transition-all active:scale-95"
+            className="h-10 sm:h-11 px-2.5 sm:px-3.5 rounded-lg sm:rounded-xl border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary font-bold gap-1 sm:gap-1.5 text-xs shadow-xs shrink-0 transition-all active:scale-95"
             title="Scan Product Barcode / QR (Real Camera)"
           >
             <Scan className="h-4 w-4 stroke-[2.5]" />
-            <span className="hidden xs:inline">Scan Barcode</span>
+            <span className="hidden sm:inline">Scan Barcode</span>
           </Button>
 
           <Button
             type="button"
             variant="outline"
             onClick={() => setIsPackagingModalOpen(true)}
-            className="h-11 px-3.5 rounded-xl border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 font-bold gap-1.5 text-xs shadow-sm shrink-0 transition-all active:scale-95"
+            className="h-10 sm:h-11 px-2.5 sm:px-3.5 rounded-lg sm:rounded-xl border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 font-bold gap-1.5 text-xs shadow-xs shrink-0 transition-all active:scale-95"
             title="Scan Packaging Details / Read Label (OCR)"
           >
             <Sparkles className="h-4 w-4 stroke-[2.5]" />
@@ -383,19 +383,19 @@ function ProductSearchComponent({ onAddToCart }: ProductSearchProps) {
       </div>
 
       {/* ─── Category Filter Buttons ─── */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+      <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 scrollbar-none -mx-0.5 px-0.5">
         <Button
           type="button"
           size="sm"
           variant={selectedCategory === 'all' ? 'default' : 'outline'}
-          className={`rounded-full px-4 py-1.5 h-auto text-sm font-semibold transition-all shrink-0 ${
+          className={`rounded-full px-3 sm:px-4 py-1 sm:py-1.5 h-7 sm:h-auto text-xs sm:text-sm font-semibold transition-all shrink-0 ${
             selectedCategory === 'all'
-              ? 'bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm'
+              ? 'bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs'
               : 'border-border bg-background/50 text-foreground hover:bg-primary/10 hover:text-primary hover:border-primary/50'
           }`}
           onClick={() => setSelectedCategory('all')}
         >
-          <Sparkles className="h-3.5 w-3.5 mr-1.5" /> {t('billing.allCategories', 'All Products')}
+          <Sparkles className="h-3 w-3 sm:h-3.5 sm:w-3.5 mr-1 sm:mr-1.5" /> {t('billing.allCategories', 'All Products')}
         </Button>
         {categories.map(cat => {
           const isSelected = selectedCategory === cat.id;
@@ -405,9 +405,9 @@ function ProductSearchComponent({ onAddToCart }: ProductSearchProps) {
               type="button"
               size="sm"
               variant={isSelected ? 'default' : 'outline'}
-              className={`rounded-full px-4 py-1.5 h-auto text-sm font-semibold transition-all shrink-0 ${
+              className={`rounded-full px-3 sm:px-4 py-1 sm:py-1.5 h-7 sm:h-auto text-xs sm:text-sm font-semibold transition-all shrink-0 ${
                 isSelected
-                  ? 'bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm'
+                  ? 'bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs'
                   : 'border-border bg-background/50 text-foreground hover:bg-primary/10 hover:text-primary hover:border-primary/50'
               }`}
               onClick={() => setSelectedCategory(cat.id)}
@@ -418,24 +418,24 @@ function ProductSearchComponent({ onAddToCart }: ProductSearchProps) {
         })}
       </div>
 
-      {/* ─── Products Grid ─── */}
+      {/* ─── Products Grid (2 COLUMNS ON MOBILE) ─── */}
       {loading ? (
         <div className="py-12 text-center text-muted-foreground flex flex-col items-center gap-2">
           <div className="h-8 w-8 rounded-full border-4 border-primary border-t-transparent animate-spin" />
           <p className="text-sm font-medium">{t('common.loading', 'Searching products...')}</p>
         </div>
       ) : displayedProducts.length === 0 ? (
-        <div className="py-12 text-center border-2 border-dashed border-border rounded-xl p-8">
-          <Package className="h-10 w-10 text-muted-foreground/40 mx-auto mb-2" />
-          <p className="text-base font-semibold text-foreground">No products found</p>
-          <p className="text-sm text-muted-foreground mt-1">
+        <div className="py-10 sm:py-12 text-center border-2 border-dashed border-border rounded-xl p-4 sm:p-8">
+          <Package className="h-9 w-9 sm:h-10 sm:w-10 text-muted-foreground/40 mx-auto mb-2" />
+          <p className="text-sm sm:text-base font-semibold text-foreground">No products found</p>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-1">
             {query ? `No items matching "${query}" in this category.` : 'No products available in this category.'}
           </p>
           {(query || selectedCategory !== 'all') && (
             <Button
               variant="outline"
               size="sm"
-              className="mt-4 text-primary border-primary/40 hover:bg-primary/10"
+              className="mt-3 sm:mt-4 text-primary border-primary/40 hover:bg-primary/10 text-xs sm:text-sm"
               onClick={() => {
                 setQuery('');
                 setSelectedCategory('all');
@@ -446,7 +446,7 @@ function ProductSearchComponent({ onAddToCart }: ProductSearchProps) {
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5">
+        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3.5 min-w-0">
           {displayedProducts.map(product => {
             const stock = product.current_stock ?? product.stock_quantity ?? product.stock ?? 0;
             const isOut = stock === 0;
@@ -455,59 +455,68 @@ function ProductSearchComponent({ onAddToCart }: ProductSearchProps) {
             const categoryName = typeof product.category === 'string'
               ? product.category
               : product.category?.name || 'Agro';
+            const packDisplay = formatProductPackDisplay(product);
+            const fullDisplayName = formatProductNameWithSize(product.name, product.pack_size, product.unit);
 
             return (
               <div
                 key={product.id}
-                className={`relative rounded-xl border p-4 flex flex-col justify-between transition-all bg-card ${
+                className={`relative rounded-lg sm:rounded-xl border p-2 sm:p-3.5 flex flex-col justify-between transition-all bg-card min-w-0 ${
                   isOut
-                    ? 'border-border/50 opacity-50 bg-muted/20'
+                    ? 'border-border/50 opacity-60 bg-muted/20'
                     : isJustAdded
                     ? 'border-primary bg-primary/10 ring-2 ring-primary/30'
                     : 'border-border hover:border-primary/50 hover:shadow-md'
                 }`}
               >
-                <div>
+                <div className="min-w-0">
                   {/* Category & Stock Badges */}
-                  <div className="flex items-center justify-between gap-1 mb-2">
-                    <span className="text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                  <div className="flex items-center justify-between gap-1 mb-1 sm:mb-2 min-w-0">
+                    <span
+                      className="text-[9px] sm:text-[11px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 truncate max-w-[55%]"
+                      title={categoryName}
+                    >
                       {categoryName}
                     </span>
                     {isOut ? (
-                      <span className="text-[11px] font-bold text-destructive flex items-center gap-1">
+                      <span className="text-[9px] sm:text-[11px] font-bold text-destructive truncate">
                         Out of stock
                       </span>
                     ) : isLow ? (
-                      <span className="text-[11px] font-semibold text-amber-400 flex items-center gap-1 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded">
-                        <AlertTriangle className="h-3 w-3" /> {stock} Pieces left
+                      <span className="text-[9px] sm:text-[11px] font-semibold text-amber-500 dark:text-amber-400 flex items-center gap-0.5 bg-amber-500/10 border border-amber-500/20 px-1 py-0.5 rounded truncate">
+                        <AlertTriangle className="h-2.5 w-2.5 shrink-0" />
+                        <span className="truncate">{stock} left</span>
                       </span>
                     ) : (
-                      <span className="text-[11px] font-medium text-muted-foreground">
-                        Stock: <span className="font-semibold text-foreground/90">{stock} Pieces</span>
+                      <span className="text-[9px] sm:text-[11px] font-medium text-muted-foreground truncate">
+                        <span className="hidden xs:inline">Stock: </span><span className="font-semibold text-foreground/90">{stock}</span>
                       </span>
                     )}
                   </div>
 
                   {/* Product Title */}
-                  <h3 className="font-bold text-foreground text-base leading-snug line-clamp-2 mb-1" title={formatProductNameWithSize(product.name, product.pack_size, product.unit)}>
-                    {formatProductNameWithSize(product.name, product.pack_size, product.unit)}
+                  <h3
+                    className="font-bold text-foreground text-xs sm:text-base leading-tight sm:leading-snug line-clamp-2 min-h-[2rem] sm:min-h-[2.5rem] mb-1 break-words"
+                    title={fullDisplayName}
+                  >
+                    {product.name}
                   </h3>
 
                   {/* Product Size */}
-                  {formatProductPackDisplay(product) && (
-                    <div className="mb-2">
-                      <span className="inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/25">
-                        {formatProductPackDisplay(product)}
+                  <div className="min-h-[1.25rem] sm:min-h-[1.5rem] mb-1 sm:mb-2 flex items-center">
+                    {packDisplay ? (
+                      <span className="inline-flex items-center text-[9px] sm:text-xs font-semibold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25 truncate max-w-full">
+                        {packDisplay}
                       </span>
-                    </div>
-                  )}
+                    ) : null}
+                  </div>
                 </div>
 
                 {/* Price and Add Button */}
-                <div className="pt-3 border-t border-border flex items-center justify-between gap-2 mt-2">
-                  <div>
-                    <span className="text-xs text-muted-foreground block leading-none mb-0.5">Price</span>
-                    <span className="text-lg md:text-xl font-black text-primary">
+                <div className="pt-1.5 sm:pt-2.5 border-t border-border flex items-center justify-between gap-1 sm:gap-2 mt-auto min-w-0">
+                  <div className="min-w-0 flex-1">
+                    <span className="text-[9px] sm:text-xs text-muted-foreground block leading-none mb-0.5">Price</span>
+                    <span className="text-xs xs:text-sm sm:text-lg md:text-xl font-extrabold sm:font-black text-primary truncate block">
                       {formatCurrency(product.selling_price || 0)}
                     </span>
                   </div>
@@ -516,21 +525,23 @@ function ProductSearchComponent({ onAddToCart }: ProductSearchProps) {
                     size="sm"
                     disabled={isOut}
                     onClick={() => handleAdd(product)}
-                    className={`h-9 px-3.5 rounded-lg font-bold transition-all ${
+                    className={`h-7 sm:h-9 px-2 sm:px-3.5 text-xs font-bold rounded-md sm:rounded-lg transition-all shrink-0 ${
                       isJustAdded
                         ? 'bg-primary text-primary-foreground'
                         : isOut
-                        ? 'bg-muted text-muted-foreground cursor-not-allowed'
-                        : 'bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm active:scale-95'
+                        ? 'bg-muted text-muted-foreground cursor-not-allowed opacity-60'
+                        : 'bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs active:scale-95'
                     }`}
                   >
                     {isJustAdded ? (
                       <>
-                        <Check className="h-4 w-4 mr-1" /> Added
+                        <Check className="h-3 w-3 sm:h-4 sm:w-4 mr-0.5 sm:mr-1" />
+                        <span className="text-[10px] sm:text-xs">Added</span>
                       </>
                     ) : (
                       <>
-                        <Plus className="h-4 w-4 mr-1 stroke-[3]" /> Add
+                        <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-0.5 sm:mr-1 stroke-[3]" />
+                        <span className="text-[10px] sm:text-xs">Add</span>
                       </>
                     )}
                   </Button>
