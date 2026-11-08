@@ -62,7 +62,23 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith('/register') ||
     pathname.startsWith('/forgot-password') ||
     pathname.startsWith('/reset-password') ||
-    pathname.startsWith('/auth')
+    pathname.startsWith('/auth') ||
+    pathname.startsWith('/docs') ||
+    pathname.startsWith('/api/health') ||
+    pathname === '/privacy' ||
+    pathname === '/terms' ||
+    pathname === '/refund-policy' ||
+    pathname === '/billing-policy' ||
+    pathname === '/cookie-policy' ||
+    pathname === '/data-processing' ||
+    pathname === '/acceptable-use' ||
+    pathname === '/grievance' ||
+    pathname === '/data-request' ||
+    pathname === '/features' ||
+    pathname === '/pricing' ||
+    pathname === '/about' ||
+    pathname === '/contact' ||
+    pathname === '/support'
 
   if (isPublicAuthPage) {
     console.log(`[AUTH DEBUG] pathname=${pathname} authenticated=${!!user} portal=${isCustomerUser ? 'customer' : 'shopkeeper'} authorized=true redirect=none`)
