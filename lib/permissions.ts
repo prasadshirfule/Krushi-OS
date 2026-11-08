@@ -24,7 +24,13 @@ export type Permission =
   | 'employees.manage'
   | 'settings.view'
   | 'settings.edit'
-  | 'audit.view';
+  | 'audit.view'
+  | 'subscriptions.view'
+  | 'subscriptions.manage'
+  | 'sms.view'
+  | 'sms.manage'
+  | 'documents.view'
+  | 'documents.revoke';
 
 export const PERMISSIONS: Record<string, Permission> = {
   PRODUCTS_VIEW: 'products.view',
@@ -53,15 +59,46 @@ export const PERMISSIONS: Record<string, Permission> = {
   SETTINGS_VIEW: 'settings.view',
   SETTINGS_EDIT: 'settings.edit',
   AUDIT_VIEW: 'audit.view',
+  SUBSCRIPTIONS_VIEW: 'subscriptions.view',
+  SUBSCRIPTIONS_MANAGE: 'subscriptions.manage',
+  SMS_VIEW: 'sms.view',
+  SMS_MANAGE: 'sms.manage',
+  DOCUMENTS_VIEW: 'documents.view',
+  DOCUMENTS_REVOKE: 'documents.revoke',
 };
 
 const ALL_PERMISSIONS = Object.values(PERMISSIONS);
 
 export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
+  SuperAdmin: ALL_PERMISSIONS,
   Admin: ALL_PERMISSIONS,
-  Manager: ALL_PERMISSIONS.filter(
-    (p) => p !== 'employees.manage' && p !== 'settings.edit' && p !== 'audit.view'
-  ),
+  Manager: [
+    'products.view',
+    'products.create',
+    'products.edit',
+    'sales.view',
+    'sales.create',
+    'sales.cancel',
+    'sales.return',
+    'inventory.view',
+    'inventory.adjust',
+    'purchases.view',
+    'purchases.create',
+    'customers.view',
+    'customers.create',
+    'customers.edit',
+    'suppliers.view',
+    'suppliers.create',
+    'expenses.view',
+    'expenses.create',
+    'reports.view',
+    'reports.export',
+    'employees.view',
+    'settings.view',
+    'subscriptions.view',
+    'sms.view',
+    'documents.view',
+  ],
   Cashier: [
     'sales.view',
     'sales.create',
@@ -69,12 +106,38 @@ export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
     'customers.create',
     'products.view',
     'inventory.view',
+    'documents.view',
   ],
   'Sales Staff': [
     'products.view',
     'customers.view',
     'customers.create',
     'sales.view',
+    'documents.view',
+  ],
+  InventoryStaff: [
+    'products.view',
+    'products.create',
+    'products.edit',
+    'inventory.view',
+    'inventory.adjust',
+    'purchases.view',
+    'purchases.create',
+    'suppliers.view',
+    'suppliers.create',
+  ],
+  Accountant: [
+    'sales.view',
+    'purchases.view',
+    'expenses.view',
+    'expenses.create',
+    'reports.view',
+    'reports.export',
+    'audit.view',
+    'customers.view',
+    'suppliers.view',
+    'subscriptions.view',
+    'documents.view',
   ],
 };
 
@@ -86,6 +149,6 @@ export function hasPermission(userRole: string, permission: Permission | string)
 
 export function requirePermission(userRole: string, permission: Permission | string): void {
   if (!hasPermission(userRole, permission)) {
-    throw new Error(`Permission denied: User with role ${userRole} lacks ${permission}`);
+    throw new Error(`Permission denied: User with role '${userRole}' lacks permission '${permission}'`);
   }
 }
