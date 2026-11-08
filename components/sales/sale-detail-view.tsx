@@ -42,7 +42,6 @@ import { getSavedShopDetails } from '@/lib/shop-details';
 import SaleReturnDialog from '@/components/billing/sale-return-dialog';
 import { formatCurrency } from '@/lib/utils';
 import { getSaleActionAvailability } from '@/lib/sale-status';
-import { WhatsAppDeliveryCard } from '@/components/billing/whatsapp-delivery-card';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { format, parseISO } from 'date-fns';
@@ -343,15 +342,6 @@ export function SaleDetailView({ initialSale, saleId, sale: directSale }: SaleDe
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
-      </div>
-
-      {/* ─── WHATSAPP DELIVERY STATUS & RETRY ─── */}
-      <div className="max-w-[210mm] mx-auto mb-4 no-print px-4">
-        <WhatsAppDeliveryCard
-          saleId={activeSale.id}
-          customerPhone={customerPhone}
-          initialState={activeSale.status === 'cancelled' ? 'SKIPPED' : undefined}
-        />
       </div>
 
       {/* ─── FORMAT TOGGLE (TEMPORARY VIEW SWITCHER) ─── */}

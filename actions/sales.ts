@@ -5,7 +5,8 @@ import { after } from 'next/server';
 import { getAuthAndPermissions } from '@/lib/auth-helper';
 import { saleSchema, saleCancelSchema, saleReturnSchema } from '@/lib/validations';
 import * as salesService from '@/services/sales.service';
-import { sendWhatsAppInvoice, normalizeWhatsAppPhone, isOpenWAConfigured } from '@/services/openwa.service';
+import { queueInvoiceNotification } from '@/services/sms.service';
+import { normalizeIndianMobile } from '@/lib/phone-utils';
 import { getShopProfile } from '@/services/settings.service';
 import { ActionResult } from './types';
 
@@ -57,26 +58,26 @@ export async function completeSaleAction(data: any): Promise<ActionResult<any>> 
     try {
       shopProfile = await getShopProfile(userData.shop_id);
     } catch (profileErr) {
-      console.warn('[WhatsApp Delivery] Could not fetch shop profile in action context:', profileErr);
+      console.warn('[SMS Delivery] Could not fetch shop profile in action context:', profileErr);
     }
 
-    // Schedule post-response WhatsApp invoice delivery using Next.js after()
+    // Schedule post-response transactional SMS invoice notification using Next.js after()
     try {
       if (typeof after === 'function') {
         after(async () => {
           try {
-            await sendWhatsAppInvoice({
+            await queueInvoiceNotification({
               sale: result,
               shopId: userData.shop_id,
               shopDetails: shopProfile,
             });
           } catch (bgErr) {
-            console.error('[WhatsApp Background Error]:', bgErr);
+            console.error('[SMS Delivery Background Error]:', bgErr);
           }
         });
       }
     } catch (afterErr) {
-      console.warn('[WhatsApp Delivery] Failed to schedule background after() task:', afterErr);
+      console.warn('[SMS Delivery] Failed to schedule background after() task:', afterErr);
     }
     
     safeRevalidatePath('/sales');
@@ -253,25 +254,22 @@ export async function getTodaySalesAction(): Promise<ActionResult<any>> {
   }
 }
 
-export interface WhatsAppRetryResult {
+export interface SmsDeliveryResult {
   success: boolean;
-  status: 'SENT' | 'FAILED' | 'PARTIAL' | 'SKIPPED';
+  status: 'QUEUED' | 'FAILED' | 'SKIPPED';
   message: string;
-  pdfDelivered: boolean;
-  textDelivered: boolean;
   reason?: string;
   error?: string;
-  documentStatus?: number;
-  textStatus?: number;
+  queueId?: string;
 }
 
 /**
- * Retries sending an invoice via WhatsApp for an existing completed sale.
+ * Re-queues an invoice SMS notification for an existing completed sale.
  * - Authenticates the caller and enforces shop-level isolation.
  * - Does NOT create a new sale or modify database records, inventory, payments, or ledger.
  * - Does NOT accept phone or shop_id from the client.
  */
-export async function retryWhatsAppInvoiceAction(saleId: string): Promise<ActionResult<WhatsAppRetryResult>> {
+export async function resendInvoiceSmsAction(saleId: string): Promise<ActionResult<SmsDeliveryResult>> {
   try {
     const userData = await getAuthAndPermissions('sales.view');
     if (!saleId || typeof saleId !== 'string') {
@@ -283,7 +281,7 @@ export async function retryWhatsAppInvoiceAction(saleId: string): Promise<Action
     try {
       sale = await salesService.getSaleById(userData.shop_id, saleId);
     } catch (err: any) {
-      console.warn('[WhatsApp Retry] Could not load sale from DB:', err?.message);
+      console.warn('[SMS Resend] Could not load sale from DB:', err?.message);
     }
 
     if (!sale) {
@@ -298,7 +296,7 @@ export async function retryWhatsAppInvoiceAction(saleId: string): Promise<Action
       sale?.customerPhone ||
       (sale?.customer && typeof sale.customer === 'object' ? sale.customer.phone || sale.customer.mobile : null);
 
-    const normalizedPhone = normalizeWhatsAppPhone(rawPhone);
+    const normalizedPhone = normalizeIndianMobile(rawPhone);
     if (!normalizedPhone) {
       return {
         success: true,
@@ -306,23 +304,7 @@ export async function retryWhatsAppInvoiceAction(saleId: string): Promise<Action
           success: false,
           status: 'SKIPPED',
           reason: 'NO_VALID_PHONE',
-          message: 'WhatsApp not sent — no valid customer mobile number',
-          pdfDelivered: false,
-          textDelivered: false,
-        },
-      };
-    }
-
-    if (!isOpenWAConfigured()) {
-      return {
-        success: true,
-        data: {
-          success: false,
-          status: 'SKIPPED',
-          reason: 'NOT_CONFIGURED',
-          message: 'WhatsApp integration not configured',
-          pdfDelivered: false,
-          textDelivered: false,
+          message: 'SMS not sent — no valid 10-digit customer mobile number',
         },
       };
     }
@@ -331,63 +313,28 @@ export async function retryWhatsAppInvoiceAction(saleId: string): Promise<Action
     try {
       shopProfile = await getShopProfile(userData.shop_id);
     } catch (profileErr) {
-      console.warn('[WhatsApp Retry] Could not fetch shop profile:', profileErr);
+      console.warn('[SMS Resend] Could not fetch shop profile:', profileErr);
     }
 
-    const sendRes = await sendWhatsAppInvoice({
+    await queueInvoiceNotification({
       sale,
       shopId: userData.shop_id,
       shopDetails: shopProfile,
     });
 
-    if (sendRes.pdfDelivered && sendRes.textDelivered) {
-      return {
-        success: true,
-        data: {
-          success: true,
-          status: 'SENT',
-          message: 'Invoice sent to WhatsApp',
-          pdfDelivered: true,
-          textDelivered: true,
-          documentStatus: sendRes.documentStatus,
-          textStatus: sendRes.textStatus,
-        },
-      };
-    }
-
-    if (sendRes.pdfDelivered && !sendRes.textDelivered) {
-      return {
-        success: true,
-        data: {
-          success: false,
-          status: 'PARTIAL',
-          message: 'Invoice PDF sent, but follow-up message failed',
-          pdfDelivered: true,
-          textDelivered: false,
-          documentStatus: sendRes.documentStatus,
-          textStatus: sendRes.textStatus,
-          error: sendRes.textError || sendRes.error,
-        },
-      };
-    }
-
     return {
       success: true,
       data: {
-        success: false,
-        status: 'FAILED',
-        message: 'WhatsApp delivery failed. You can retry.',
-        pdfDelivered: false,
-        textDelivered: false,
-        documentStatus: sendRes.documentStatus,
-        error: sendRes.error,
+        success: true,
+        status: 'QUEUED',
+        message: 'Invoice SMS notification queued for delivery',
       },
     };
   } catch (error: any) {
-    console.error('retryWhatsAppInvoiceAction error:', error);
+    console.error('resendInvoiceSmsAction error:', error);
     return {
       success: false,
-      error: error.message || 'Unable to retry WhatsApp delivery',
+      error: error.message || 'Unable to re-queue SMS notification',
     };
   }
 }

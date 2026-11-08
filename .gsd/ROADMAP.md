@@ -26,5 +26,5 @@
 ### Phase 4: Enterprise Operations & Offline Synchronization (PLANNED 🔵)
 - Bi-directional sync protocol between IndexedDB local cache and Supabase backend.
 - Multi-branch inventory transfer and central analytics dashboard.
-- Automated SMS/WhatsApp invoice delivery integration.
+- Automated SMS transactional invoice & ledger statement delivery integration.
 - Scheduled stock audit reconciliation workflows.

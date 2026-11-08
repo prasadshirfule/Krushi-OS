@@ -13,9 +13,6 @@ export function normalizeIndianMobile(rawPhone?: string | null): string | null {
   let cleaned = rawPhone.trim();
   if (!cleaned) return null;
 
-  // Remove existing @c.us or @s.whatsapp.net suffix if present
-  cleaned = cleaned.replace(/@(c\.us|s\.whatsapp\.net)$/i, '').trim();
-
   // Remove formatting characters (spaces, hyphens, parentheses, dots)
   cleaned = cleaned.replace(/[\s\-().]/g, '');
 
@@ -64,22 +61,6 @@ export function formatDisplayMobile(rawPhone?: string | null): string {
 }
 
 /**
- * Normalize an Indian mobile phone number into OpenWA chatId format (e.g. 918080750206@c.us).
- * Strict validation for Indian 10-digit mobile numbers starting with 6, 7, 8, or 9:
- * - 8080750206 -> 918080750206@c.us
- * - 918080750206 -> 918080750206@c.us
- * - +918080750206 -> 918080750206@c.us
- * - 08080750206 -> 918080750206@c.us
- * - 918080750206@c.us -> 918080750206@c.us
- * Strictly rejects invalid Indian numbers (e.g. numbers starting with 0-5 or wrong length).
- */
-export function normalizeWhatsAppPhone(rawPhone?: string | null): string | null {
-  const norm10 = normalizeIndianMobile(rawPhone);
-  if (!norm10) return null;
-  return `91${norm10}@c.us`;
-}
-
-/**
  * Mask phone number for safe diagnostic logging without leaking PII.
  */
 export function maskPhoneNumber(phone?: string | null): string {
@@ -87,6 +68,6 @@ export function maskPhoneNumber(phone?: string | null): string {
   const cleaned = phone.trim();
   if (cleaned.length <= 4) return '****';
   const prefix = cleaned.slice(0, 4);
-  const suffix = cleaned.includes('@') ? cleaned.slice(cleaned.indexOf('@') - 2) : cleaned.slice(-2);
+  const suffix = cleaned.slice(-2);
   return `${prefix}****${suffix}`;
 }

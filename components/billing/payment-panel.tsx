@@ -13,7 +13,7 @@ import { CheckCircle2, Loader2, CreditCard, Banknote, QrCode, Building2, BookOpe
 import { toast } from 'sonner';
 import { ShopDetails, getSavedShopDetails } from '@/lib/shop-details';
 import { buildUpiUri, generateQrDataUrl } from '@/lib/upi';
-import { normalizeWhatsAppPhone } from '@/lib/phone-utils';
+import { normalizeIndianMobile } from '@/lib/phone-utils';
 
 import { 
   isClientDemoMode, 
@@ -337,9 +337,9 @@ export default function PaymentPanel({ cart, adjustments = [], totals, customerI
         } catch {}
 
         toast.success('Bill completed successfully!');
-        if (normalizeWhatsAppPhone(customerPhone)) {
+        if (normalizeIndianMobile(customerPhone)) {
           const invNo = savedSale.invoice_number || savedSale.invoiceNumber || (savedSale.id?.startsWith('KOS-') ? savedSale.id : `KOS-${(savedSale.id || '').substring(0, 8).toUpperCase()}`);
-          toast.success('Bill sent on WhatsApp', {
+          toast.success('SMS notification queued', {
             description: `Invoice ${invNo} sent`,
             duration: 4000,
           });
@@ -367,8 +367,8 @@ export default function PaymentPanel({ cart, adjustments = [], totals, customerI
           toast.success('Bill completed successfully!');
           const saleId = result.data?.sale_id || result.data?.id || result.data?.saleId;
           const invNo = result.data?.invoice_number || result.data?.invoiceNumber || (saleId?.startsWith('KOS-') ? saleId : `KOS-${(saleId || '').substring(0, 8).toUpperCase()}`);
-          if (normalizeWhatsAppPhone(customerPhone)) {
-            toast.success('Bill sent on WhatsApp', {
+          if (normalizeIndianMobile(customerPhone)) {
+            toast.success('SMS notification queued', {
               description: `Invoice ${invNo} sent`,
               duration: 4000,
             });
