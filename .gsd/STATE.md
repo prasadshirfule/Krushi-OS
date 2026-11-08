@@ -19,6 +19,16 @@
 
 ## 3. Recent Milestones & Work in Progress
 - **Recent**:
+  - `feature/production-readiness`: Complete Production Readiness, Security Hardening & SaaS Preparation:
+    1. Complete OpenWA & WhatsApp removal across client/server/dependencies in favor of Indian DLT transactional SMS.
+    2. Provider-independent SMS architecture (`lib/sms/`), MSG91 adapter, and persistent Supabase notification queue (`supabase/migrations/022_sms_notifications_queue.sql`).
+    3. Combined Tax Invoice + Customer Ledger Statement generator (`lib/statement-generator.ts`) with cryptographic token viewer (`/docs/v/[token]`).
+    4. Multi-tier SaaS subscription plans, 14-day auto trial, 15-day grace period, read-only mode, and zero data deletion on expiry (`supabase/migrations/023_saas_subscriptions.sql`, `services/subscription.service.ts`).
+    5. OWASP ASVS & Top 10 security headers (CSP, HSTS, X-Frame-Options: DENY), in-memory API rate limiter (`lib/security/rate-limiter.ts`), and RBAC matrix hardening (`lib/permissions.ts`).
+    6. Full statutory Indian legal pages compliant with DPDP Act 2023, IT Act 2000, and TRAI DLT (`/privacy`, `/terms`, `/refund-policy`, `/billing-policy`, `/cookie-policy`, `/data-processing`, `/acceptable-use`, `/grievance`, `/data-request`).
+    7. Public marketing & SEO pages (`/features`, `/pricing`, `/about`, `/contact`, `/support`), `robots.ts` with strict disallow on private ERP routes, and `sitemap.ts`.
+    8. Production health probe (`/api/health`), structured JSON logging (`lib/logging/logger.ts`), and disaster recovery runbook (`docs/disaster-recovery.md`).
+    9. Automated test suites (`npm test`) covering SMS queue, combined statements, tenant isolation, RBAC permissions, subscription lifecycle, and compliance pages (12/12 suites passing).
   - `ed05abb`: Implement sale cancellation and return UI in [components/sales/sale-detail-view.tsx](file:///e:/antigravity/scratch/krushi-os/components/sales/sale-detail-view.tsx) and [actions/sales.ts](file:///e:/antigravity/scratch/krushi-os/actions/sales.ts).
   - Migration 015: Customer portal returns RLS security rules.
   - Implemented 6-Issue Core Fixes:
