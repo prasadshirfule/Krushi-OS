@@ -3,8 +3,9 @@ import { createServerAdminClient } from '@/lib/supabase/admin';
 import { normalizeIndianMobile, maskPhoneNumber } from '@/lib/phone-utils';
 import { getSmsProvider } from '@/lib/sms/client';
 import { renderSmsTemplate } from '@/lib/sms/templates';
-import { SmsMessageType, SmsQueueItem, SendSmsOptions } from '@/lib/sms/types';
+import { SmsMessageType, SmsQueueItem, SendSmsOptions, SmsSendResult } from '@/lib/sms/types';
 import { createDocumentAccessToken } from '@/lib/documents/token-service';
+import { incrementSubscriptionUsage } from './subscription.service';
 
 export interface QueueNotificationParams {
   shopId: string;
@@ -112,7 +113,7 @@ export async function queueInvoiceNotification(params: {
   sale: any;
   shopId: string;
   shopDetails?: any;
-}): Promise<void> {
+}): Promise<{ success: boolean; queueId?: string; skipped?: boolean; reason?: string }> {
   try {
     const sale = params.sale;
     const rawPhone =
@@ -124,7 +125,7 @@ export async function queueInvoiceNotification(params: {
     const normPhone = normalizeIndianMobile(rawPhone);
     if (!normPhone) {
       console.log(`[SMS Delivery] Skipped for sale ${sale?.id} — no valid customer mobile number.`);
-      return;
+      return { success: false, skipped: true, reason: 'NO_VALID_PHONE' };
     }
 
     const saleId = sale?.id || sale?.sale_id;
@@ -160,7 +161,7 @@ export async function queueInvoiceNotification(params: {
 
     const idempotencyKey = `inv-sms-${params.shopId}-${saleId}`;
 
-    await queueSmsNotification({
+    const queueRes = await queueSmsNotification({
       shopId: params.shopId,
       customerId: customerId,
       saleId: saleId,
@@ -171,9 +172,102 @@ export async function queueInvoiceNotification(params: {
     });
 
     console.log(`[SMS Delivery] Queued invoice SMS for sale ${invNo} to ${maskPhoneNumber(normPhone)}`);
+    return { success: true, queueId: queueRes.queueId, skipped: queueRes.skipped, reason: queueRes.reason };
   } catch (err) {
     // Non-negotiable protection: SMS failure MUST NEVER affect completed sale
     console.error('[SMS Delivery] Non-fatal error during post-sale SMS queuing:', err);
+    return { success: false, reason: 'EXCEPTION' };
+  }
+}
+
+/**
+ * Dispatches an individual queued SMS message immediately.
+ * Safe to invoke from background after() hooks post-sale.
+ */
+export async function dispatchQueuedSms(queueId: string): Promise<SmsSendResult | null> {
+  try {
+    const supabase = await createServerSupabaseClient();
+    const adminClient = createServerAdminClient() || supabase;
+
+    // Acquire lock: only claim if pending or failed
+    const { data: item, error: fetchErr } = await adminClient
+      .from('sms_notification_queue')
+      .select('*')
+      .eq('id', queueId)
+      .in('status', ['pending', 'failed'])
+      .maybeSingle();
+
+    if (fetchErr || !item) {
+      return null;
+    }
+
+    const { error: lockErr } = await adminClient
+      .from('sms_notification_queue')
+      .update({
+        status: 'processing',
+        last_attempt_at: new Date().toISOString(),
+        attempts: (item.attempts || 0) + 1,
+      })
+      .eq('id', item.id)
+      .in('status', ['pending', 'failed']);
+
+    if (lockErr) {
+      return null; // Concurrently claimed by another worker
+    }
+
+    const provider = getSmsProvider();
+    const sendOptions: SendSmsOptions = {
+      recipientPhone: item.recipient_phone,
+      messageType: item.message_type,
+      messageBody: item.message_body,
+      dltTemplateId: item.dlt_template_id || undefined,
+      variables: item.variables,
+      idempotencyKey: item.idempotency_key,
+      shopId: item.shop_id,
+    };
+
+    const result = await provider.send(sendOptions);
+
+    if (result.success) {
+      await adminClient
+        .from('sms_notification_queue')
+        .update({
+          status: result.status,
+          provider: provider.name,
+          provider_message_id: result.providerMessageId || null,
+          provider_response: result.rawResponse || null,
+          error_code: null,
+          error_message: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', item.id);
+
+      // Track usage against tenant subscription
+      await incrementSubscriptionUsage(item.shop_id, 'sms');
+    } else {
+      const currentAttempts = (item.attempts || 0) + 1;
+      const isMaxReached = currentAttempts >= (item.max_attempts || 3);
+      const backoffMinutes = currentAttempts === 1 ? 1 : currentAttempts === 2 ? 5 : 15;
+      const nextRetry = new Date();
+      nextRetry.setMinutes(nextRetry.getMinutes() + backoffMinutes);
+
+      await adminClient
+        .from('sms_notification_queue')
+        .update({
+          status: isMaxReached ? 'failed' : 'pending',
+          provider: provider.name,
+          error_code: result.errorCode || 'SEND_FAILED',
+          error_message: result.errorMessage || 'Failed to dispatch SMS',
+          next_retry_at: isMaxReached ? null : nextRetry.toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', item.id);
+    }
+
+    return result;
+  } catch (err: any) {
+    console.error(`[SMS Queue] Error in dispatchQueuedSms for ${queueId}:`, err?.message);
+    return null;
   }
 }
 
@@ -193,7 +287,22 @@ export async function processPendingSmsQueue(batchSize: number = 10): Promise<{
   const adminClient = createServerAdminClient() || supabase;
   const now = new Date().toISOString();
 
-  // 1. Fetch pending items whose retry time has arrived
+  // 1. Recover items stuck in 'processing' status for > 5 minutes
+  try {
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    await adminClient
+      .from('sms_notification_queue')
+      .update({
+        status: 'pending',
+        next_retry_at: now,
+      })
+      .eq('status', 'processing')
+      .lt('last_attempt_at', fiveMinutesAgo);
+  } catch (recoverErr) {
+    console.warn('[SMS Queue Worker] Warning during stuck-lock recovery:', recoverErr);
+  }
+
+  // 2. Fetch pending items whose retry time has arrived
   const { data: queueItems, error } = await adminClient
     .from('sms_notification_queue')
     .select('*')
@@ -251,6 +360,9 @@ export async function processPendingSmsQueue(batchSize: number = 10): Promise<{
           updated_at: new Date().toISOString(),
         })
         .eq('id', item.id);
+
+      // Track usage against tenant subscription
+      await incrementSubscriptionUsage(item.shop_id, 'sms');
     } else {
       failed++;
       const currentAttempts = item.attempts + 1;

@@ -33,12 +33,18 @@ export class Msg91SmsProvider implements SmsProvider {
       // If a template ID is configured, use flow; otherwise use basic transactional SMS
       const templateId = options.dltTemplateId || process.env.MSG91_DLT_TE_ID_INVOICE;
 
+      // MSG91 Flow API v5 format: POST https://control.msg91.com/api/v5/flow/
+      // Requires recipients array: [{ mobiles, ...variables }]
       const payload = {
         template_id: templateId,
         sender: senderId,
         short_url: '0',
-        mobiles: recipient,
-        ...options.variables,
+        recipients: [
+          {
+            mobiles: recipient,
+            ...(options.variables || {}),
+          },
+        ],
       };
 
       const response = await fetch('https://control.msg91.com/api/v5/flow/', {
