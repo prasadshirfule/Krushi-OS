@@ -11,6 +11,7 @@ export interface CustomerLedgerEntry {
   transaction_type?: string;
   description?: string;
   particulars?: string;
+  reference_type?: string;
   reference_id?: string;
   invoice_number?: string;
   debit?: number | string | null;
@@ -34,34 +35,72 @@ export interface StatementOptions {
 }
 
 /**
- * Validates the arithmetic integrity of customer ledger entries.
- * Formula: Opening Balance + Total Debits - Total Credits === Closing Balance
+ * Determines whether a ledger entry represents the customer's opening balance / initial udhari adjustment.
+ */
+export function isOpeningBalanceEntry(entry: Partial<CustomerLedgerEntry>): boolean {
+  if (!entry) return false;
+  const refType = (entry.reference_type || '').toUpperCase();
+  const desc = (entry.particulars || entry.description || '').toLowerCase();
+
+  if (
+    refType === 'ADJUSTMENT' &&
+    (desc.includes('opening') || desc.includes('udhari') || desc.includes('initial') || desc.includes('balance'))
+  ) {
+    return true;
+  }
+  if (desc.includes('opening balance') || desc.includes('previous udhari')) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Validates the arithmetic integrity of customer ledger entries with ZERO double-counting.
+ * Formula: Opening Balance + Total Purchases (Debits) - Total Payments (Credits) === Closing Balance
+ *
+ * If the entries list contains an opening balance entry (e.g. initial ADJUSTMENT / Previous Udhari),
+ * its debit amount represents the customer's opening balance and is NOT counted as new purchases.
  */
 export function verifyLedgerBalance(
   openingBalance: number,
   entries: CustomerLedgerEntry[]
 ): {
   isValid: boolean;
+  computedOpeningBalance: number;
   computedTotalDebit: number;
   computedTotalCredit: number;
   computedClosingBalance: number;
 } {
+  let initialOpening = Number(openingBalance ?? 0) || 0;
   let totalDebit = 0;
   let totalCredit = 0;
+  let openingFoundInEntries = false;
 
   for (const entry of entries) {
     const debit = Number(entry.debit ?? 0) || 0;
     const credit = Number(entry.credit ?? 0) || 0;
+
+    if (!openingFoundInEntries && isOpeningBalanceEntry(entry)) {
+      openingFoundInEntries = true;
+      // If openingBalance parameter was passed as 0, derive it from this entry
+      if (initialOpening === 0) {
+        initialOpening = debit > 0 ? debit : (credit > 0 ? -credit : 0);
+      }
+      // Do NOT add this opening balance to purchases/debits!
+      continue;
+    }
+
     totalDebit += debit;
     totalCredit += credit;
   }
 
-  const computedClosingBalance = Math.round((openingBalance + totalDebit - totalCredit) * 100) / 100;
+  const computedClosingBalance = Math.round((initialOpening + totalDebit - totalCredit) * 100) / 100;
   totalDebit = Math.round(totalDebit * 100) / 100;
   totalCredit = Math.round(totalCredit * 100) / 100;
 
   return {
     isValid: true,
+    computedOpeningBalance: Math.round(initialOpening * 100) / 100,
     computedTotalDebit: totalDebit,
     computedTotalCredit: totalCredit,
     computedClosingBalance,
@@ -81,8 +120,9 @@ export function generateCombinedInvoiceStatementPDF(
   // 1. Generate Page 1 (Canonical Invoice) preserving all existing invoice layout and styling
   const doc = generateInvoicePDF(sale, shopDetails);
 
-  // If statement data is provided with ledger entries, append Page 2+ Statement of Account
-  if (statementData && statementData.customer) {
+  // If statement data is provided with customer info AND customer is registered, append Page 2+ Statement of Account
+  const customerId = statementData?.customer?.id;
+  if (statementData && statementData.customer && customerId) {
     appendStatementPages(doc, sale, shopDetails, statementData);
   }
 
@@ -167,19 +207,21 @@ function appendStatementPages(
 
   cursorY += 22;
 
-  // Compute Balances
-  const openingBal = Number(statement.customer.opening_balance ?? 0) || 0;
-  const { computedTotalDebit, computedTotalCredit, computedClosingBalance } = verifyLedgerBalance(
-    openingBal,
-    statement.ledgerEntries
-  );
+  // Compute Balances with strict zero double-counting
+  const rawOpeningBal = Number(statement.customer.opening_balance ?? 0) || 0;
+  const {
+    computedOpeningBalance,
+    computedTotalDebit,
+    computedTotalCredit,
+    computedClosingBalance,
+  } = verifyLedgerBalance(rawOpeningBal, statement.ledgerEntries || []);
 
   // 4 Financial Summary Metric Cards
   const boxWidth = (contentWidth - 9) / 4;
   const boxHeight = 16;
 
   const boxes = [
-    { label: 'OPENING BALANCE', value: openingBal, color: [241, 245, 249], border: [203, 213, 225], text: [71, 85, 105] },
+    { label: 'OPENING BALANCE', value: computedOpeningBalance, color: [241, 245, 249], border: [203, 213, 225], text: [71, 85, 105] },
     { label: 'TOTAL PURCHASES (+)', value: computedTotalDebit, color: [254, 242, 242], border: [254, 202, 202], text: [185, 28, 28] },
     { label: 'TOTAL PAYMENTS (-)', value: computedTotalCredit, color: [240, 253, 244], border: [187, 247, 208], text: [21, 128, 61] },
     { label: 'CLOSING BALANCE', value: computedClosingBalance, color: [238, 242, 255], border: [199, 210, 254], text: [67, 56, 202] },
@@ -237,7 +279,7 @@ function appendStatementPages(
   cursorY += 7;
 
   // Table Rows
-  let runningBalance = openingBal;
+  let runningBalance = computedOpeningBalance;
   const entries = statement.ledgerEntries || [];
 
   if (entries.length === 0) {

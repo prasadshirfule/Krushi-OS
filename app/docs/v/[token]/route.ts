@@ -3,6 +3,8 @@ import { validateDocumentAccessToken } from '@/lib/documents/token-service';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { createServerAdminClient } from '@/lib/supabase/admin';
 import { generateCombinedInvoiceStatementPDF } from '@/lib/statement-generator';
+import { generateInvoicePDF } from '@/lib/invoice';
+import { checkRateLimit } from '@/lib/security/rate-limiter';
 
 export async function GET(
   request: Request,
@@ -14,11 +16,28 @@ export async function GET(
       return new NextResponse('Invalid document token', { status: 400 });
     }
 
-    const ip = request.headers.get('x-forwarded-for') || undefined;
+    const forwardedFor = request.headers.get('x-forwarded-for');
+    const clientIp = forwardedFor ? forwardedFor.split(',')[0].trim() : 'anonymous';
     const userAgent = request.headers.get('user-agent') || undefined;
 
+    // Rate limiting: 30 requests per minute per IP for public document viewer
+    const rateLimit = await checkRateLimit(`doc:${clientIp}`, {
+      windowMs: 60 * 1000,
+      maxRequests: 30,
+    });
+
+    if (!rateLimit.success) {
+      return new NextResponse('Too many requests. Please wait a minute before viewing this document again.', {
+        status: 429,
+        headers: {
+          'Retry-After': '60',
+          'Content-Type': 'text/plain; charset=utf-8',
+        },
+      });
+    }
+
     // 1. Validate token with cryptographic SHA-256 hash lookup and audit logging
-    const tokenRecord = await validateDocumentAccessToken(token, { ip, userAgent });
+    const tokenRecord = await validateDocumentAccessToken(token, { ip: clientIp, userAgent });
 
     if (!tokenRecord) {
       return new NextResponse(
@@ -76,24 +95,6 @@ export async function GET(
       .eq('id', tokenRecord.shop_id)
       .single();
 
-    // Fetch customer ledger entries if customer exists
-    let ledgerEntries: any[] = [];
-    const customerId = sale.customer_id || sale.customer?.id;
-
-    if (customerId) {
-      const { data: entries } = await adminClient
-        .from('customer_ledger')
-        .select('*')
-        .eq('customer_id', customerId)
-        .eq('shop_id', tokenRecord.shop_id)
-        .order('created_at', { ascending: true })
-        .limit(100);
-
-      if (entries) {
-        ledgerEntries = entries;
-      }
-    }
-
     const shopSettings = {
       shop_name: shop?.name || 'KRUSHI OS Store',
       shop_address: shop?.address || '',
@@ -107,6 +108,38 @@ export async function GET(
       account_number: shop?.bank_account_number || '',
       ifsc: shop?.bank_ifsc || '',
     };
+
+    const invNo = sale.invoice_number || sale.id.substring(0, 8);
+    const customerId = sale.customer_id || sale.customer?.id;
+
+    // For cash / walk-in sales without registered customer, serve ONLY canonical single-page Tax Invoice
+    if (!customerId) {
+      const doc = generateInvoicePDF(sale, shopSettings);
+      const pdfBuffer = Buffer.from(doc.output('arraybuffer'));
+
+      return new NextResponse(pdfBuffer, {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/pdf',
+          'Content-Disposition': `inline; filename="Invoice-${invNo}.pdf"`,
+          'Cache-Control': 'private, no-cache, no-store, must-revalidate',
+        },
+      });
+    }
+
+    // For registered customer sales, fetch ledger history (up to 500 entries in chronological order)
+    let ledgerEntries: any[] = [];
+    const { data: entries } = await adminClient
+      .from('customer_ledger')
+      .select('*')
+      .eq('customer_id', customerId)
+      .eq('shop_id', tokenRecord.shop_id)
+      .order('created_at', { ascending: true })
+      .limit(500);
+
+    if (entries) {
+      ledgerEntries = entries;
+    }
 
     const statementData = {
       customer: {
@@ -124,7 +157,6 @@ export async function GET(
     // 3. Generate combined PDF: Page 1 = Canonical Invoice, Page 2+ = Customer Statement
     const doc = generateCombinedInvoiceStatementPDF(sale, shopSettings, statementData);
     const pdfBuffer = Buffer.from(doc.output('arraybuffer'));
-    const invNo = sale.invoice_number || sale.id.substring(0, 8);
 
     return new NextResponse(pdfBuffer, {
       status: 200,
