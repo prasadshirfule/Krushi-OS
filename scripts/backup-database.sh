@@ -29,7 +29,23 @@ pg_dump -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_USER}" -d "${DB_NAME}" --no-own
 
 if [ -f "${ARCHIVE_FILE}" ]; then
   FILESIZE=$(ls -lh "${ARCHIVE_FILE}" | awk '{print $5}')
-  echo "✓ Backup successful! Archive size: ${FILESIZE}"
+  echo "✓ Dump successful! Archive size: ${FILESIZE}"
+
+  # Optional GPG encryption with AES256
+  if [ -n "${BACKUP_ENCRYPTION_PASSPHRASE:-}" ] && command -v gpg &> /dev/null; then
+    echo "Encrypting backup archive with AES256 via GPG..."
+    gpg --symmetric --cipher-algo AES256 --batch --yes --passphrase "${BACKUP_ENCRYPTION_PASSPHRASE}" "${ARCHIVE_FILE}"
+    rm -f "${ARCHIVE_FILE}"
+    ARCHIVE_FILE="${ARCHIVE_FILE}.gpg"
+    echo "✓ Encrypted target: ${ARCHIVE_FILE}"
+  fi
+
+  # Optional off-site sync to S3 bucket
+  if [ -n "${BACKUP_S3_BUCKET:-}" ] && command -v aws &> /dev/null; then
+    echo "Uploading to S3: s3://${BACKUP_S3_BUCKET}/backups/..."
+    aws s3 cp "${ARCHIVE_FILE}" "s3://${BACKUP_S3_BUCKET}/backups/"
+    echo "✓ Off-site upload complete!"
+  fi
 else
   echo "Error: Backup file was not generated."
   exit 1

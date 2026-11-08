@@ -36,6 +36,22 @@ Write-Host "Executing pg_dump from $Host:$Port ($Database)..."
 if (Test-Path $SqlFile) {
   $fileSize = (Get-Item $SqlFile).Length
   Write-Host "✓ Dump successful! Size: $([math]::Round($fileSize / 1KB, 2)) KB" -ForegroundColor Green
+
+  # Optional GPG encryption
+  if ($env:BACKUP_ENCRYPTION_PASSPHRASE -and (Get-Command gpg -ErrorAction SilentlyContinue)) {
+    Write-Host "Encrypting dump via GPG AES256..."
+    & gpg --symmetric --cipher-algo AES256 --batch --yes --passphrase $env:BACKUP_ENCRYPTION_PASSPHRASE $SqlFile
+    Remove-Item $SqlFile -Force
+    $SqlFile = "$SqlFile.gpg"
+    Write-Host "✓ Encrypted: $SqlFile" -ForegroundColor Green
+  }
+
+  # Optional S3 off-site sync
+  if ($env:BACKUP_S3_BUCKET -and (Get-Command aws -ErrorAction SilentlyContinue)) {
+    Write-Host "Uploading to s3://$($env:BACKUP_S3_BUCKET)/backups/..."
+    & aws s3 cp $SqlFile "s3://$($env:BACKUP_S3_BUCKET)/backups/"
+    Write-Host "✓ S3 upload completed!" -ForegroundColor Green
+  }
 } else {
   Write-Error "Backup file was not created!"
 }

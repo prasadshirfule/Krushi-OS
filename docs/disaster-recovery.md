@@ -4,11 +4,11 @@
 
 KRUSHI OS operates as a multi-tenant retail ERP and billing platform for independent Krushi Seva Kendras in India. Preserving business data, statutory GST invoices, and farmer credit ledgers is paramount.
 
-| Parameter | Standard SLA Target | Notes |
-| :--- | :--- | :--- |
-| **RPO (Recovery Point Objective)** | **1 Hour** | Maximum allowable data loss in the event of catastrophic data center loss. |
-| **RTO (Recovery Time Objective)** | **4 Hours** | Maximum elapsed time to provision replacement infrastructure and restore data. |
-| **Backup Retention** | **7 Years** | Matches Section 36 of the Central Goods and Services Tax Act, 2017 (72 months). |
+| Parameter | Self-Managed Daily Cold Backup | Supabase Pro Tier (PITR) | Statutory / Regulatory Notes |
+| :--- | :--- | :--- | :--- |
+| **RPO (Recovery Point Objective)** | **24 Hours** (Nightly dump) | **< 5 Minutes** (WAL-G stream) | Acceptable for retail stores; Pro tier recommended for high-volume Kendras |
+| **RTO (Recovery Time Objective)** | **2 to 4 Hours** (Restore from dump) | **< 1 Hour** (Automated snapshot) | Elapsed time to restore database and switch connection strings |
+| **Backup Retention** | **7 Years** (Encrypted S3/Glacier) | **7 to 30 Days** (Live console) | Section 36 of CGST Act 2017 requires 72 months record preservation |
 
 ---
 

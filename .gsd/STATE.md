@@ -28,7 +28,16 @@
     6. Full statutory Indian legal pages compliant with DPDP Act 2023, IT Act 2000, and TRAI DLT (`/privacy`, `/terms`, `/refund-policy`, `/billing-policy`, `/cookie-policy`, `/data-processing`, `/acceptable-use`, `/grievance`, `/data-request`).
     7. Public marketing & SEO pages (`/features`, `/pricing`, `/about`, `/contact`, `/support`), `robots.ts` with strict disallow on private ERP routes, and `sitemap.ts`.
     8. Production health probe (`/api/health`), structured JSON logging (`lib/logging/logger.ts`), and disaster recovery runbook (`docs/disaster-recovery.md`).
-    9. Automated test suites (`npm test`) covering SMS queue, combined statements, tenant isolation, RBAC permissions, subscription lifecycle, and compliance pages (12/12 suites passing).
+    9. Automated test suites covering SMS queue, combined statements, tenant isolation, RBAC permissions, subscription lifecycle, and compliance pages (12/12 suites passing).
+    10. Critical Audit Remediation & Hardening:
+        - Financial Statement Double-Counting Elimination: Deduplicated opening balance adjustment entries in `lib/statement-generator.ts` and `app/docs/v/[token]/route.ts`. Added cash-only single-page invoice bypass and 500-entry statement fetch.
+        - MSG91 Flow API v5 Specification: Restructured payload to strict `recipients: [{ mobiles, ...variables }]` array format.
+        - SMS Queue Immediate Dispatch & Cron Worker: Implemented `dispatchQueuedSms`, 5-minute orphan worker recovery, `app/api/cron/process-sms/route.ts` secured with `CRON_SECRET`, and `vercel.json` cron config.
+        - SaaS Subscription Gating: Added `ENABLE_SUBSCRIPTION_ENFORCEMENT` flag (disabled by default) and hooked usage increment tracking to sales and SMS engines.
+        - Distributed Rate Limiting: Enhanced `lib/security/rate-limiter.ts` with Upstash Redis HTTP REST support and memory fallback; wired to `/docs/v/[token]`.
+        - Security & Migrations: Created `supabase/migrations/024_subscription_backfill_and_fixes.sql` adding `document_access_logs` INSERT policy and backfill for existing shops.
+        - UI: Built `components/sales/sms-delivery-card.tsx` with resend trigger in `sale-detail-view.tsx`.
+        - All 18 automated test suites passing (18/18). Zero TypeScript errors. Zero ESLint errors.
   - `ed05abb`: Implement sale cancellation and return UI in [components/sales/sale-detail-view.tsx](file:///e:/antigravity/scratch/krushi-os/components/sales/sale-detail-view.tsx) and [actions/sales.ts](file:///e:/antigravity/scratch/krushi-os/actions/sales.ts).
   - Migration 015: Customer portal returns RLS security rules.
   - Implemented 6-Issue Core Fixes:

@@ -35,7 +35,7 @@ const securityHeaders = [
       "img-src 'self' data: blob: https://*.supabase.co https://*.googleusercontent.com",
       "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.github.com https://control.msg91.com",
       "frame-ancestors 'none'",
-      "object-src 'none'",
+      "object-src 'self' blob: data:",
       "base-uri 'self'",
       "form-action 'self'",
     ].join('; '),

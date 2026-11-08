@@ -42,6 +42,7 @@ import { getSavedShopDetails } from '@/lib/shop-details';
 import SaleReturnDialog from '@/components/billing/sale-return-dialog';
 import { formatCurrency } from '@/lib/utils';
 import { getSaleActionAvailability } from '@/lib/sale-status';
+import { SmsDeliveryCard } from './sms-delivery-card';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { format, parseISO } from 'date-fns';
@@ -359,6 +360,11 @@ export function SaleDetailView({ initialSale, saleId, sale: directSale }: SaleDe
             />
           </div>
         </div>
+      </div>
+
+      {/* ─── TRANSACTIONAL SMS NOTIFICATION CARD (NO PRINT) ─── */}
+      <div className="max-w-[210mm] mx-auto px-4 print:hidden">
+        <SmsDeliveryCard sale={activeSale} />
       </div>
 
       {/* ─── PHYSICAL INVOICE RENDERER (SCREEN PREVIEW & PRINT) ─── */}
