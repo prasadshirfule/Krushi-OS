@@ -39,6 +39,15 @@ export interface ShopSubscriptionDetails {
 }
 
 /**
+ * Flag indicating whether subscription quota and status enforcement is enabled.
+ * Defaults to FALSE to prevent disruption until commercial pricing and terms
+ * are explicitly finalized by the business owner.
+ */
+export function isSubscriptionEnforcementEnabled(): boolean {
+  return process.env.ENABLE_SUBSCRIPTION_ENFORCEMENT === 'true';
+}
+
+/**
  * Resolves the active subscription for a shop, including plan parameters,
  * computed grace-period status, and permission to perform mutations.
  */
@@ -118,8 +127,11 @@ export async function getShopSubscription(
   const invoiceLimit = plan.max_monthly_invoices;
   const isInvoiceQuotaExceeded = invoiceLimit ? (sub.invoices_used_in_period || 0) >= invoiceLimit : false;
 
-  const canCreateInvoice = !isReadOnly && !isInvoiceQuotaExceeded;
-  const canCreateProduct = !isReadOnly;
+  // Subscription enforcement guard (disabled by default until commercial parameters are approved)
+  const isEnforced = isSubscriptionEnforcementEnabled();
+  const canCreateInvoice = isEnforced ? (!isReadOnly && !isInvoiceQuotaExceeded) : true;
+  const canCreateProduct = isEnforced ? !isReadOnly : true;
+  const effectiveReadOnly = isEnforced ? isReadOnly : false;
 
   const msRemaining = Math.max(0, periodEnd.getTime() - now.getTime());
   const daysRemainingInPeriod = Math.ceil(msRemaining / (1000 * 60 * 60 * 24));
@@ -136,7 +148,7 @@ export async function getShopSubscription(
     invoices_used_in_period: sub.invoices_used_in_period || 0,
     sms_used_in_period: sub.sms_used_in_period || 0,
     plan,
-    isReadOnly,
+    isReadOnly: effectiveReadOnly,
     isGracePeriod: isGraceActive,
     canCreateInvoice,
     canCreateProduct,

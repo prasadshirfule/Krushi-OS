@@ -5,7 +5,8 @@ import { after } from 'next/server';
 import { getAuthAndPermissions } from '@/lib/auth-helper';
 import { saleSchema, saleCancelSchema, saleReturnSchema } from '@/lib/validations';
 import * as salesService from '@/services/sales.service';
-import { queueInvoiceNotification } from '@/services/sms.service';
+import { queueInvoiceNotification, dispatchQueuedSms } from '@/services/sms.service';
+import { getShopSubscription, incrementSubscriptionUsage } from '@/services/subscription.service';
 import { normalizeIndianMobile } from '@/lib/phone-utils';
 import { getShopProfile } from '@/services/settings.service';
 import { ActionResult } from './types';
@@ -44,6 +45,15 @@ export async function completeSaleAction(data: any): Promise<ActionResult<any>> 
   try {
     const userData = await getAuthAndPermissions('sales.create');
     
+    // 1. Subscription quota check (fail-safe gated by ENABLE_SUBSCRIPTION_ENFORCEMENT)
+    const subscription = await getShopSubscription(userData.shop_id);
+    if (!subscription.canCreateInvoice) {
+      return {
+        success: false,
+        error: 'Invoice limit reached for your active subscription plan. Please upgrade to continue billing.',
+      };
+    }
+
     if (!isPlaceholderMode()) {
       const validated = saleSchema.safeParse(data);
       if (!validated.success) {
@@ -61,18 +71,27 @@ export async function completeSaleAction(data: any): Promise<ActionResult<any>> 
       console.warn('[SMS Delivery] Could not fetch shop profile in action context:', profileErr);
     }
 
-    // Schedule post-response transactional SMS invoice notification using Next.js after()
+    // Schedule post-response transactional SMS invoice notification and usage tracking using Next.js after()
     try {
       if (typeof after === 'function') {
         after(async () => {
           try {
-            await queueInvoiceNotification({
+            const queueRes = await queueInvoiceNotification({
               sale: result,
               shopId: userData.shop_id,
               shopDetails: shopProfile,
             });
+            if (queueRes?.queueId) {
+              await dispatchQueuedSms(queueRes.queueId);
+            }
           } catch (bgErr) {
             console.error('[SMS Delivery Background Error]:', bgErr);
+          }
+
+          try {
+            await incrementSubscriptionUsage(userData.shop_id, 'invoice');
+          } catch (usageErr) {
+            console.warn('[Subscription] Usage increment error:', usageErr);
           }
         });
       }
@@ -316,18 +335,22 @@ export async function resendInvoiceSmsAction(saleId: string): Promise<ActionResu
       console.warn('[SMS Resend] Could not fetch shop profile:', profileErr);
     }
 
-    await queueInvoiceNotification({
+    const queueRes = await queueInvoiceNotification({
       sale,
       shopId: userData.shop_id,
       shopDetails: shopProfile,
     });
+
+    if (queueRes?.queueId) {
+      await dispatchQueuedSms(queueRes.queueId);
+    }
 
     return {
       success: true,
       data: {
         success: true,
         status: 'QUEUED',
-        message: 'Invoice SMS notification queued for delivery',
+        message: 'Invoice SMS notification dispatched for delivery',
       },
     };
   } catch (error: any) {

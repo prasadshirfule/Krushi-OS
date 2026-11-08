@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { getAuthAndPermissions } from '@/lib/auth-helper';
 import { ProductFormData, CategoryFormData, BrandFormData } from '@/lib/validations';
 import * as productsService from '@/services/products.service';
+import { getShopSubscription } from '@/services/subscription.service';
 import { ActionResult } from './types';
 
 export async function getProductsAction(params: any): Promise<ActionResult<any>> {
@@ -29,6 +30,16 @@ export async function getProductAction(id: string): Promise<ActionResult<any>> {
 export async function createProductAction(formData: ProductFormData): Promise<ActionResult<any>> {
   try {
     const userData = await getAuthAndPermissions('products.create');
+
+    // Subscription plan quota / status enforcement check
+    const subscription = await getShopSubscription(userData.shop_id);
+    if (!subscription.canCreateProduct) {
+      return {
+        success: false,
+        error: 'Product creation is disabled because your shop subscription is suspended or expired.',
+      };
+    }
+
     const result = await productsService.createProduct(userData.shop_id, formData, userData.id);
     revalidatePath('/products');
     revalidatePath('/inventory');
